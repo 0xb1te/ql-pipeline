@@ -1,17 +1,7 @@
-import { exec as nodeExec } from 'node:child_process';
-import { promisify } from 'node:util';
+import { defaultCommandExecutor, type CommandExecutor } from '../shared/exec.js';
 import type { Area, AreaGate, GateOutcome } from '../shared/types.js';
 
-const execAsync = promisify(nodeExec);
-
-/**
- * Runs a single command and resolves/rejects the way `child_process.exec`
- * does. Injectable so tests never actually shell out; production code uses
- * the real `child_process.exec` via `defaultExecutor`.
- */
-export type CommandExecutor = (command: string, options: { cwd: string }) => Promise<{ stdout: string; stderr: string }>;
-
-const defaultExecutor: CommandExecutor = async (command, options) => execAsync(command, options);
+export type { CommandExecutor } from '../shared/exec.js';
 
 export interface RunGatesOptions {
   readonly cwd: string;
@@ -29,7 +19,7 @@ export interface RunGatesOptions {
  * string, which nothing here does.
  */
 export async function runGates(gates: readonly AreaGate[], options: RunGatesOptions): Promise<GateOutcome[]> {
-  const exec = options.exec ?? defaultExecutor;
+  const exec = options.exec ?? defaultCommandExecutor;
   const outcomes: GateOutcome[] = [];
 
   for (const gate of gates) {

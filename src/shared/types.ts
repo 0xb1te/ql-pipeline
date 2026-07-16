@@ -108,3 +108,20 @@ export interface GateOutcome {
   readonly passed: boolean;
   readonly output: string;
 }
+
+export type Severity = 'must' | 'should' | 'security';
+
+export interface Finding {
+  readonly severity: Severity;
+  readonly rule: string;
+  readonly file: string;
+  readonly line: number;
+  readonly problem: string;
+  readonly suggestedFix: string | null;
+  readonly autoFixable: boolean;
+}
+
+export interface ReviewVerdict {
+  readonly verdict: 'PASS' | 'FAIL';
+  readonly findings: readonly Finding[];
+}

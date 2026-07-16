@@ -1,0 +1,61 @@
+name: PR Pipeline
+
+# This is the product: a reusable workflow other repos call by reference
+# (see docs/integration-guide.md, Phase 5). It never runs on its own — a
+# caller workflow (a consumer repo's, or this repo's own dogfood.yml,
+# Phase 5) triggers it with `uses:`.
+on:
+  workflow_call:
+    inputs:
+      config-path:
+        description: Path to the pipeline config file, resolved in the calling repository.
+        type: string
+        default: .github/pipeline.config.yml
+      ql-pipeline-ref:
+        description: Git ref of ql-pipeline to run. Pin a tag/sha in production consumers.
+        type: string
+        default: main
+    secrets:
+      CURSOR_API_KEY:
+        description: Cursor CLI API key. Required from Phase 3 (AI review) onward; unused today.
+        required: true
+      GH_TOKEN:
+        description: Token used to read PR data and manage labels/commits. Falls back to the calling workflow's default GITHUB_TOKEN.
+        required: false
+
+jobs:
+  govern:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+
+      - name: Checkout ql-pipeline
+        uses: actions/checkout@v4
+        with:
+          repository: 0xb1te/ql-pipeline
+          ref: ${{ inputs.ql-pipeline-ref }}
+          path: .ql-pipeline
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: .ql-pipeline/package-lock.json
+
+      - name: Install and build ql-pipeline
+        working-directory: .ql-pipeline
+        run: |
+          npm ci
+          npm run build
+
+      - name: Run pipeline
+        run: node .ql-pipeline/dist/main.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+          PIPELINE_CONFIG_PATH: ${{ inputs.config-path }}
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}

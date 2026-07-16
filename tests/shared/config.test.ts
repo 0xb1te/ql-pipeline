@@ -64,6 +64,15 @@ describe('parseConfig', () => {
     expect(() => parseConfig('merge: [unterminated')).toThrow(ConfigError);
   });
 
+  it('allows a gate to configure only build, or only test', () => {
+    const config = parseConfig(
+      'gates:\n  frontend:\n    build: "npm run build"\n  backend:\n    test: "npm test"\nmerge:\n  target_branch: main\n',
+    );
+
+    expect(config.gates['frontend']).toEqual({ build: 'npm run build' });
+    expect(config.gates['backend']).toEqual({ test: 'npm test' });
+  });
+
   it('rejects an unrecognized area under gates', () => {
     expect(() =>
       parseConfig('gates:\n  desktop:\n    build: "make"\nmerge:\n  target_branch: main\n'),
@@ -94,6 +103,21 @@ describe('parseConfig', () => {
 
   it('rejects a non-array required_checks', () => {
     expect(() => parseConfig('merge:\n  target_branch: main\n  required_checks: build')).toThrow(ConfigError);
+  });
+
+  it('defaults protected_paths when the fixer section is present but omits it', () => {
+    const config = parseConfig('merge:\n  target_branch: main\nfixer:\n  max_fix_attempts: 5\n');
+
+    expect(config.fixer).toEqual({
+      maxFixAttempts: 5,
+      protectedPaths: ['rules/', 'prompts/', 'pipeline.config.yml', '.github/workflows/'],
+    });
+  });
+
+  it('rejects a non-numeric max_fix_attempts', () => {
+    expect(() => parseConfig('merge:\n  target_branch: main\nfixer:\n  max_fix_attempts: "three"')).toThrow(
+      /must be a number/,
+    );
   });
 
   it('rejects a non-integer max_fix_attempts', () => {

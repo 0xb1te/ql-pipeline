@@ -19,8 +19,10 @@ function finding(overrides: Partial<Finding> = {}): Finding {
 function fakeClient(): GithubClient {
   return {
     listCommitMessages: vi.fn().mockResolvedValue([]),
+    listChangedFiles: vi.fn().mockResolvedValue([]),
     getPullRequestDetails: vi.fn().mockResolvedValue({ description: '', diff: '' }),
     addLabels: vi.fn().mockResolvedValue(undefined),
+    postComment: vi.fn().mockResolvedValue(undefined),
     approveWithComments: vi.fn().mockResolvedValue(undefined),
     requestChangesWithComments: vi.fn().mockResolvedValue(undefined),
     mergePullRequest: vi.fn().mockResolvedValue(undefined),
@@ -95,8 +97,10 @@ describe('executeMergeDecision', () => {
     const order: string[] = [];
     const client: GithubClient = {
       listCommitMessages: vi.fn().mockResolvedValue([]),
+      listChangedFiles: vi.fn().mockResolvedValue([]),
       getPullRequestDetails: vi.fn().mockResolvedValue({ description: '', diff: '' }),
       addLabels: vi.fn().mockResolvedValue(undefined),
+      postComment: vi.fn().mockResolvedValue(undefined),
       approveWithComments: vi.fn().mockImplementation(() => {
         order.push('approve');
         return Promise.resolve();

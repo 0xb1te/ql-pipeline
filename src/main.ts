@@ -10,6 +10,8 @@ import { executeMergeDecision, findingToReviewComment } from './merger/merger.js
 import { runReview } from './reviewer/reviewer.js';
 import { allGatesPassed, runGates } from './router/gate-runner.js';
 import { determineRoute } from './router/router.js';
+import { touchesProtectedPaths } from './router/self-protection.js';
+import { formatAuditSummary } from './shared/audit-summary.js';
 import { loadConfig } from './shared/config.js';
 import { createGithubClient, readPullRequestContext, type ActionsEventContext } from './shared/github-client.js';
 import { createLogger } from './shared/logger.js';
@@ -77,6 +79,24 @@ async function main(): Promise<void> {
     route.decision.areas.map((area) => `area:${area}`),
   );
 
+  // RULES.md R4 / AGENT.md invariant #5: the pipeline never auto-merges or
+  // auto-fixes changes to its own governance paths, structurally — not by
+  // trusting the AI review to notice. This check runs before gates/review
+  // so a protected-path PR never even reaches the AI.
+  const changedFiles = await client.listChangedFiles(pr);
+  if (touchesProtectedPaths(changedFiles, config.fixer.protectedPaths)) {
+    logger.error('PR touches protected pipeline-governance paths; always requires a human', {
+      protectedPaths: config.fixer.protectedPaths,
+    });
+    await client.addLabels(pr, ['needs-human']);
+    await client.postComment(
+      pr,
+      'This PR touches pipeline-governance paths (rules, prompts, config, or workflows) and always requires human review — the pipeline never auto-merges or auto-fixes changes to its own laws (RULES.md R4).',
+    );
+    core.setFailed('PR touches protected paths and requires human review');
+    return;
+  }
+
   const gateOutcomes = await runGates(route.decision.gates, { cwd: process.cwd() });
   for (const outcome of gateOutcomes) {
     logger.info(`gate ${outcome.area}/${outcome.gate}: ${outcome.passed ? 'passed' : 'FAILED'}`);
@@ -116,7 +136,20 @@ async function main(): Promise<void> {
   }
 
   const attemptsSoFar = countFixAttempts(commitMessages);
+  const attemptNumber = attemptsSoFar + 1;
   const decision = decidePipelineOutcome({ findings, attemptsSoFar, maxFixAttempts: config.fixer.maxFixAttempts });
+
+  await client.postComment(
+    pr,
+    formatAuditSummary({
+      areas: route.decision.areas,
+      gateOutcomes,
+      findingCount: findings.length,
+      decision,
+      attemptNumber,
+      maxFixAttempts: config.fixer.maxFixAttempts,
+    }),
+  );
 
   if (decision.kind === 'MERGE') {
     await executeMergeDecision(client, pr, decision.advisoryFindings, config.merge);
@@ -127,7 +160,6 @@ async function main(): Promise<void> {
   // FIX and BLOCK both mean something is wrong; post the complaint either
   // way so a human sees exactly what, rather than having to dig through
   // Action logs (whether it's day-one-unfixable, or attempts exhausted).
-  const attemptNumber = attemptsSoFar + 1;
   const summary = formatComplaintSummary(decision.findings, attemptNumber, config.fixer.maxFixAttempts);
   await client.requestChangesWithComments(pr, summary, decision.findings.map(findingToReviewComment));
 

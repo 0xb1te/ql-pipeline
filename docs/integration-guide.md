@@ -1,0 +1,95 @@
+# Integration guide
+
+How another repo adopts ql-pipeline to govern its pull requests. ql-pipeline ships as a **GitHub reusable workflow** — you never vendor its code, only call it by reference.
+
+## 1. Add the caller workflow
+
+Create `.github/workflows/pr-governance.yml` in your repo:
+
+```yaml
+name: PR Governance
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: pr-pipeline-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  govern:
+    uses: 0xb1te/ql-pipeline/.github/workflows/pr-pipeline.yml@main
+    secrets:
+      CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+```
+
+- **Pin `@main` to a tag or SHA in production** once ql-pipeline has releases — `@main` tracks the latest commit, which is fine for trying it out but not for a repo whose merges depend on it staying stable.
+- **The `concurrency` block is your responsibility, not ql-pipeline's.** A new commit pushed to a PR should cancel the in-flight run for the old one (including a stale fix-loop attempt) — the reusable workflow doesn't declare this for you since it's a property of *your* workflow, not the called one.
+- **Required secret:** `CURSOR_API_KEY`, used by both the reviewer and the fixer.
+- **Optional secret:** `GH_TOKEN` — omit it and the reusable workflow falls back to the default `GITHUB_TOKEN`; supply your own if you need the fixer's commits to trigger other workflows (the default token's actions don't re-trigger `on: push`/`on: pull_request` events, which is usually what you want anyway).
+
+## 2. Branch protection
+
+Add the workflow's check (`govern`) as a **required status check** on your target branch. ql-pipeline approves and merges through the normal GitHub API — branch protection is the actual enforcement layer; the pipeline works with it, never around it.
+
+## 3. Conventional commits
+
+Every PR must have at least one commit — or, failing that, a PR title — matching:
+
+```
+<type>(<area>): <description>
+type ::= feat | fix | refactor | perf | chore | docs | test | ci | build | revert
+area ::= frontend | backend | mobile | ios | android | infrastructure | docs
+```
+
+A PR where neither any commit nor the title matches is unrouteable and fails the check immediately with an explanatory comment — the AI never reviews something it can't route.
+
+## 4. Configuring gates, merge behavior, and the fix loop
+
+Add `.github/pipeline.config.yml` (the path the caller snippet above uses by default; override via the `config-path` input if you keep it elsewhere):
+
+```yaml
+gates:
+  frontend:
+    build: "npm ci && npm run build"
+    test: "npm run test -- --ci"
+  backend:
+    build: "npm ci && npm run build"
+    test: "npm run test:unit"
+  # An area with no entry here simply has no gate — that's valid, not an
+  # error, for areas that don't apply to your repo (e.g. no android/ code).
+
+merge:
+  target_branch: main       # required — no safe default
+  method: merge             # squash | merge | rebase (default: merge)
+  delete_branch: true       # default: true
+  required_checks: [build, test, ai-review]   # default shown
+
+fixer:
+  max_fix_attempts: 3       # default: 3
+  protected_paths:          # default shown — paths the fix agent can never touch,
+    - .github/workflows/    # reverted structurally even if the agent edits them
+    - .github/pipeline.config.yml
+    - .github/pipeline-rules/
+```
+
+Every key under `merge:` and `fixer:` has the sensible default shown above and can be omitted. `gates:` has no fallback of its own — an area with no configured gate is simply ungated for that area, since ql-pipeline has no way to guess your build/test commands.
+
+## 5. Overriding rules per area
+
+ql-pipeline ships default rule sets for all seven areas (`rules/*.rules` in the ql-pipeline repo — read them there to see what applies out of the box). To replace an area's rules entirely, add a file at:
+
+```
+.github/pipeline-rules/<area>.rules
+```
+
+e.g. `.github/pipeline-rules/backend.rules`. If present, it **fully replaces** ql-pipeline's shipped rules for that area (no partial merge — an all-or-nothing override avoids ambiguity about which rule "wins"). Areas you don't override keep the shipped defaults. `_common.rules` (secrets, hallucination grounding, commit hygiene) always applies and isn't overridable per-area.
+
+## 6. What to expect on a PR
+
+- **Labels:** `area:<area>` for every matched area; `needs-human` when the pipeline can't resolve something itself.
+- **A summary comment** on every run: areas, gate results, finding count, and the decision (MERGE / FIX / BLOCK).
+- **A request-changes review** when there's something to fix or block, with one inline comment per finding plus a top-level summary (attempt N of your configured max).
+- **Bot commits** on the PR branch look like `fix(<area>): resolve pipeline complaint (attempt N) [bot]` — each one re-triggers the pipeline.
+- **PRs that touch `.github/workflows/`, `.github/pipeline.config.yml`, or `.github/pipeline-rules/`** always route to `needs-human` regardless of anything else — the pipeline cannot approve changes to its own governance.

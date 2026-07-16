@@ -1,0 +1,22 @@
+name: Dogfood
+
+# ql-pipeline governs its own PRs through the exact same reusable workflow
+# any consumer repo calls (docs/integration-guide.md) — the only difference
+# is `config-path`, since this repo keeps its own config at the root
+# (pipeline.config.yml) rather than under .github/, and the local `uses:`
+# reference instead of a cross-repo one.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: pr-pipeline-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  govern:
+    uses: ./.github/workflows/pr-pipeline.yml
+    with:
+      config-path: pipeline.config.yml
+    secrets:
+      CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}

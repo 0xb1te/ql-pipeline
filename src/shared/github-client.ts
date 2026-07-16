@@ -58,8 +58,10 @@ export interface PullRequestDetails {
 // callbacks with no `this`, not methods that rely on binding.
 export interface GithubClient {
   listCommitMessages: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>) => Promise<string[]>;
+  listChangedFiles: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>) => Promise<string[]>;
   getPullRequestDetails: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>) => Promise<PullRequestDetails>;
   addLabels: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, labels: readonly string[]) => Promise<void>;
+  postComment: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, body: string) => Promise<void>;
   approveWithComments: (
     pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>,
     comments: readonly ReviewComment[],
@@ -85,6 +87,15 @@ export function createGithubClient(token: string): GithubClient {
         pull_number: pr.number,
       });
       return commits.map((commit) => commit.commit.message);
+    },
+
+    async listChangedFiles(pr): Promise<string[]> {
+      const files = await octokit.paginate(octokit.rest.pulls.listFiles, {
+        owner: pr.owner,
+        repo: pr.repo,
+        pull_number: pr.number,
+      });
+      return files.map((file) => file.filename);
     },
 
     async getPullRequestDetails(pr): Promise<PullRequestDetails> {
@@ -114,6 +125,15 @@ export function createGithubClient(token: string): GithubClient {
         repo: pr.repo,
         issue_number: pr.number,
         labels: [...labels],
+      });
+    },
+
+    async postComment(pr, body): Promise<void> {
+      await octokit.rest.issues.createComment({
+        owner: pr.owner,
+        repo: pr.repo,
+        issue_number: pr.number,
+        body,
       });
     },
 

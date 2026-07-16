@@ -49,10 +49,12 @@ function envelope(result: string): string {
 function fakeGithubClient(): GithubClient {
   return {
     listCommitMessages: vi.fn().mockResolvedValue(['feat(frontend): add dark-mode toggle']),
+    listChangedFiles: vi.fn().mockResolvedValue(['src/components/ThemeToggle.tsx']),
     getPullRequestDetails: vi
       .fn()
       .mockResolvedValue({ description: 'Adds a dark-mode toggle component.', diff: CLEAN_DIFF }),
     addLabels: vi.fn().mockResolvedValue(undefined),
+    postComment: vi.fn().mockResolvedValue(undefined),
     approveWithComments: vi.fn().mockResolvedValue(undefined),
     requestChangesWithComments: vi.fn().mockResolvedValue(undefined),
     mergePullRequest: vi.fn().mockResolvedValue(undefined),

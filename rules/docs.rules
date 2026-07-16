@@ -1,0 +1,13 @@
+# docs.rules
+version: 1
+
+## MUST
+- No broken relative links to files that don't exist in the repo.
+- Code samples in documentation are syntactically valid for the language they claim to be.
+- No secrets, API keys, or internal-only URLs/hostnames included as examples.
+
+## SHOULD
+- Behavior changes in `src/` are reflected in the relevant docs in the same PR (README, integration guide, etc.).
+
+## SECURITY
+- (No additional checks beyond the MUST items above — docs changes carry low inherent security risk.)

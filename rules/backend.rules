@@ -1,0 +1,21 @@
+# backend.rules
+version: 1
+
+## MUST
+- All SQL must use parameterized queries or a query builder/ORM; no string-concatenated SQL.
+- All external input (request body, params, query, headers) is validated before use.
+- No `any` in TypeScript; use proper types or `unknown` with narrowing.
+- Every new endpoint has an explicit authentication/authorization check, or a one-line comment stating why it's intentionally public.
+
+## SHOULD
+- New endpoints are covered by at least one integration test.
+- Error responses do not leak internal stack traces or implementation details to the client.
+
+## SECURITY
+- No secrets, API keys, or database credentials in code, in config committed to the repo, or in logs.
+- No deprecated or known-vulnerable crypto primitives (e.g. MD5/SHA1 for passwords, ECB mode).
+- Rate-limiting or equivalent abuse protection is considered for any new public endpoint.
+
+## ARCHITECTURE
+- Business logic lives in service/domain modules, not in route/controller handlers.
+- Database access is isolated behind a repository/data-access layer, not scattered across services.

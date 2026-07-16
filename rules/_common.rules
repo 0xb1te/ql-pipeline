@@ -1,0 +1,18 @@
+# _common.rules
+# Applied to every PR regardless of area. Loaded in addition to the area-specific rule file(s).
+version: 1
+
+## MUST
+- No secrets, API keys, tokens, passwords, or private keys anywhere in the diff.
+- No commented-out code blocks left in the diff.
+- No TODO/FIXME comments without a linked task or issue reference.
+- The PR's conventional-commit header matches the area(s) it actually touches.
+- Every finding this reviewer raises must cite a file and line that exist in the diff, and a rule ID that exists in a loaded `.rules` file; ungrounded findings are discarded, not trusted.
+
+## SHOULD
+- The PR description explains the "why", not just the "what".
+- Commits are logically scoped (one concern per commit) rather than one giant diff.
+
+## SECURITY
+- No disabling of linters, type checks, or tests via inline suppressions (`eslint-disable`, `// @ts-ignore`, `.skip`, etc.) without a one-line justification comment.
+- No new dependency added without a corresponding lockfile change.

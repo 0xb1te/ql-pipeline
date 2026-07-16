@@ -1,0 +1,48 @@
+# Default / fallback pipeline configuration.
+#
+# This file serves two purposes:
+#   1. It's the config ql-pipeline uses to govern its own PRs (dogfooding, see
+#      .github/workflows/dogfood.yml).
+#   2. It documents the schema consumer repos can override via their own
+#      .github/pipeline.config.yml — any key a consumer omits falls back to
+#      the default shown here (see docs/001-first-task-base-project/plan.md §4.8
+#      and docs/integration-guide.md).
+#
+# Schema validated by src/shared/config.ts.
+
+gates:
+  frontend:
+    build: "npm ci && npm run build"
+    test: "npm run test -- --ci"
+  backend:
+    build: "npm ci && npm run build"
+    test: "npm run test:unit && npm run test:integration"
+  mobile:
+    build: "npm ci && npm run build"
+    test: "npm test -- --ci"
+  ios:
+    build: "xcodebuild -scheme App -configuration Debug build"
+    test: "xcodebuild -scheme App -configuration Debug test"
+  android:
+    build: "./gradlew assembleDebug"
+    test: "./gradlew testDebugUnitTest"
+  infrastructure:
+    build: "terraform validate"
+    test: "tflint && checkov -d ."
+  docs:
+    build: "true"
+    test: "true"
+
+merge:
+  target_branch: main
+  method: merge              # squash | merge | rebase
+  delete_branch: true
+  required_checks: [build, test, ai-review]
+
+fixer:
+  max_fix_attempts: 3
+  protected_paths:
+    - rules/
+    - prompts/
+    - pipeline.config.yml
+    - .github/workflows/

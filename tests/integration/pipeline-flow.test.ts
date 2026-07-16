@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { countFixAttempts } from '../../src/fixer/attempt-counter.js';
+import { runFix } from '../../src/fixer/fixer.js';
 import { runGates } from '../../src/router/gate-runner.js';
 import { determineRoute } from '../../src/router/router.js';
 import { executeMergeDecision } from '../../src/merger/merger.js';
@@ -11,12 +13,14 @@ import { decidePipelineOutcome } from '../../src/verdict/verdict.js';
 
 /**
  * Threads commit-parser -> router -> gate-runner -> reviewer -> verdict ->
- * merger together end to end, exactly as main.ts will once Phase 4/5 wire
- * up the fix loop. Every true I/O boundary (shelling out, invoking
- * cursor-agent, calling the GitHub API) is a fake; everything in between is
- * the real pipeline logic. This is the Phase 3 exit criterion from
- * docs/001-first-task-base-project/plan.md §7: "UC1 (clean frontend PR
- * auto-merges) working end-to-end against a local fixture."
+ * merger (and, for UC2, the fixer) together end to end, exactly as main.ts
+ * does. Every true I/O boundary (shelling out, invoking cursor-agent,
+ * calling the GitHub API) is a fake; everything in between is the real
+ * pipeline logic. This covers both exit criteria from
+ * docs/001-first-task-base-project/plan.md §7:
+ * - Phase 3: "UC1 (clean frontend PR auto-merges) working end-to-end."
+ * - Phase 4: "UC2 works end-to-end: flawed PR gets fixed by the bot and
+ *   merges; or after max_fix_attempts, block."
  */
 
 const CONFIG: PipelineConfig = {
@@ -50,6 +54,7 @@ function fakeGithubClient(): GithubClient {
       .mockResolvedValue({ description: 'Adds a dark-mode toggle component.', diff: CLEAN_DIFF }),
     addLabels: vi.fn().mockResolvedValue(undefined),
     approveWithComments: vi.fn().mockResolvedValue(undefined),
+    requestChangesWithComments: vi.fn().mockResolvedValue(undefined),
     mergePullRequest: vi.fn().mockResolvedValue(undefined),
     deleteBranch: vi.fn().mockResolvedValue(undefined),
   };
@@ -195,5 +200,129 @@ describe('UC2 (review portion): a flawed backend PR produces a FIX decision, not
     });
 
     expect(decision.kind).toBe('BLOCK');
+  });
+});
+
+describe('UC2 full loop: a flawed PR gets fixed by the bot and merges on re-review', () => {
+  const diff = [
+    'diff --git a/src/api/payments.ts b/src/api/payments.ts',
+    '+++ b/src/api/payments.ts',
+    '@@ -0,0 +1,4 @@',
+    '+export function getUser(userId: string) {',
+    '+  const db = getConnection();',
+    '+  return db.query("SELECT * FROM users WHERE id = " + userId);',
+    '+}',
+  ].join('\n');
+
+  const flawedVerdict = JSON.stringify({
+    verdict: 'FAIL',
+    findings: [
+      {
+        severity: 'security',
+        rule: 'backend.rules#no-string-concat-sql',
+        file: 'src/api/payments.ts',
+        line: 3,
+        problem: 'string-concatenated SQL allows injection',
+        suggested_fix: 'use a parameterized query',
+        auto_fixable: true,
+      },
+    ],
+  });
+
+  it('attempt 1: reviews the flaw, fixes it, commits, and pushes', async () => {
+    const firstPassCommits = ['feat(backend): add payments endpoint'];
+    const attemptsSoFar = countFixAttempts(firstPassCommits);
+    expect(attemptsSoFar).toBe(0);
+
+    const reviewAgentRunner = vi
+      .fn<CursorAgentRunner>()
+      .mockResolvedValue({ stdout: envelope(flawedVerdict), stderr: '', exitCode: 0 });
+
+    const reviewResult = await runReview(
+      {
+        areas: ['backend'],
+        ruleFiles: ['_common.rules', 'backend.rules'],
+        rulesText: '## SECURITY\n- no string-concatenated SQL',
+        gateOutcomes: [],
+        prDescription: 'Adds a payments endpoint.',
+        diff,
+      },
+      'Rules:\n{{RULES}}\nDiff:\n{{DIFF}}',
+      { cwd: '/repo', agentRunner: reviewAgentRunner, commandExecutor: cleanGitExecutor() },
+    );
+    expect(reviewResult.ok).toBe(true);
+    if (!reviewResult.ok) return;
+
+    const decision = decidePipelineOutcome({
+      findings: reviewResult.outcome.findings,
+      attemptsSoFar,
+      maxFixAttempts: CONFIG.fixer.maxFixAttempts,
+    });
+    expect(decision.kind).toBe('FIX');
+    if (decision.kind !== 'FIX') return;
+
+    // The fake exec reports the tree as dirty after the (fake) agent
+    // "fixed" the SQL injection, simulating a real edit having landed.
+    const fixExec = vi.fn<CommandExecutor>().mockResolvedValue({ stdout: ' M src/api/payments.ts\n', stderr: '' });
+    const fixAgentRunner = vi.fn<CursorAgentRunner>().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
+
+    const fixOutcome = await runFix(decision.findings, 'fix {{ATTEMPT_NUMBER}}/{{MAX_ATTEMPTS}}: {{COMPLAINT}}', 'backend', {
+      cwd: '/repo',
+      branch: 'task/009-payments',
+      protectedPaths: CONFIG.fixer.protectedPaths,
+      attemptNumber: attemptsSoFar + 1,
+      maxFixAttempts: CONFIG.fixer.maxFixAttempts,
+      agentRunner: fixAgentRunner,
+      commandExecutor: fixExec,
+    });
+
+    expect(fixOutcome).toEqual({
+      kind: 'committed',
+      commitMessage: 'fix(backend): resolve pipeline complaint (attempt 1) [bot]',
+    });
+    expect(fixAgentRunner).toHaveBeenCalledWith(expect.any(String), { cwd: '/repo', mode: 'agent' });
+  });
+
+  it('attempt 2 (after the push re-triggers the pipeline): re-review is clean, so it merges', async () => {
+    // The push from attempt 1 added this commit; the pipeline re-runs and
+    // fetches the PR's commits fresh, now including it.
+    const secondPassCommits = [
+      'feat(backend): add payments endpoint',
+      'fix(backend): resolve pipeline complaint (attempt 1) [bot]',
+    ];
+    const attemptsSoFar = countFixAttempts(secondPassCommits);
+    expect(attemptsSoFar).toBe(1);
+
+    const reviewAgentRunner = vi
+      .fn<CursorAgentRunner>()
+      .mockResolvedValue({ stdout: envelope('{"verdict":"PASS","findings":[]}'), stderr: '', exitCode: 0 });
+
+    const reviewResult = await runReview(
+      {
+        areas: ['backend'],
+        ruleFiles: ['_common.rules', 'backend.rules'],
+        rulesText: '## SECURITY\n- no string-concatenated SQL',
+        gateOutcomes: [],
+        prDescription: 'Adds a payments endpoint.',
+        diff: diff.replace('" + userId', '", [userId]'), // now parameterized
+      },
+      'Rules:\n{{RULES}}\nDiff:\n{{DIFF}}',
+      { cwd: '/repo', agentRunner: reviewAgentRunner, commandExecutor: cleanGitExecutor() },
+    );
+    expect(reviewResult.ok).toBe(true);
+    if (!reviewResult.ok) return;
+
+    const decision = decidePipelineOutcome({
+      findings: reviewResult.outcome.findings,
+      attemptsSoFar,
+      maxFixAttempts: CONFIG.fixer.maxFixAttempts,
+    });
+    expect(decision.kind).toBe('MERGE');
+    if (decision.kind !== 'MERGE') return;
+
+    const client = fakeGithubClient();
+    await executeMergeDecision(client, PR, decision.advisoryFindings, CONFIG.merge);
+
+    expect(client.mergePullRequest).toHaveBeenCalledWith(PR, 'merge');
   });
 });

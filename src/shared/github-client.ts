@@ -64,6 +64,11 @@ export interface GithubClient {
     pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>,
     comments: readonly ReviewComment[],
   ) => Promise<void>;
+  requestChangesWithComments: (
+    pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>,
+    body: string,
+    comments: readonly ReviewComment[],
+  ) => Promise<void>;
   mergePullRequest: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, method: MergeMethod) => Promise<void>;
   deleteBranch: (pr: Pick<PullRequestInfo, 'owner' | 'repo'> & { readonly headRef: string }) => Promise<void>;
 }
@@ -118,6 +123,17 @@ export function createGithubClient(token: string): GithubClient {
         repo: pr.repo,
         pull_number: pr.number,
         event: 'APPROVE',
+        comments: comments.map((comment) => ({ path: comment.path, line: comment.line, body: comment.body })),
+      });
+    },
+
+    async requestChangesWithComments(pr, body, comments): Promise<void> {
+      await octokit.rest.pulls.createReview({
+        owner: pr.owner,
+        repo: pr.repo,
+        pull_number: pr.number,
+        event: 'REQUEST_CHANGES',
+        body,
         comments: comments.map((comment) => ({ path: comment.path, line: comment.line, body: comment.body })),
       });
     },

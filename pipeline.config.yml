@@ -41,6 +41,12 @@ merge:
 
 fixer:
   max_fix_attempts: 3
+  # An explicit override, not the shipped default: this file governs
+  # ql-pipeline's own repo (dogfooding), so the fixer's own rules/prompts/
+  # config/workflows are exactly what needs protecting here. A consumer
+  # repo has no rules/ or prompts/ folder of its own — see
+  # DEFAULT_PROTECTED_PATHS in src/shared/config.ts for what applies when
+  # a consumer's config omits this key.
   protected_paths:
     - rules/
     - prompts/

@@ -3,7 +3,10 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as core from '@actions/core';
 import { context } from '@actions/github';
-import { executeMergeDecision } from './merger/merger.js';
+import { countFixAttempts } from './fixer/attempt-counter.js';
+import { formatComplaintSummary } from './fixer/complaint.js';
+import { runFix } from './fixer/fixer.js';
+import { executeMergeDecision, findingToReviewComment } from './merger/merger.js';
 import { runReview } from './reviewer/reviewer.js';
 import { allGatesPassed, runGates } from './router/gate-runner.js';
 import { determineRoute } from './router/router.js';
@@ -24,8 +27,8 @@ function loadRulesText(ruleFiles: readonly string[]): string {
   return ruleFiles.map((file) => readFileSync(join(PIPELINE_ROOT, 'rules', file), 'utf-8')).join('\n\n');
 }
 
-function loadReviewPromptTemplate(): string {
-  return readFileSync(join(PIPELINE_ROOT, 'prompts', 'reviewer.md'), 'utf-8');
+function loadPromptTemplate(fileName: string): string {
+  return readFileSync(join(PIPELINE_ROOT, 'prompts', fileName), 'utf-8');
 }
 
 function gateFailureToFinding(outcome: GateOutcome): Finding {
@@ -100,7 +103,7 @@ async function main(): Promise<void> {
         prDescription: description,
         diff,
       },
-      loadReviewPromptTemplate(),
+      loadPromptTemplate('reviewer.md'),
       { cwd: process.cwd() },
     );
 
@@ -112,10 +115,8 @@ async function main(): Promise<void> {
     findings = reviewResult.outcome.findings;
   }
 
-  // Phase 4 adds real fix-attempt tracking (e.g. via a PR label/comment
-  // counter); until then every run is attempt 0, so any auto-fixable
-  // finding always resolves to FIX below rather than exhausting attempts.
-  const decision = decidePipelineOutcome({ findings, attemptsSoFar: 0, maxFixAttempts: config.fixer.maxFixAttempts });
+  const attemptsSoFar = countFixAttempts(commitMessages);
+  const decision = decidePipelineOutcome({ findings, attemptsSoFar, maxFixAttempts: config.fixer.maxFixAttempts });
 
   if (decision.kind === 'MERGE') {
     await executeMergeDecision(client, pr, decision.advisoryFindings, config.merge);
@@ -123,17 +124,41 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (decision.kind === 'FIX') {
-    // The fix agent doesn't exist yet (Phase 4) — fail the check rather
-    // than silently merging or looping, per RULES.md R4/AGENT.md's
-    // fail-closed invariant.
-    core.setFailed(
-      `review found ${decision.findings.length} finding(s) that need a fix; automatic fixing is not implemented yet (Phase 4)`,
-    );
+  // FIX and BLOCK both mean something is wrong; post the complaint either
+  // way so a human sees exactly what, rather than having to dig through
+  // Action logs (whether it's day-one-unfixable, or attempts exhausted).
+  const attemptNumber = attemptsSoFar + 1;
+  const summary = formatComplaintSummary(decision.findings, attemptNumber, config.fixer.maxFixAttempts);
+  await client.requestChangesWithComments(pr, summary, decision.findings.map(findingToReviewComment));
+
+  if (decision.kind === 'BLOCK') {
+    await client.addLabels(pr, ['needs-human']);
+    core.setFailed(`blocked: ${decision.reason}`);
     return;
   }
 
-  core.setFailed(`blocked: ${decision.reason}`);
+  const primaryArea = route.decision.areas[0]!;
+  const fixOutcome = await runFix(decision.findings, loadPromptTemplate('fixer.md'), primaryArea, {
+    cwd: process.cwd(),
+    branch: pr.headRef,
+    protectedPaths: config.fixer.protectedPaths,
+    attemptNumber,
+    maxFixAttempts: config.fixer.maxFixAttempts,
+  });
+
+  if (fixOutcome.kind === 'committed') {
+    logger.info('fix committed and pushed; the push re-triggers this pipeline', {
+      commitMessage: fixOutcome.commitMessage,
+    });
+    return;
+  }
+
+  await client.addLabels(pr, ['needs-human']);
+  if (fixOutcome.kind === 'no-changes') {
+    core.setFailed('the fix agent made no usable changes; this needs a human');
+    return;
+  }
+  core.setFailed(`fix attempt failed: ${fixOutcome.reason}`);
 }
 
 main().catch((error: unknown) => {

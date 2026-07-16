@@ -22,6 +22,7 @@ function fakeClient(): GithubClient {
     getPullRequestDetails: vi.fn().mockResolvedValue({ description: '', diff: '' }),
     addLabels: vi.fn().mockResolvedValue(undefined),
     approveWithComments: vi.fn().mockResolvedValue(undefined),
+    requestChangesWithComments: vi.fn().mockResolvedValue(undefined),
     mergePullRequest: vi.fn().mockResolvedValue(undefined),
     deleteBranch: vi.fn().mockResolvedValue(undefined),
   };
@@ -100,6 +101,7 @@ describe('executeMergeDecision', () => {
         order.push('approve');
         return Promise.resolve();
       }),
+      requestChangesWithComments: vi.fn().mockResolvedValue(undefined),
       mergePullRequest: vi.fn().mockImplementation(() => {
         order.push('merge');
         return Promise.resolve();

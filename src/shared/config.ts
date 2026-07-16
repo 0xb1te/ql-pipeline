@@ -24,11 +24,16 @@ const DEFAULT_MERGE_METHOD: MergeMethod = 'merge';
 const DEFAULT_DELETE_BRANCH = true;
 const DEFAULT_REQUIRED_CHECKS: readonly string[] = ['build', 'test', 'ai-review'];
 const DEFAULT_MAX_FIX_ATTEMPTS = 3;
+// These are paths inside the CONSUMER repo being governed, not ql-pipeline's
+// own tree — a consumer never has ql-pipeline's rules/ or prompts/ folders,
+// only its own .github/ overrides (plan.md §4.8). ql-pipeline's own
+// pipeline.config.yml (used for dogfooding) explicitly overrides this to
+// list its own rules/, prompts/, pipeline.config.yml, and .github/workflows/
+// instead, since there it *is* the repo being governed.
 const DEFAULT_PROTECTED_PATHS: readonly string[] = [
-  'rules/',
-  'prompts/',
-  'pipeline.config.yml',
   '.github/workflows/',
+  '.github/pipeline.config.yml',
+  '.github/pipeline-rules/',
 ];
 
 export function loadConfig(path: string): PipelineConfig {

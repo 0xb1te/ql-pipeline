@@ -52,7 +52,7 @@ describe('parseConfig', () => {
     });
     expect(config.fixer).toEqual({
       maxFixAttempts: 3,
-      protectedPaths: ['rules/', 'prompts/', 'pipeline.config.yml', '.github/workflows/'],
+      protectedPaths: ['.github/workflows/', '.github/pipeline.config.yml', '.github/pipeline-rules/'],
     });
   });
 
@@ -110,7 +110,7 @@ describe('parseConfig', () => {
 
     expect(config.fixer).toEqual({
       maxFixAttempts: 5,
-      protectedPaths: ['rules/', 'prompts/', 'pipeline.config.yml', '.github/workflows/'],
+      protectedPaths: ['.github/workflows/', '.github/pipeline.config.yml', '.github/pipeline-rules/'],
     });
   });
 

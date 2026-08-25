@@ -8,6 +8,9 @@ export interface AuditSummaryInput {
   readonly decision: PipelineDecision;
   readonly attemptNumber: number;
   readonly maxFixAttempts: number;
+  readonly targetBranch: string;
+  /** False when the AI review was skipped (gate failure, or not a required check). */
+  readonly reviewRan: boolean;
 }
 
 /**
@@ -17,7 +20,12 @@ export interface AuditSummaryInput {
  * the PR alone"), this is what makes that true in practice.
  */
 export function formatAuditSummary(input: AuditSummaryInput): string {
-  const lines: string[] = ['### ql-pipeline summary', '', `**Areas:** ${input.areas.join(', ')}`];
+  const lines: string[] = [
+    '### ql-pipeline summary',
+    '',
+    `**Areas:** ${input.areas.join(', ')}`,
+    `**Target branch:** ${input.targetBranch}`,
+  ];
 
   if (input.gateOutcomes.length > 0) {
     lines.push('', '**Gates:**');
@@ -28,6 +36,7 @@ export function formatAuditSummary(input: AuditSummaryInput): string {
 
   lines.push(
     '',
+    `**AI review:** ${input.reviewRan ? 'ran' : 'skipped'}`,
     `**Findings:** ${input.findingCount}`,
     '',
     `**Decision:** ${input.decision.kind} (attempt ${input.attemptNumber} of ${input.maxFixAttempts})`,

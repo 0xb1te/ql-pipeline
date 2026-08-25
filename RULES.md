@@ -1,8 +1,8 @@
 # RULES.md — Development rules for ql-pipeline
 
-These rules govern how **this repository** (the pipeline itself) is developed — by humans and by AI agents alike. They are distinct from `rules/*.rules`, which are the rule sets the pipeline applies to *incoming PRs* once built.
+These rules govern how **this repository** (the pipeline itself) is developed — by humans and by AI agents alike. They are distinct from `rules/*.rules`, which are the rule sets the pipeline applies to *incoming PRs*.
 
-> This is the binding, current version of these rules. Design rationale and phased build-out: [docs/001-first-task-base-project/plan.md](docs/001-first-task-base-project/plan.md).
+> This is the binding, current version of these rules. What the pipeline must do: [docs/SPECIFICATION.md](docs/SPECIFICATION.md). Why it's built the way it is: the per-task plans under [docs/](docs/).
 
 ## R1 — Task workflow
 
@@ -48,6 +48,7 @@ These rules govern how **this repository** (the pipeline itself) is developed �
 
 ## R6 — Documentation
 
+0. **Documentation may not promise behaviour the code doesn't have.** A feature described in the README, the integration guide, or the specification must be implemented and tested in the same PR that describes it. (Task 007 exists because three documented features — consumer rule overrides, `required_checks`, and `target_branch` — were parsed into config and then never used by anything.)
 1. `README.md` stays current with the actual behavior of the pipeline; if a PR changes behavior, it updates the README in the same PR.
 2. Every `rules/*.rules` file is self-documenting: each rule is one line, concrete, and checkable against a diff. Vague rules ("write good code") are rejected in review.
 3. Decisions that reverse or amend an approved plan are recorded in the task folder as `decisions.md`, not silently applied.

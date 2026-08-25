@@ -16,7 +16,16 @@ function finding(overrides: Partial<Finding> = {}): Finding {
   };
 }
 
-function fakeClient(): GithubClient {
+const PR = {
+  owner: '0xb1te',
+  repo: 'ql-pipeline',
+  number: 42,
+  headRef: 'task/007-example',
+  headSha: 'abc123',
+};
+
+/** A client whose PR head is still the SHA that was reviewed. */
+function fakeClient(headSha = PR.headSha): GithubClient {
   return {
     listCommitMessages: vi.fn().mockResolvedValue([]),
     listChangedFiles: vi.fn().mockResolvedValue([]),
@@ -26,11 +35,10 @@ function fakeClient(): GithubClient {
     approveWithComments: vi.fn().mockResolvedValue(undefined),
     requestChangesWithComments: vi.fn().mockResolvedValue(undefined),
     mergePullRequest: vi.fn().mockResolvedValue(undefined),
+    getHeadSha: vi.fn().mockResolvedValue(headSha),
     deleteBranch: vi.fn().mockResolvedValue(undefined),
   };
 }
-
-const PR = { owner: '0xb1te', repo: 'ql-pipeline', number: 42, headRef: 'task/007-example' };
 
 describe('findingToReviewComment', () => {
   it('maps file/line and includes the suggested fix when present', () => {
@@ -53,6 +61,7 @@ describe('findingToReviewComment', () => {
 describe('executeMergeDecision', () => {
   const mergeConfig: MergeConfig = {
     targetBranch: 'main',
+    targetBranchByArea: {},
     method: 'merge',
     deleteBranch: true,
     requiredChecks: ['build', 'test', 'ai-review'],
@@ -61,11 +70,31 @@ describe('executeMergeDecision', () => {
   it('approves with no comments, merges, and deletes the branch when there are no advisory findings', async () => {
     const client = fakeClient();
 
+    const result = await executeMergeDecision(client, PR, [], mergeConfig);
+
+    expect(result).toEqual({ kind: 'merged' });
+    expect(client.approveWithComments).toHaveBeenCalledWith(PR, []);
+    expect(client.mergePullRequest).toHaveBeenCalledWith(PR, 'merge', 'abc123');
+    expect(client.deleteBranch).toHaveBeenCalledWith(PR);
+  });
+
+  it('pins the reviewed SHA on the merge call so GitHub rejects a racing commit', async () => {
+    const client = fakeClient();
+
     await executeMergeDecision(client, PR, [], mergeConfig);
 
-    expect(client.approveWithComments).toHaveBeenCalledWith(PR, []);
-    expect(client.mergePullRequest).toHaveBeenCalledWith(PR, 'merge');
-    expect(client.deleteBranch).toHaveBeenCalledWith(PR);
+    expect(client.mergePullRequest).toHaveBeenCalledWith(PR, 'merge', PR.headSha);
+  });
+
+  it('aborts without merging when the PR head moved since the review', async () => {
+    const client = fakeClient('def456');
+
+    const result = await executeMergeDecision(client, PR, [], mergeConfig);
+
+    expect(result).toEqual({ kind: 'stale', reviewedSha: 'abc123', currentSha: 'def456' });
+    expect(client.approveWithComments).not.toHaveBeenCalled();
+    expect(client.mergePullRequest).not.toHaveBeenCalled();
+    expect(client.deleteBranch).not.toHaveBeenCalled();
   });
 
   it('attaches advisory findings as review comments on approval', async () => {
@@ -82,7 +111,7 @@ describe('executeMergeDecision', () => {
 
     await executeMergeDecision(client, PR, [], { ...mergeConfig, method: 'squash' });
 
-    expect(client.mergePullRequest).toHaveBeenCalledWith(PR, 'squash');
+    expect(client.mergePullRequest).toHaveBeenCalledWith(PR, 'squash', PR.headSha);
   });
 
   it('does not delete the branch when deleteBranch is false', async () => {
@@ -93,19 +122,18 @@ describe('executeMergeDecision', () => {
     expect(client.deleteBranch).not.toHaveBeenCalled();
   });
 
-  it('approves before merging, and merges before deleting the branch', async () => {
+  it('checks staleness first, then approves, merges, and deletes in order', async () => {
     const order: string[] = [];
     const client: GithubClient = {
-      listCommitMessages: vi.fn().mockResolvedValue([]),
-      listChangedFiles: vi.fn().mockResolvedValue([]),
-      getPullRequestDetails: vi.fn().mockResolvedValue({ description: '', diff: '' }),
-      addLabels: vi.fn().mockResolvedValue(undefined),
-      postComment: vi.fn().mockResolvedValue(undefined),
+      ...fakeClient(),
+      getHeadSha: vi.fn().mockImplementation(() => {
+        order.push('staleness-check');
+        return Promise.resolve(PR.headSha);
+      }),
       approveWithComments: vi.fn().mockImplementation(() => {
         order.push('approve');
         return Promise.resolve();
       }),
-      requestChangesWithComments: vi.fn().mockResolvedValue(undefined),
       mergePullRequest: vi.fn().mockImplementation(() => {
         order.push('merge');
         return Promise.resolve();
@@ -118,6 +146,6 @@ describe('executeMergeDecision', () => {
 
     await executeMergeDecision(client, PR, [], mergeConfig);
 
-    expect(order).toEqual(['approve', 'merge', 'delete']);
+    expect(order).toEqual(['staleness-check', 'approve', 'merge', 'delete']);
   });
 });

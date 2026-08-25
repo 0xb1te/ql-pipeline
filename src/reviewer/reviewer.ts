@@ -1,6 +1,7 @@
 import { defaultCommandExecutor, type CommandExecutor } from '../shared/exec.js';
 import type { Area, Finding, GateOutcome, ReviewVerdict } from '../shared/types.js';
-import { runCursorAgent, isWorkingTreeClean, type CursorAgentRunner } from './cursor-runner.js';
+import { captureWorktreeState } from '../shared/worktree.js';
+import { runCursorAgent, reviewerMutatedCheckout, type CursorAgentRunner } from './cursor-runner.js';
 import { buildDiffLineIndex, groundFindings } from './diff-grounding.js';
 import { parseReviewVerdict, type ParseResult } from './response-parser.js';
 
@@ -62,13 +63,19 @@ export async function runReview(context: ReviewContext, promptTemplate: string, 
   const commandExecutor = options.commandExecutor ?? defaultCommandExecutor;
   const prompt = buildReviewPrompt(promptTemplate, context);
 
+  // Snapshot the tree before the agent runs, so the read-only guard
+  // compares against reality rather than demanding a pristine checkout —
+  // the build and test gates have already run by this point and will have
+  // left artifacts behind.
+  const before = await captureWorktreeState(options.cwd, commandExecutor);
+
   let attempt = await invokeAndParse(agentRunner, prompt, options.cwd);
   if (!attempt.ok) {
     attempt = await invokeAndParse(agentRunner, prompt, options.cwd);
   }
 
-  const clean = await isWorkingTreeClean(options.cwd, commandExecutor);
-  if (!clean) {
+  const after = await captureWorktreeState(options.cwd, commandExecutor);
+  if (reviewerMutatedCheckout(before, after)) {
     return {
       ok: false,
       reason: 'the reviewer checkout was modified during a read-only review invocation; treating this run as BLOCK',

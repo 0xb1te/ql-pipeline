@@ -27,11 +27,17 @@ const CONFIG: PipelineConfig = {
   gates: {
     frontend: { build: 'npm run build', test: 'npm test' },
   },
-  merge: { targetBranch: 'main', method: 'merge', deleteBranch: true, requiredChecks: ['build', 'test', 'ai-review'] },
+  merge: { targetBranch: 'main', targetBranchByArea: {}, method: 'merge', deleteBranch: true, requiredChecks: ['build', 'test', 'ai-review'] },
   fixer: { maxFixAttempts: 3, protectedPaths: ['rules/', 'prompts/', 'pipeline.config.yml', '.github/workflows/'] },
 };
 
-const PR = { owner: '0xb1te', repo: 'ql-pipeline', number: 7, headRef: 'task/007-dark-mode' };
+const PR = {
+  owner: '0xb1te',
+  repo: 'ql-pipeline',
+  number: 7,
+  headRef: 'task/007-dark-mode',
+  headSha: 'reviewed-sha',
+};
 
 const CLEAN_DIFF = [
   'diff --git a/src/components/ThemeToggle.tsx b/src/components/ThemeToggle.tsx',
@@ -58,6 +64,7 @@ function fakeGithubClient(): GithubClient {
     approveWithComments: vi.fn().mockResolvedValue(undefined),
     requestChangesWithComments: vi.fn().mockResolvedValue(undefined),
     mergePullRequest: vi.fn().mockResolvedValue(undefined),
+    getHeadSha: vi.fn().mockResolvedValue(PR.headSha),
     deleteBranch: vi.fn().mockResolvedValue(undefined),
   };
 }
@@ -111,7 +118,7 @@ describe('UC1: a clean frontend PR routes, gates, reviews clean, and auto-merges
     await executeMergeDecision(githubClient, PR, decision.advisoryFindings, CONFIG.merge);
 
     expect(githubClient.approveWithComments).toHaveBeenCalledWith(PR, []);
-    expect(githubClient.mergePullRequest).toHaveBeenCalledWith(PR, 'merge');
+    expect(githubClient.mergePullRequest).toHaveBeenCalledWith(PR, 'merge', PR.headSha);
     expect(githubClient.deleteBranch).toHaveBeenCalledWith(PR);
   });
 });
@@ -263,9 +270,18 @@ describe('UC2 full loop: a flawed PR gets fixed by the bot and merges on re-revi
     expect(decision.kind).toBe('FIX');
     if (decision.kind !== 'FIX') return;
 
-    // The fake exec reports the tree as dirty after the (fake) agent
-    // "fixed" the SQL injection, simulating a real edit having landed.
-    const fixExec = vi.fn<CommandExecutor>().mockResolvedValue({ stdout: ' M src/api/payments.ts\n', stderr: '' });
+    // The tree carries gate build artifacts before the agent runs, and the
+    // agent's edit to payments.ts on top of them afterwards — so the fixer
+    // stages the fix and leaves `dist/` alone.
+    let fixStatusCall = 0;
+    const fixExec = vi.fn<CommandExecutor>((command: string) => {
+      if (command.startsWith('git status')) {
+        const stdout = fixStatusCall === 0 ? '?? dist/\n' : '?? dist/\n M src/api/payments.ts\n';
+        fixStatusCall += 1;
+        return Promise.resolve({ stdout, stderr: '' });
+      }
+      return Promise.resolve({ stdout: '', stderr: '' });
+    });
     const fixAgentRunner = vi.fn<CursorAgentRunner>().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
 
     const fixOutcome = await runFix(decision.findings, 'fix {{ATTEMPT_NUMBER}}/{{MAX_ATTEMPTS}}: {{COMPLAINT}}', 'backend', {
@@ -281,8 +297,10 @@ describe('UC2 full loop: a flawed PR gets fixed by the bot and merges on re-revi
     expect(fixOutcome).toEqual({
       kind: 'committed',
       commitMessage: 'fix(backend): resolve pipeline complaint (attempt 1) [bot]',
+      files: ['src/api/payments.ts'],
     });
     expect(fixAgentRunner).toHaveBeenCalledWith(expect.any(String), { cwd: '/repo', mode: 'agent' });
+    expect(fixExec).toHaveBeenCalledWith(expect.stringMatching(/^git add --pathspec-from-file=/), { cwd: '/repo' });
   });
 
   it('attempt 2 (after the push re-triggers the pipeline): re-review is clean, so it merges', async () => {
@@ -325,6 +343,6 @@ describe('UC2 full loop: a flawed PR gets fixed by the bot and merges on re-revi
     const client = fakeGithubClient();
     await executeMergeDecision(client, PR, decision.advisoryFindings, CONFIG.merge);
 
-    expect(client.mergePullRequest).toHaveBeenCalledWith(PR, 'merge');
+    expect(client.mergePullRequest).toHaveBeenCalledWith(PR, 'merge', PR.headSha);
   });
 });

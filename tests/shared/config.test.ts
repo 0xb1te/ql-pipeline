@@ -29,6 +29,7 @@ describe('parseConfig', () => {
       },
       merge: {
         targetBranch: 'main',
+        targetBranchByArea: {},
         method: 'squash',
         deleteBranch: false,
         requiredChecks: ['build', 'test'],
@@ -46,6 +47,7 @@ describe('parseConfig', () => {
     expect(config.gates).toEqual({});
     expect(config.merge).toEqual({
       targetBranch: 'main',
+      targetBranchByArea: {},
       method: 'merge',
       deleteBranch: true,
       requiredChecks: ['build', 'test', 'ai-review'],
@@ -99,6 +101,42 @@ describe('parseConfig', () => {
 
   it('rejects a non-boolean delete_branch', () => {
     expect(() => parseConfig('merge:\n  target_branch: main\n  delete_branch: "yes"')).toThrow(ConfigError);
+  });
+
+  it('parses per-area target branch overrides', () => {
+    const config = parseConfig(
+      'merge:\n  target_branch: main\n  target_branch_by_area:\n    mobile: release/mobile\n    ios: release/mobile\n',
+    );
+
+    expect(config.merge.targetBranchByArea).toEqual({ mobile: 'release/mobile', ios: 'release/mobile' });
+  });
+
+  it('rejects an unrecognized area under target_branch_by_area', () => {
+    expect(() =>
+      parseConfig('merge:\n  target_branch: main\n  target_branch_by_area:\n    desktop: release/desktop\n'),
+    ).toThrow(/not a recognized area/);
+  });
+
+  it('rejects a non-mapping target_branch_by_area', () => {
+    expect(() => parseConfig('merge:\n  target_branch: main\n  target_branch_by_area: release/mobile\n')).toThrow(
+      /must be a mapping/,
+    );
+  });
+
+  it('rejects an empty branch name in target_branch_by_area', () => {
+    expect(() => parseConfig('merge:\n  target_branch: main\n  target_branch_by_area:\n    mobile: ""\n')).toThrow(
+      /non-empty string/,
+    );
+  });
+
+  it('rejects a required_checks entry that is not a known pipeline stage', () => {
+    expect(() => parseConfig('merge:\n  target_branch: main\n  required_checks: [build, lint]\n')).toThrow(
+      /must be one of build, test, ai-review/,
+    );
+  });
+
+  it('accepts an empty required_checks list, meaning nothing is enforced', () => {
+    expect(parseConfig('merge:\n  target_branch: main\n  required_checks: []\n').merge.requiredChecks).toEqual([]);
   });
 
   it('rejects a non-array required_checks', () => {

@@ -26,8 +26,12 @@ jobs:
 
 - **Pin `@main` to a tag or SHA in production** once ql-pipeline has releases — `@main` tracks the latest commit, which is fine for trying it out but not for a repo whose merges depend on it staying stable.
 - **The `concurrency` block is your responsibility, not ql-pipeline's.** A new commit pushed to a PR should cancel the in-flight run for the old one (including a stale fix-loop attempt) — the reusable workflow doesn't declare this for you since it's a property of *your* workflow, not the called one.
-- **Required secret:** `CURSOR_API_KEY`, used by both the reviewer and the fixer.
-- **Optional secret:** `GH_TOKEN` — omit it and the reusable workflow falls back to the default `GITHUB_TOKEN`; supply your own if you need the fixer's commits to trigger other workflows (the default token's actions don't re-trigger `on: push`/`on: pull_request` events, which is usually what you want anyway).
+- **Required secret:** `CURSOR_API_KEY`, used by both the reviewer and the fixer. The workflow installs the Cursor CLI on the runner itself; you don't need to.
+- **Optional secret:** `GH_TOKEN`. Omit it and the workflow falls back to the default `GITHUB_TOKEN` — but note the consequence: **commits pushed with the default token do not trigger new workflow runs**, so an auto-fix commit will not re-run the pipeline on its own. For the fix loop to close automatically (fix → re-review → merge), supply a PAT or GitHub App token as `GH_TOKEN`. With the default token the fix still lands on the PR; it just waits for the next push or a manual re-run to be re-reviewed.
+
+### Fork pull requests
+
+PRs from forks are routed, gated, and reviewed, but **never auto-fixed** — a fork's branch lives in another repository that the base repo's token cannot push to. Such a PR gets its complaint and a `needs-human` label instead of a fix commit.
 
 ## 2. Branch protection
 
@@ -61,9 +65,25 @@ gates:
   # error, for areas that don't apply to your repo (e.g. no android/ code).
 
 merge:
-  target_branch: main       # required — no safe default
+  # Required — no safe default. The pipeline governs only PRs that target
+  # this branch; a PR aimed anywhere else is left completely untouched
+  # (no check, no comment), not failed.
+  target_branch: main
+
+  # Optional: override the target per area. A PR whose areas resolve to
+  # more than one target branch is a conflict the pipeline refuses to
+  # guess at — it escalates to a human instead.
+  target_branch_by_area:
+    mobile: release/mobile
+
   method: merge             # squash | merge | rebase (default: merge)
   delete_branch: true       # default: true
+
+  # Which stages are enforced. Valid entries: build, test, ai-review.
+  # A stage left out still runs, but its failures become advisory instead
+  # of blocking — except `ai-review`, which is skipped entirely when not
+  # required, since a review whose findings can't block is pure cost.
+  # Drop `ai-review` here to run this as a gates-only pipeline.
   required_checks: [build, test, ai-review]   # default shown
 
 fixer:
@@ -89,7 +109,14 @@ e.g. `.github/pipeline-rules/backend.rules`. If present, it **fully replaces** q
 ## 6. What to expect on a PR
 
 - **Labels:** `area:<area>` for every matched area; `needs-human` when the pipeline can't resolve something itself.
-- **A summary comment** on every run: areas, gate results, finding count, and the decision (MERGE / FIX / BLOCK).
+- **A summary comment** on every run: areas, target branch, gate results, whether the AI review ran, finding count, and the decision (MERGE / FIX / BLOCK).
 - **A request-changes review** when there's something to fix or block, with one inline comment per finding plus a top-level summary (attempt N of your configured max).
-- **Bot commits** on the PR branch look like `fix(<area>): resolve pipeline complaint (attempt N) [bot]` — each one re-triggers the pipeline.
+- **Bot commits** on the PR branch look like `fix(<area>): resolve pipeline complaint (attempt N) [bot]`. Each one is meant to re-trigger the pipeline — see the `GH_TOKEN` note in §1 for why that needs a non-default token.
 - **PRs that touch `.github/workflows/`, `.github/pipeline.config.yml`, or `.github/pipeline-rules/`** always route to `needs-human` regardless of anything else — the pipeline cannot approve changes to its own governance.
+- **PRs targeting any other branch** get nothing at all: no check, no comment, no label. The pipeline governs only its configured target branch.
+
+## 7. Things worth knowing before you turn it on
+
+- **Ignore your build output.** The pipeline runs your gate commands and then reviews the result, so make sure `node_modules/`, `dist/`, and similar build artifacts are in your `.gitignore`. They're excluded from fix commits either way — the fixer stages only the files the agent actually touched — but a clean ignore file keeps the review context clean too.
+- **The first run is the honest test.** Point it at a low-stakes branch first and watch one real PR through the whole loop before making its check required on a branch you care about.
+- **Auto-merge respects branch protection.** The pipeline merges through the normal API; if protection rejects the merge, the pipeline reports the failure rather than working around it.

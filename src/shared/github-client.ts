@@ -7,6 +7,16 @@ export interface PullRequestInfo {
   readonly number: number;
   readonly title: string;
   readonly headRef: string;
+  /** Head commit SHA at the moment this run started, for the stale-run guard. */
+  readonly headSha: string;
+  /** The branch this PR targets — checked against the configured target branch. */
+  readonly baseRef: string;
+  /**
+   * True when the PR comes from a fork. The fixer cannot push to a fork's
+   * branch with the base repo's token, so fork PRs are reviewed but never
+   * auto-fixed.
+   */
+  readonly isFork: boolean;
 }
 
 /**
@@ -20,7 +30,16 @@ export interface ActionsEventContext {
   readonly repo: { readonly owner: string; readonly repo: string };
   readonly payload: {
     readonly pull_request?:
-      | { readonly number: number; readonly title: string; readonly head: { readonly ref: string } }
+      | {
+          readonly number: number;
+          readonly title: string;
+          readonly head: {
+            readonly ref: string;
+            readonly sha: string;
+            readonly repo: { readonly full_name: string } | null;
+          };
+          readonly base: { readonly ref: string; readonly repo: { readonly full_name: string } };
+        }
       | undefined;
   };
 }
@@ -32,12 +51,19 @@ export function readPullRequestContext(context: ActionsEventContext): PullReques
       'this workflow must be triggered by a pull_request event (no pull_request found in the event payload)',
     );
   }
+  // A deleted fork leaves `head.repo` null; treat that as a fork too, since
+  // it's certainly not a branch on the base repo we could push to.
+  const isFork = pr.head.repo === null || pr.head.repo.full_name !== pr.base.repo.full_name;
+
   return {
     owner: context.repo.owner,
     repo: context.repo.repo,
     number: pr.number,
     title: pr.title,
     headRef: pr.head.ref,
+    headSha: pr.head.sha,
+    baseRef: pr.base.ref,
+    isFork,
   };
 }
 
@@ -71,7 +97,17 @@ export interface GithubClient {
     body: string,
     comments: readonly ReviewComment[],
   ) => Promise<void>;
-  mergePullRequest: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, method: MergeMethod) => Promise<void>;
+  /**
+   * Merges with `expectedHeadSha` pinned, so GitHub itself rejects the
+   * merge if another commit landed while this run was working — the
+   * pipeline never merges a revision it didn't actually review.
+   */
+  mergePullRequest: (
+    pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>,
+    method: MergeMethod,
+    expectedHeadSha: string,
+  ) => Promise<void>;
+  getHeadSha: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>) => Promise<string>;
   deleteBranch: (pr: Pick<PullRequestInfo, 'owner' | 'repo'> & { readonly headRef: string }) => Promise<void>;
 }
 
@@ -158,13 +194,23 @@ export function createGithubClient(token: string): GithubClient {
       });
     },
 
-    async mergePullRequest(pr, method): Promise<void> {
+    async mergePullRequest(pr, method, expectedHeadSha): Promise<void> {
       await octokit.rest.pulls.merge({
         owner: pr.owner,
         repo: pr.repo,
         pull_number: pr.number,
         merge_method: method,
+        sha: expectedHeadSha,
       });
+    },
+
+    async getHeadSha(pr): Promise<string> {
+      const { data } = await octokit.rest.pulls.get({
+        owner: pr.owner,
+        repo: pr.repo,
+        pull_number: pr.number,
+      });
+      return data.head.sha;
     },
 
     async deleteBranch(pr): Promise<void> {

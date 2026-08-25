@@ -1,8 +1,10 @@
 # Task 001 — Base Project: AI-Governed PR Pipeline
 
+> **This is the original design document, kept as the record of how the project was planned and why.** For what the pipeline must do *today*, read [docs/SPECIFICATION.md](../SPECIFICATION.md), which is authoritative where the two differ — several details here were refined during implementation (see [Task 007](../007-spec-conformance/plan.md)).
+
 | | |
 |---|---|
-| **Status** | 🟢 Approved — decisions locked 2026-07-16, build in progress |
+| **Status** | 🟢 Approved — decisions locked 2026-07-16, build complete |
 | **Author** | Claude (drafted for review by @0xb1te) |
 | **Date** | 2026-07-16 |
 | **Deliverables of this task** | This plan, [RULES.md](RULES.md), [AGENT.md](AGENT.md), plus phases 1–5 tracked as tasks 002–006 |

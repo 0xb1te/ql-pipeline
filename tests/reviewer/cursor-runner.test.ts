@@ -1,30 +1,44 @@
-import { describe, expect, it, vi } from 'vitest';
-import { isWorkingTreeClean } from '../../src/reviewer/cursor-runner.js';
-import type { CommandExecutor } from '../../src/shared/exec.js';
+import { describe, expect, it } from 'vitest';
+import { reviewerMutatedCheckout } from '../../src/reviewer/cursor-runner.js';
+import { parsePorcelain } from '../../src/shared/worktree.js';
 
-describe('isWorkingTreeClean', () => {
-  it('is true when git status --porcelain reports nothing', async () => {
-    const exec = vi.fn<CommandExecutor>().mockResolvedValue({ stdout: '', stderr: '' });
+describe('reviewerMutatedCheckout', () => {
+  it('is false when nothing changed between the two snapshots', () => {
+    const before = parsePorcelain('');
+    const after = parsePorcelain('');
 
-    expect(await isWorkingTreeClean('/repo', exec)).toBe(true);
-    expect(exec).toHaveBeenCalledWith('git status --porcelain', { cwd: '/repo' });
+    expect(reviewerMutatedCheckout(before, after)).toBe(false);
   });
 
-  it('is true when git status --porcelain reports only whitespace', async () => {
-    const exec = vi.fn<CommandExecutor>().mockResolvedValue({ stdout: '\n  \n', stderr: '' });
+  it('ignores artifacts that were already dirty before the review started', () => {
+    // The build and test gates run before the reviewer, so `dist/` and
+    // friends are routinely dirty by this point — that is not the
+    // reviewer's doing and must not fail the run.
+    const before = parsePorcelain('?? dist/\n?? node_modules/\n');
+    const after = parsePorcelain('?? dist/\n?? node_modules/\n');
 
-    expect(await isWorkingTreeClean('/repo', exec)).toBe(true);
+    expect(reviewerMutatedCheckout(before, after)).toBe(false);
   });
 
-  it('is false when git status --porcelain reports changes', async () => {
-    const exec = vi.fn<CommandExecutor>().mockResolvedValue({ stdout: ' M src/foo.ts\n', stderr: '' });
+  it('is true when the reviewer added a file', () => {
+    const before = parsePorcelain('?? dist/\n');
+    const after = parsePorcelain('?? dist/\n?? sneaky.ts\n');
 
-    expect(await isWorkingTreeClean('/repo', exec)).toBe(false);
+    expect(reviewerMutatedCheckout(before, after)).toBe(true);
   });
 
-  it('is false (fails closed) when the check itself throws', async () => {
-    const exec = vi.fn<CommandExecutor>().mockRejectedValue(new Error('git not found'));
+  it('is true when the reviewer modified a tracked file', () => {
+    const before = parsePorcelain('');
+    const after = parsePorcelain(' M src/index.ts\n');
 
-    expect(await isWorkingTreeClean('/repo', exec)).toBe(false);
+    expect(reviewerMutatedCheckout(before, after)).toBe(true);
+  });
+
+  it('fails closed when the "before" snapshot could not be taken', () => {
+    expect(reviewerMutatedCheckout(null, parsePorcelain(''))).toBe(true);
+  });
+
+  it('fails closed when the "after" snapshot could not be taken', () => {
+    expect(reviewerMutatedCheckout(parsePorcelain(''), null)).toBe(true);
   });
 });

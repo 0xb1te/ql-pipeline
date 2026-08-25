@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
 import {
   AREAS,
+  REQUIRED_CHECKS,
   type Area,
   type FixerConfig,
   type GateCommands,
@@ -9,6 +10,7 @@ import {
   type MergeConfig,
   type MergeMethod,
   type PipelineConfig,
+  type RequiredCheck,
 } from './types.js';
 
 export class ConfigError extends Error {
@@ -22,7 +24,7 @@ const MERGE_METHODS: readonly MergeMethod[] = ['squash', 'merge', 'rebase'];
 
 const DEFAULT_MERGE_METHOD: MergeMethod = 'merge';
 const DEFAULT_DELETE_BRANCH = true;
-const DEFAULT_REQUIRED_CHECKS: readonly string[] = ['build', 'test', 'ai-review'];
+const DEFAULT_REQUIRED_CHECKS: readonly RequiredCheck[] = ['build', 'test', 'ai-review'];
 const DEFAULT_MAX_FIX_ATTEMPTS = 3;
 // These are paths inside the CONSUMER repo being governed, not ql-pipeline's
 // own tree — a consumer never has ql-pipeline's rules/ or prompts/ folders,
@@ -173,17 +175,48 @@ function validateMerge(value: unknown, sourceLabel: string): MergeConfig {
     ? DEFAULT_DELETE_BRANCH
     : assertBoolean(rawDeleteBranch, 'merge.delete_branch', sourceLabel);
 
-  const rawRequiredChecks = merge['required_checks'];
-  const requiredChecks = rawRequiredChecks === undefined
-    ? DEFAULT_REQUIRED_CHECKS
-    : assertArrayOfStrings(rawRequiredChecks, 'merge.required_checks', sourceLabel);
-
   return {
     targetBranch,
+    targetBranchByArea: validateTargetBranchByArea(merge['target_branch_by_area'], sourceLabel),
     method: method as MergeMethod,
     deleteBranch,
-    requiredChecks,
+    requiredChecks: validateRequiredChecks(merge['required_checks'], sourceLabel),
   };
+}
+
+function validateTargetBranchByArea(value: unknown, sourceLabel: string): Partial<Record<Area, string>> {
+  if (value === undefined) {
+    return {};
+  }
+  const raw = assertRecord(value, 'merge.target_branch_by_area', sourceLabel);
+
+  const byArea: Partial<Record<Area, string>> = {};
+  for (const [key, branch] of Object.entries(raw)) {
+    if (!AREAS.includes(key as Area)) {
+      fail(
+        sourceLabel,
+        `"merge.target_branch_by_area.${key}" is not a recognized area (expected one of ${AREAS.join(', ')})`,
+      );
+    }
+    byArea[key as Area] = assertNonEmptyString(branch, `merge.target_branch_by_area.${key}`, sourceLabel);
+  }
+  return byArea;
+}
+
+function validateRequiredChecks(value: unknown, sourceLabel: string): RequiredCheck[] {
+  if (value === undefined) {
+    return [...DEFAULT_REQUIRED_CHECKS];
+  }
+  const names = assertArrayOfStrings(value, 'merge.required_checks', sourceLabel);
+
+  const checks: RequiredCheck[] = [];
+  for (const name of names) {
+    if (!REQUIRED_CHECKS.includes(name as RequiredCheck)) {
+      fail(sourceLabel, `"merge.required_checks" entries must be one of ${REQUIRED_CHECKS.join(', ')} (got "${name}")`);
+    }
+    checks.push(name as RequiredCheck);
+  }
+  return checks;
 }
 
 function validateFixer(value: unknown, sourceLabel: string): FixerConfig {

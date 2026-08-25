@@ -20,7 +20,13 @@ import type { Finding, PipelineConfig } from '../../src/shared/types.js';
 
 const CONFIG: PipelineConfig = {
   gates: { backend: { build: 'npm run build', test: 'npm test' } },
-  merge: { targetBranch: 'main', method: 'merge', deleteBranch: true, requiredChecks: ['build', 'test', 'ai-review'] },
+  merge: {
+    targetBranch: 'main',
+    targetBranchByArea: {},
+    method: 'merge',
+    deleteBranch: true,
+    requiredChecks: ['build', 'test', 'ai-review'],
+  },
   fixer: {
     maxFixAttempts: 3,
     protectedPaths: ['.github/workflows/', '.github/pipeline.config.yml', '.github/pipeline-rules/'],
@@ -85,7 +91,11 @@ describe('chaos safety: reviewer JSON garbage', () => {
       stderr: '',
       exitCode: 0,
     });
-    const dirtyExec = vi.fn<CommandExecutor>().mockResolvedValue({ stdout: ' M src/sneaky.ts\n', stderr: '' });
+    // Clean before the review, dirty after: the reviewer wrote to the tree.
+    const dirtyExec = vi
+      .fn<CommandExecutor>()
+      .mockResolvedValueOnce({ stdout: '', stderr: '' })
+      .mockResolvedValueOnce({ stdout: ' M src/sneaky.ts\n', stderr: '' });
 
     const result = await runReview(
       { areas: ['backend'], ruleFiles: ['_common.rules'], rulesText: '', gateOutcomes: [], prDescription: '', diff: '' },

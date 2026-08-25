@@ -1,15 +1,15 @@
-# Default / fallback pipeline configuration.
+# ql-pipeline's own configuration — this repo governs its own PRs through
+# the same reusable workflow a consumer calls (.github/workflows/dogfood.yml).
 #
-# This file serves two purposes:
-#   1. It's the config ql-pipeline uses to govern its own PRs (dogfooding, see
-#      .github/workflows/dogfood.yml).
-#   2. It documents the schema consumer repos can override via their own
-#      .github/pipeline.config.yml — any key a consumer omits falls back to
-#      the default shown here (see docs/001-first-task-base-project/plan.md §4.8
-#      and docs/integration-guide.md).
-#
-# Schema validated by src/shared/config.ts.
+# It also serves as a worked example of the schema. A consumer repo keeps
+# its own copy at .github/pipeline.config.yml; every key except
+# `merge.target_branch` is optional and falls back to the default noted
+# beside it. See docs/integration-guide.md §4 and src/shared/config.ts.
 
+# Build/test commands per area. An area with no entry here is simply
+# ungated — ql-pipeline cannot guess a repo's build commands, so there is
+# no default. Commands run through a shell (they need `&&` and pipes) and
+# come only from this trusted, R4-protected file, never from PR content.
 gates:
   frontend:
     build: "npm ci && npm run build"
@@ -34,19 +34,35 @@ gates:
     test: "true"
 
 merge:
+  # Required. The pipeline governs only PRs that target this branch; a PR
+  # aimed anywhere else is left untouched rather than failed.
   target_branch: main
-  method: merge              # squash | merge | rebase
-  delete_branch: true
-  required_checks: [build, test, ai-review]
+
+  # Optional per-area override of target_branch. A PR whose areas resolve
+  # to more than one target is a conflict the pipeline refuses to guess at.
+  # target_branch_by_area:
+  #   mobile: release/mobile
+
+  method: merge              # squash | merge | rebase   (default: merge)
+  delete_branch: true        # default: true
+
+  # Which pipeline stages are enforced. A stage left out still runs, but
+  # its failures are advisory rather than blocking — except `ai-review`,
+  # which is skipped entirely when not required, since a review whose
+  # findings cannot block is pure cost.
+  required_checks: [build, test, ai-review]   # default: all three
 
 fixer:
   max_fix_attempts: 3
   # An explicit override, not the shipped default: this file governs
-  # ql-pipeline's own repo (dogfooding), so the fixer's own rules/prompts/
-  # config/workflows are exactly what needs protecting here. A consumer
-  # repo has no rules/ or prompts/ folder of its own — see
-  # DEFAULT_PROTECTED_PATHS in src/shared/config.ts for what applies when
-  # a consumer's config omits this key.
+  # ql-pipeline's own repo, so the pipeline's own rules/prompts/config/
+  # workflows are exactly what needs protecting here. A consumer repo has
+  # no rules/ or prompts/ folder of its own — see DEFAULT_PROTECTED_PATHS
+  # in src/shared/config.ts for what applies when a consumer omits this.
+  #
+  # These paths are enforced twice over: a PR touching them always routes
+  # to a human, and any fix-agent edit to them is hard-reverted before a
+  # commit is made (RULES.md R4).
   protected_paths:
     - rules/
     - prompts/

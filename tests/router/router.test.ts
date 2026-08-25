@@ -9,7 +9,7 @@ function testConfig(overrides: Partial<PipelineConfig['gates']> = {}): PipelineC
       backend: { build: 'npm run build:backend', test: 'npm run test:backend' },
       ...overrides,
     },
-    merge: { targetBranch: 'main', method: 'merge', deleteBranch: true, requiredChecks: ['build', 'test'] },
+    merge: { targetBranch: 'main', targetBranchByArea: {}, method: 'merge', deleteBranch: true, requiredChecks: ['build', 'test'] },
     fixer: { maxFixAttempts: 3, protectedPaths: ['rules/'] },
   };
 }

@@ -188,13 +188,38 @@ describe('runReview', () => {
 
   it('blocks when the checkout was mutated, even though the response parsed fine', async () => {
     const agentRunner = vi.fn<CursorAgentRunner>().mockResolvedValue(passResponse());
-    const dirtyExec = vi.fn<CommandExecutor>().mockResolvedValue({ stdout: ' M src/evil.ts\n', stderr: '' });
+    // Clean before the review, dirty after it — i.e. the reviewer wrote.
+    const mutatingExec = vi
+      .fn<CommandExecutor>()
+      .mockResolvedValueOnce({ stdout: '', stderr: '' })
+      .mockResolvedValueOnce({ stdout: ' M src/evil.ts\n', stderr: '' });
 
-    const result = await runReview(context(), TEMPLATE, { cwd: '/repo', agentRunner, commandExecutor: dirtyExec });
+    const result = await runReview(context(), TEMPLATE, { cwd: '/repo', agentRunner, commandExecutor: mutatingExec });
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.reason).toMatch(/modified during a read-only review/);
     }
+  });
+
+  it('tolerates build artifacts the gates left behind, since they predate the review', async () => {
+    const agentRunner = vi.fn<CursorAgentRunner>().mockResolvedValue(passResponse());
+    // Already dirty before the review, and unchanged by it.
+    const artifactsExec = vi
+      .fn<CommandExecutor>()
+      .mockResolvedValue({ stdout: '?? dist/\n?? node_modules/\n', stderr: '' });
+
+    const result = await runReview(context(), TEMPLATE, { cwd: '/repo', agentRunner, commandExecutor: artifactsExec });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('blocks when the working tree cannot be inspected, rather than assuming it was untouched', async () => {
+    const agentRunner = vi.fn<CursorAgentRunner>().mockResolvedValue(passResponse());
+    const brokenExec = vi.fn<CommandExecutor>().mockRejectedValue(new Error('not a git repository'));
+
+    const result = await runReview(context(), TEMPLATE, { cwd: '/repo', agentRunner, commandExecutor: brokenExec });
+
+    expect(result.ok).toBe(false);
   });
 });

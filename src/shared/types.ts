@@ -66,11 +66,28 @@ export type GatesConfig = Readonly<Partial<Record<Area, GateCommands>>>;
 
 export type MergeMethod = 'squash' | 'merge' | 'rebase';
 
+/**
+ * The pipeline stages a repo can require before a PR is allowed to merge.
+ * A stage left out of `merge.required_checks` still runs, but its failures
+ * are advisory rather than blocking — except `ai-review`, which is skipped
+ * outright when not required (there's no point paying for a review whose
+ * findings can't block).
+ */
+export type RequiredCheck = 'build' | 'test' | 'ai-review';
+
+export const REQUIRED_CHECKS: readonly RequiredCheck[] = ['build', 'test', 'ai-review'];
+
 export interface MergeConfig {
   readonly targetBranch: string;
+  /**
+   * Optional per-area override of `targetBranch` (plan.md §4.7), e.g.
+   * `{ mobile: 'release/mobile' }`. A PR whose matched areas resolve to
+   * more than one target is a conflict the pipeline refuses to resolve.
+   */
+  readonly targetBranchByArea: Readonly<Partial<Record<Area, string>>>;
   readonly method: MergeMethod;
   readonly deleteBranch: boolean;
-  readonly requiredChecks: readonly string[];
+  readonly requiredChecks: readonly RequiredCheck[];
 }
 
 export interface FixerConfig {

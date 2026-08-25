@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import type { CommandExecutor } from '../shared/exec.js';
+import { worktreeChanged, type WorktreeState } from '../shared/worktree.js';
 
 export interface CursorAgentInvocation {
   readonly stdout: string;
@@ -58,15 +58,14 @@ export const runCursorAgent: CursorAgentRunner = (prompt, options) => {
 /**
  * The reviewer runs in read-only mode, but a mode flag is a prompt-level
  * instruction, not a guarantee — this checks the checkout was actually left
- * untouched. Any failure to check (not a git repo, git missing) is treated
- * as "not clean": if we can't verify read-only behavior held, we don't
- * assume it did.
+ * untouched, by comparing a snapshot taken before the agent ran against one
+ * taken after. Either snapshot being unavailable (not a git repo, git
+ * missing) counts as "modified": if read-only behaviour cannot be verified,
+ * it is never assumed.
  */
-export async function isWorkingTreeClean(cwd: string, exec: CommandExecutor): Promise<boolean> {
-  try {
-    const { stdout } = await exec('git status --porcelain', { cwd });
-    return stdout.trim().length === 0;
-  } catch {
-    return false;
+export function reviewerMutatedCheckout(before: WorktreeState | null, after: WorktreeState | null): boolean {
+  if (before === null || after === null) {
+    return true;
   }
+  return worktreeChanged(before, after);
 }

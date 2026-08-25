@@ -1,9 +1,9 @@
 name: PR Pipeline
 
 # This is the product: a reusable workflow other repos call by reference
-# (see docs/integration-guide.md, Phase 5). It never runs on its own — a
-# caller workflow (a consumer repo's, or this repo's own dogfood.yml,
-# Phase 5) triggers it with `uses:`.
+# (see docs/integration-guide.md). It never runs on its own — a caller
+# workflow (a consumer repo's, or this repo's own dogfood.yml) triggers it
+# with `uses:`.
 on:
   workflow_call:
     inputs:
@@ -17,10 +17,10 @@ on:
         default: main
     secrets:
       CURSOR_API_KEY:
-        description: Cursor CLI API key. Required from Phase 3 (AI review) onward; unused today.
+        description: Cursor CLI API key, used for both the AI review and the auto-fix agent.
         required: true
       GH_TOKEN:
-        description: Token used to read PR data and manage labels/commits. Falls back to the calling workflow's default GITHUB_TOKEN.
+        description: Token used to read PR data, manage labels/reviews, and push fix commits. Falls back to the calling workflow's default GITHUB_TOKEN.
         required: false
 
 jobs:
@@ -31,8 +31,16 @@ jobs:
       pull-requests: write
       issues: write
     steps:
-      - name: Checkout PR
+      # Check out the PR's head BRANCH, not the default merge ref. The
+      # default `actions/checkout` behaviour on `pull_request` leaves a
+      # detached HEAD at a synthetic merge commit, which the fix agent
+      # could not commit onto or push back to the PR.
+      - name: Checkout PR head branch
         uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GH_TOKEN || github.token }}
 
       - name: Checkout ql-pipeline
         uses: actions/checkout@v4
@@ -40,6 +48,16 @@ jobs:
           repository: 0xb1te/ql-pipeline
           ref: ${{ inputs.ql-pipeline-ref }}
           path: .ql-pipeline
+
+      # `actions/checkout` can only write inside the workspace, so
+      # ql-pipeline (and the node_modules it is about to install) lands
+      # inside the repo under review. Without this exclude, the reviewer's
+      # read-only guard — which fails the run if `git status --porcelain`
+      # reports anything — would see .ql-pipeline/ as untracked and block
+      # every single PR. This is a local-only exclude; it never touches the
+      # repository's tracked .gitignore.
+      - name: Hide the ql-pipeline checkout from the repo under review
+        run: echo '/.ql-pipeline/' >> .git/info/exclude
 
       - uses: actions/setup-node@v4
         with:
@@ -52,6 +70,21 @@ jobs:
         run: |
           npm ci
           npm run build
+
+      - name: Install Cursor CLI
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Cursor CLI is on PATH
+        run: cursor-agent --version
+
+      # The fix agent commits through pipeline code, so the runner needs a
+      # git identity or `git commit` fails outright.
+      - name: Configure git identity for fix commits
+        run: |
+          git config user.name 'ql-pipeline[bot]'
+          git config user.email 'ql-pipeline[bot]@users.noreply.github.com'
 
       - name: Run pipeline
         run: node .ql-pipeline/dist/main.js

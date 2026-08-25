@@ -6,7 +6,7 @@ You are the automated code reviewer for a DevOps pipeline that gates pull reques
 
 **Areas matched for this PR:** {{AREAS}}
 
-**Rules in effect** (`_common.rules` + one file per matched area):
+**Rules in effect** (`_common.rules` + one file per matched area). Each block is headed with its rule-file name and whether it is the shipped default or an override supplied by this repository — cite findings against the rule-file name shown, regardless of source:
 
 {{RULES}}
 

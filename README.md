@@ -6,6 +6,18 @@ An AI-governed pull request pipeline, shipped as a reusable GitHub Actions workf
 - **Adopting it in another repo:** [docs/integration-guide.md](docs/integration-guide.md).
 - **Developing it:** [RULES.md](RULES.md) · [AGENT.md](AGENT.md).
 
+## The three checks
+
+A PR gets three checks, in order. Each is its own job, so you can see at a glance which stage failed and require them individually in branch protection.
+
+```
+1. test         run the test gate for the PR's areas
+2. build        run the build gate  (skipped if tests failed)
+3. ql-pipeline  AI review → verdict → merge / fix / block
+                (runs even when a gate is red — a broken build is a
+                 finding the fix agent can repair)
+```
+
 ## How a PR flows through it
 
 ```
@@ -13,7 +25,7 @@ PR opened / commit pushed
   ├─ targets a branch this pipeline doesn't govern? ──────────────► left untouched (no API calls, no AI spend)
   ├─ no conventional-commit header anywhere? ────────────────────► fail closed, explain why
   ├─ touches rules / prompts / config / workflows? ──────────────► needs-human (checked before the AI is consulted)
-  ├─ build + test gates ─── required gate fails? ────────────────► findings, review skipped
+  ├─ test + build gates ─── required gate fails? ────────────────► findings, review skipped
   ├─ AI review (Cursor CLI, read-only) ── ungrounded findings ───► discarded
   └─ verdict
        ├─ MERGE ──► approve, merge (SHA-pinned), delete branch
@@ -34,8 +46,9 @@ Feature-complete against the specification. Build-out and conformance tracked as
 | [005](docs/005-phase4-fixloop/plan.md) | Fix loop: complaint format, Cursor CLI fixer, attempt counter | Done |
 | [006](docs/006-phase5-hardening/plan.md) | Hardening: self-protection routing, audit trail, docs | Done |
 | [007](docs/007-spec-conformance/plan.md) | Spec conformance: target-branch governance, rule overrides, required checks, and seven live-run bugs | Done |
+| [008](docs/008-modular-checks/plan.md) | Modular checks: split into test / build / ql-pipeline jobs, CLI subcommands | Done |
 
-263 tests across 24 files; the commit parser and verdict engine hold 100% branch coverage. **Not yet verified:** a live Actions run against a real PR, and a live `cursor-agent` review/fix cycle — see [SPECIFICATION.md §8](docs/SPECIFICATION.md).
+311 tests across 29 files; the commit parser and verdict engine hold 100% branch coverage. **Not yet verified:** a live Actions run against a real PR, and a live `cursor-agent` review/fix cycle — see [SPECIFICATION.md §8](docs/SPECIFICATION.md).
 
 ## Repository layout
 
@@ -43,7 +56,8 @@ Feature-complete against the specification. Build-out and conformance tracked as
 rules/*.rules              Per-area rule sets applied to incoming PRs (7 areas + _common)
 prompts/*.md               Reviewer and fixer prompt templates (both run via Cursor CLI)
 pipeline.config.yml        This repo's own config, and the annotated example of the schema
-src/main.ts                Entrypoint: route → govern → self-protect → gate → review → decide → merge/fix/block
+src/main.ts                Thin dispatcher over the CLI subcommands, one per check
+src/cli/                   command parsing, shared bootstrap, and the gate/govern commands
 src/commit-parser/         Pure conventional-commit header parsing
 src/router/                Pure routing decision, gate execution, self-protection check
 src/rules/                 Rule resolution, including consumer per-area overrides
@@ -51,7 +65,7 @@ src/reviewer/              Cursor CLI review: prompt building, diff grounding, r
 src/verdict/               Pure MERGE / FIX / BLOCK engine and required-checks semantics
 src/fixer/                 Attempt counting, complaint formatting, fix agent, protected-path revert
 src/merger/                Target-branch resolution; approve + merge + delete-branch
-src/shared/                Types, config, logger, GitHub client, exec, worktree snapshots, audit summary
+src/shared/                Types, config, logger, GitHub client, exec, worktree snapshots, gate reports, audit summary
 tests/                     Mirrors src/; tests/integration/ holds the end-to-end and chaos-safety suites
 .github/workflows/         pr-pipeline.yml (the reusable workflow) · dogfood.yml · self-check.yml
 docs/                      SPECIFICATION.md, integration-guide.md, and one folder per task

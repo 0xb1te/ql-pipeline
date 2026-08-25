@@ -18,11 +18,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  govern:
+  checks:
     uses: 0xb1te/ql-pipeline/.github/workflows/pr-pipeline.yml@main
     secrets:
       CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
 ```
+
+This adds **three checks** to every PR, which run in order:
+
+| # | Check | What it does | Red means |
+|---|---|---|---|
+| 1 | `checks / test` | Runs the configured **test** command for the PR's areas | Tests failed |
+| 2 | `checks / build` | Runs the configured **build** command for the PR's areas | The change doesn't build |
+| 3 | `checks / ql-pipeline` | AI review, verdict, and merge / fix / block | The PR was blocked, or a fix was pushed |
+
+The `checks /` prefix is your calling job's id — rename the job and the prefix changes with it. Those exact strings are what you enter in branch protection.
+
+`build` is skipped if `test` fails, so you get the first real failure without waiting for the rest. **`ql-pipeline` runs regardless** — that's deliberate: a failing test or build is a finding the fix agent can repair, and halting the chain on a red gate would mean broken builds never get auto-fixed.
 
 - **Pin `@main` to a tag or SHA in production** once ql-pipeline has releases — `@main` tracks the latest commit, which is fine for trying it out but not for a repo whose merges depend on it staying stable.
 - **The `concurrency` block is your responsibility, not ql-pipeline's.** A new commit pushed to a PR should cancel the in-flight run for the old one (including a stale fix-loop attempt) — the reusable workflow doesn't declare this for you since it's a property of *your* workflow, not the called one.
@@ -35,7 +47,9 @@ PRs from forks are routed, gated, and reviewed, but **never auto-fixed** — a f
 
 ## 2. Branch protection
 
-Add the workflow's check (`govern`) as a **required status check** on your target branch. ql-pipeline approves and merges through the normal GitHub API — branch protection is the actual enforcement layer; the pipeline works with it, never around it.
+Add whichever of the three checks you want enforced as **required status checks** on your target branch — `checks / test`, `checks / build`, `checks / ql-pipeline`. ql-pipeline approves and merges through the normal GitHub API, so branch protection is the actual enforcement layer; the pipeline works with it, never around it.
+
+Note the relationship with `merge.required_checks` in your config (§4): that field controls whether the *pipeline* treats a stage's failure as blocking, while branch protection controls whether *GitHub* blocks the merge button. They're independent, and it's reasonable to set both. If you drop `build` from `required_checks` but mark `checks / build` as required in branch protection, the pipeline will happily approve a PR that GitHub then refuses to merge — pick one story and stick to it.
 
 ## 3. Conventional commits
 

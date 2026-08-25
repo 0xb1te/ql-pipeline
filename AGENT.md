@@ -17,6 +17,7 @@ You are working on **ql-pipeline**: a versioned DevOps pipeline that governs pul
 |---|---|---|
 | `docs/SPECIFICATION.md` | The canonical contract | Only alongside the change that makes it true |
 | `docs/NNN-*/` | Task folders: plans, decisions | Yes — this is where work starts |
+| `src/cli/` | One subcommand per GitHub check, plus their shared bootstrap | Yes, with tests |
 | `src/` | Pipeline implementation (TypeScript, Node 20, strict) | Yes, with tests |
 | `tests/` | Unit + integration tests | Yes — required for any `src/` change |
 | `rules/*.rules` | Rule sets applied to incoming PRs (shipped defaults) | Only with explicit human approval (R4) |
@@ -53,6 +54,9 @@ Learned the hard way; see [docs/007-spec-conformance/plan.md](docs/007-spec-conf
 - **ql-pipeline's own checkout lives inside the repo under review** (`.ql-pipeline/`), because `actions/checkout` cannot write outside the workspace. It's hidden via `.git/info/exclude`; don't assume the workspace contains only the consumer's files.
 - **`actions/checkout` on `pull_request` defaults to a detached merge ref.** The workflow deliberately checks out the head *branch* so the fixer can push.
 - **Cursor CLI wraps its JSON in prose** even when told not to. `response-parser.ts` extracts a balanced `{...}` from surrounding text — that's load-bearing, not defensive padding.
+- **The `ql-pipeline` job must keep running when a gate is red** (`if: ${{ !cancelled() }}`). Wiring it to skip on gate failure looks tidier and silently destroys auto-fix-the-build: no complaint, no fix attempt, just a red check. See [docs/008-modular-checks/plan.md](docs/008-modular-checks/plan.md).
+- **A missing gate report is not a passing gate.** `readGateReports` distinguishes "did not report" from "passed", and fails closed on a corrupt one. Don't collapse those cases.
+- **Never import `src/main.ts` from a test** — it executes the CLI on import. Import `src/cli/command.ts` for the parser.
 
 ## Behavioural expectations
 

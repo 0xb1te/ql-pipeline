@@ -5,6 +5,10 @@ name: Dogfood
 # is `config-path`, since this repo keeps its own config at the root
 # (pipeline.config.yml) rather than under .github/, and the local `uses:`
 # reference instead of a cross-repo one.
+#
+# The calling job is named `checks`, so the three checks it contributes to
+# a PR appear as `checks / test`, `checks / build`, and
+# `checks / ql-pipeline`.
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -14,7 +18,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  govern:
+  checks:
     uses: ./.github/workflows/pr-pipeline.yml
     with:
       config-path: pipeline.config.yml

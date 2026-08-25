@@ -48,19 +48,38 @@ Decided 2026-07-16 (see [001/plan.md §8](001-first-task-base-project/plan.md));
 
 ## 4. Pipeline contract
 
-The order below is normative — several steps exist specifically to run *before* a later one.
+### 4.1 Check topology
+
+The pipeline reports **three checks** on a PR, one per GitHub Actions job, in this order:
+
+| # | Check | Command | Purpose |
+|---|---|---|---|
+| 1 | `test` | `main.js gate --stage test` | The test gate for the PR's areas |
+| 2 | `build` | `main.js gate --stage build` | The build gate for the PR's areas |
+| 3 | `ql-pipeline` | `main.js govern` | AI review, verdict, and merge / fix / block |
+
+`build` runs only if `test` passed — first real failure, fastest feedback. **`ql-pipeline` runs even when a gate failed** (it is skipped only if the run is cancelled), because a broken build is a finding the fix agent can repair; halting the chain on a red gate would silently drop that capability.
+
+Gate jobs hand their outcomes to the pipeline job as **artifacts** (`gate-report-<stage>`), validated on read. A report that is absent means "that stage did not report" — which is *not* the same as passing, and never invents a finding. A report that is present but corrupt fails closed: the pipeline will not merge a PR when it cannot tell whether the tests passed.
+
+Every job routes independently rather than inheriting a decision from another job, so each check reports the truth about the PR in front of it. Routing costs one API call.
+
+### 4.2 Ordered steps
+
+Normative — several steps exist specifically to run *before* a later one.
 
 1. **Read PR context** — number, title, head ref/SHA, base ref, fork status.
-2. **Governance pre-check** — if the PR's base branch could not possibly be a configured target, exit cleanly. Costs zero API calls and zero AI spend on PRs this pipeline has no authority over.
-3. **Route** — parse the PR's commits; union the areas found. Fall back to the PR title only when *no* commit parses. Unroutable ⇒ fail closed.
-4. **Resolve the target branch** — per-area overrides may apply; areas disagreeing is a conflict that escalates to a human. If the PR's base isn't the resolved target, exit cleanly.
-5. **Label** the PR `area:<area>` for each matched area.
-6. **Self-protection** — a PR touching `rules/`, `prompts/`, the pipeline config, or workflows always routes to a human. Checked structurally, *before the AI is consulted*: the AI's judgment must never be the enforcement mechanism for its own constitution.
-7. **Gates** — run the configured build/test commands per area. Failures become findings; a stage outside `required_checks` yields advisory findings instead of blocking ones.
-8. **AI review** — skipped when a required gate already failed (no point reviewing code that doesn't build) or when `ai-review` isn't required. Otherwise `cursor-agent` runs read-only against the resolved rules, and every finding must cite a real file, line, and rule ID or it is discarded.
-9. **Verdict** — MERGE, FIX, or BLOCK (§5).
-10. **Audit comment** — areas, target branch, gate results, whether the review ran, finding count, and the decision. The decision trail is reconstructible from the PR alone.
-11. **Act** — merge (SHA-pinned), or post a complaint and run the fix agent, or block with `needs-human`.
+2. **Governance pre-check** — if the PR's base branch could not possibly be a configured target, exit cleanly. Costs zero API calls and zero AI spend on PRs this pipeline has no authority over. *(Every job.)*
+3. **Route** — parse the PR's commits; union the areas found. Fall back to the PR title only when *no* commit parses. Unroutable ⇒ fail closed. *(Every job.)*
+4. **Resolve the target branch** — per-area overrides may apply; areas disagreeing is a conflict that escalates to a human. If the PR's base isn't the resolved target, exit cleanly. *(Every job.)*
+5. **Gates** — each stage job runs only its own commands, for the matched areas, and writes a report. *(Jobs 1 and 2.)*
+6. **Label** the PR `area:<area>` for each matched area. *(Job 3.)*
+7. **Self-protection** — a PR touching `rules/`, `prompts/`, the pipeline config, or workflows always routes to a human. Checked structurally, *before the AI is consulted*: the AI's judgment must never be the enforcement mechanism for its own constitution. *(Job 3.)*
+8. **Collect gate reports** — failures become findings; a stage outside `required_checks` yields advisory findings instead of blocking ones. *(Job 3.)*
+9. **AI review** — skipped when a required gate already failed or when `ai-review` isn't required. Otherwise `cursor-agent` runs read-only against the resolved rules, and every finding must cite a real file, line, and rule ID or it is discarded. *(Job 3.)*
+10. **Verdict** — MERGE, FIX, or BLOCK (§5). *(Job 3.)*
+11. **Audit comment** — areas, target branch, gate results, whether the review ran, finding count, and the decision. The decision trail is reconstructible from the PR alone. *(Job 3.)*
+12. **Act** — merge (SHA-pinned), or post a complaint and run the fix agent, or block with `needs-human`. *(Job 3.)*
 
 ## 5. Verdict rules
 
@@ -84,7 +103,8 @@ Each is a guarantee the implementation must keep, not a best effort.
 | **Findings are grounded** | Findings citing a file, line, or rule ID that doesn't exist are discarded, not repaired — the hallucination guard on the reviewer itself. |
 | **The agent never commits** | The fix agent only produces a working-tree diff. The pipeline decides what is staged (exactly the paths the agent touched, never build artifacts), writes the commit message, and pushes. |
 | **Fork PRs are never falsely "fixed"** | A fork's branch cannot be pushed to with the base repo's token; such PRs are reviewed and complained about, then escalated. |
-| **Untrusted content never reaches a shell** | PR diffs and complaints are passed to `cursor-agent` as a single argv element via `spawn`. Only trusted config strings run through a shell. |
+| **Untrusted content never reaches a shell** | PR diffs and complaints are passed to `cursor-agent` as a single argv element via `spawn`; agent-created filenames are staged through a git pathspec file. Only trusted config strings run through a shell. |
+| **A stage that didn't report never counts as passing** | Gate reports cross the job boundary as validated artifacts. Absent ⇒ that stage is unknown, and no finding is invented. Corrupt ⇒ the run fails closed rather than merging on an unverified build. |
 
 ## 7. Configuration surface
 

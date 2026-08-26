@@ -4,6 +4,8 @@ import {
   AREAS,
   REQUIRED_CHECKS,
   type Area,
+  type AreaPathsConfig,
+  type AreasConfig,
   type FixerConfig,
   type GateCommands,
   type GatesConfig,
@@ -11,6 +13,7 @@ import {
   type MergeMethod,
   type PipelineConfig,
   type RequiredCheck,
+  type StandardsConfig,
 } from './types.js';
 
 export class ConfigError extends Error {
@@ -37,6 +40,37 @@ const DEFAULT_PROTECTED_PATHS: readonly string[] = [
   '.github/pipeline.config.yml',
   '.github/pipeline-rules/',
 ];
+
+/**
+ * The house monorepo convention: product code lives in `apps/<name>-frontend`
+ * and `apps/<name>-backend`. Detecting areas from the paths a PR touches
+ * means a commit labelled `feat(frontend)` that also edits backend code
+ * still gets the backend rules applied to it.
+ */
+const DEFAULT_AREA_PATHS: AreaPathsConfig = {
+  frontend: ['apps/*frontend*/**'],
+  backend: ['apps/*backend*/**'],
+};
+
+/**
+ * Default mapping onto the prompt-utils workflow documentation. The
+ * `checklist.md` of each stage is the review-relevant artifact — the
+ * `PROMPT.md` and `CREATE-*.md` files are generation instructions, which
+ * would tell a reviewer how to write code rather than how to judge it.
+ */
+const DEFAULT_STANDARDS: StandardsConfig = {
+  enabled: true,
+  root: '.standards',
+  docs: {
+    frontend: ['workflow/stage-5-frontend/checklist.md'],
+    backend: [
+      'workflow/stage-4-backend/backend/checklist.md',
+      'workflow/stage-4-backend/sql/checklist.md',
+      'workflow/stage-4-backend/tests/checklist.md',
+    ],
+  },
+  maxCharsPerArea: 120_000,
+};
 
 export function loadConfig(path: string): PipelineConfig {
   let raw: string;
@@ -123,7 +157,69 @@ function validateConfig(data: unknown, sourceLabel: string): PipelineConfig {
     gates: validateGates(root['gates'], sourceLabel),
     merge: validateMerge(root['merge'], sourceLabel),
     fixer: validateFixer(root['fixer'], sourceLabel),
+    areas: validateAreas(root['areas'], sourceLabel),
+    standards: validateStandards(root['standards'], sourceLabel),
   };
+}
+
+function validateAreas(value: unknown, sourceLabel: string): AreasConfig {
+  if (value === undefined) {
+    return { paths: DEFAULT_AREA_PATHS };
+  }
+  const areas = assertRecord(value, 'areas', sourceLabel);
+
+  const rawPaths = areas['paths'];
+  if (rawPaths === undefined) {
+    return { paths: DEFAULT_AREA_PATHS };
+  }
+
+  return { paths: validateAreaKeyedStringArrays(rawPaths, 'areas.paths', sourceLabel) };
+}
+
+function validateStandards(value: unknown, sourceLabel: string): StandardsConfig {
+  if (value === undefined) {
+    return DEFAULT_STANDARDS;
+  }
+  const standards = assertRecord(value, 'standards', sourceLabel);
+
+  const rawEnabled = standards['enabled'];
+  const rawRoot = standards['root'];
+  const rawDocs = standards['docs'];
+  const rawMax = standards['max_chars_per_area'];
+
+  return {
+    enabled: rawEnabled === undefined ? DEFAULT_STANDARDS.enabled : assertBoolean(rawEnabled, 'standards.enabled', sourceLabel),
+    root: rawRoot === undefined ? DEFAULT_STANDARDS.root : assertNonEmptyString(rawRoot, 'standards.root', sourceLabel),
+    docs: rawDocs === undefined ? DEFAULT_STANDARDS.docs : validateAreaKeyedStringArrays(rawDocs, 'standards.docs', sourceLabel),
+    maxCharsPerArea:
+      rawMax === undefined
+        ? DEFAULT_STANDARDS.maxCharsPerArea
+        : assertPositiveInteger(rawMax, 'standards.max_chars_per_area', sourceLabel),
+  };
+}
+
+/** Shared shape for `{ <area>: [string, ...] }` config blocks. */
+function validateAreaKeyedStringArrays(
+  value: unknown,
+  label: string,
+  sourceLabel: string,
+): Partial<Record<Area, readonly string[]>> {
+  const record = assertRecord(value, label, sourceLabel);
+
+  const result: Partial<Record<Area, readonly string[]>> = {};
+  for (const [key, entries] of Object.entries(record)) {
+    if (!AREAS.includes(key as Area)) {
+      fail(sourceLabel, `"${label}.${key}" is not a recognized area (expected one of ${AREAS.join(', ')})`);
+    }
+    const values = assertArrayOfStrings(entries, `${label}.${key}`, sourceLabel);
+    for (const entry of values) {
+      if (entry.length === 0) {
+        fail(sourceLabel, `"${label}.${key}" entries must be non-empty strings`);
+      }
+    }
+    result[key as Area] = values;
+  }
+  return result;
 }
 
 function validateGates(value: unknown, sourceLabel: string): GatesConfig {

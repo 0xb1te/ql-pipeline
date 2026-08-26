@@ -2,8 +2,11 @@
 
 An AI-governed pull request pipeline, shipped as a reusable GitHub Actions workflow. It interprets conventional commits (`<type>(<area>): <description>`) to detect what changed, applies the matching per-area rule set, gates the PR behind build + test, reviews it with Cursor CLI, and then **merges**, **auto-fixes**, or **blocks** it — merging only into the branch its config designates.
 
+Reviews are grounded in **your own engineering standards** — the `prompt-utils` workflow checklists for the areas a PR touches — not just generic rules.
+
 - **What it must do:** [docs/SPECIFICATION.md](docs/SPECIFICATION.md) — the canonical contract, with every requirement mapped to its code and tests.
-- **Adopting it in another repo:** [docs/integration-guide.md](docs/integration-guide.md).
+- **Turning it on for a repo:** [docs/setup-guide.md](docs/setup-guide.md) — start here.
+- **Full configuration reference:** [docs/integration-guide.md](docs/integration-guide.md).
 - **Developing it:** [RULES.md](RULES.md) · [AGENT.md](AGENT.md).
 
 ## The three checks
@@ -47,8 +50,9 @@ Feature-complete against the specification. Build-out and conformance tracked as
 | [006](docs/006-phase5-hardening/plan.md) | Hardening: self-protection routing, audit trail, docs | Done |
 | [007](docs/007-spec-conformance/plan.md) | Spec conformance: target-branch governance, rule overrides, required checks, and seven live-run bugs | Done |
 | [008](docs/008-modular-checks/plan.md) | Modular checks: split into test / build / ql-pipeline jobs, CLI subcommands | Done |
+| [009](docs/009-house-standards/plan.md) | House engineering standards (prompt-utils) + `apps/*` area detection | Done |
 
-311 tests across 29 files; the commit parser and verdict engine hold 100% branch coverage. **Not yet verified:** a live Actions run against a real PR, and a live `cursor-agent` review/fix cycle — see [SPECIFICATION.md §8](docs/SPECIFICATION.md).
+345 tests across 31 files; the commit parser and verdict engine hold 100% branch coverage. **Not yet verified:** a live Actions run against a real PR, and a live `cursor-agent` review/fix cycle — see [SPECIFICATION.md §8](docs/SPECIFICATION.md).
 
 ## Repository layout
 

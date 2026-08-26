@@ -138,7 +138,7 @@ describe('groundFindings', () => {
     const result = groundFindings([bad], index, loadedRuleFiles);
 
     expect(result.grounded).toEqual([]);
-    expect(result.discarded[0]?.reason).toMatch(/not from a rule file loaded/);
+    expect(result.discarded[0]?.reason).toMatch(/does not cite a rule file or standards document/);
   });
 
   it('matches rules from _common.rules despite the leading underscore', () => {

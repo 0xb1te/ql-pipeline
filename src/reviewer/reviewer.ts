@@ -7,8 +7,11 @@ import { parseReviewVerdict, type ParseResult } from './response-parser.js';
 
 export interface ReviewContext {
   readonly areas: readonly Area[];
+  /** Every reference id the reviewer may cite: rule files and standards docs. */
   readonly ruleFiles: readonly string[];
   readonly rulesText: string;
+  /** House engineering standards for the matched areas (may be empty). */
+  readonly standardsText: string;
   readonly gateOutcomes: readonly GateOutcome[];
   readonly prDescription: string;
   readonly diff: string;
@@ -19,6 +22,7 @@ export function buildReviewPrompt(template: string, context: ReviewContext): str
   return template
     .replaceAll('{{AREAS}}', context.areas.join(', '))
     .replaceAll('{{RULES}}', context.rulesText)
+    .replaceAll('{{STANDARDS}}', context.standardsText)
     .replaceAll('{{GATE_RESULTS}}', formatGateResults(context.gateOutcomes))
     .replaceAll('{{PR_DESCRIPTION}}', context.prDescription)
     .replaceAll('{{DIFF}}', context.diff);

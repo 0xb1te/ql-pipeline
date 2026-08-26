@@ -38,6 +38,20 @@ describe('parseConfig', () => {
         maxFixAttempts: 5,
         protectedPaths: ['rules/', 'prompts/'],
       },
+      areas: { paths: { frontend: ['apps/*frontend*/**'], backend: ['apps/*backend*/**'] } },
+      standards: {
+        enabled: true,
+        root: '.standards',
+        docs: {
+          frontend: ['workflow/stage-5-frontend/checklist.md'],
+          backend: [
+            'workflow/stage-4-backend/backend/checklist.md',
+            'workflow/stage-4-backend/sql/checklist.md',
+            'workflow/stage-4-backend/tests/checklist.md',
+          ],
+        },
+        maxCharsPerArea: 120_000,
+      },
     });
   });
 

@@ -18,6 +18,7 @@ You are working on **ql-pipeline**: a versioned DevOps pipeline that governs pul
 | `docs/SPECIFICATION.md` | The canonical contract | Only alongside the change that makes it true |
 | `docs/NNN-*/` | Task folders: plans, decisions | Yes — this is where work starts |
 | `src/cli/` | One subcommand per GitHub check, plus their shared bootstrap | Yes, with tests |
+| `src/standards/` | Loading the house engineering standards for a PR's areas | Yes, with tests |
 | `src/` | Pipeline implementation (TypeScript, Node 20, strict) | Yes, with tests |
 | `tests/` | Unit + integration tests | Yes — required for any `src/` change |
 | `rules/*.rules` | Rule sets applied to incoming PRs (shipped defaults) | Only with explicit human approval (R4) |
@@ -57,6 +58,9 @@ Learned the hard way; see [docs/007-spec-conformance/plan.md](docs/007-spec-conf
 - **The `ql-pipeline` job must keep running when a gate is red** (`if: ${{ !cancelled() }}`). Wiring it to skip on gate failure looks tidier and silently destroys auto-fix-the-build: no complaint, no fix attempt, just a red check. See [docs/008-modular-checks/plan.md](docs/008-modular-checks/plan.md).
 - **A missing gate report is not a passing gate.** `readGateReports` distinguishes "did not report" from "passed", and fails closed on a corrupt one. Don't collapse those cases.
 - **Never import `src/main.ts` from a test** — it executes the CLI on import. Import `src/cli/command.ts` for the parser.
+- **Only `checklist.md` files are loaded as standards.** The `PROMPT.md` / `CREATE-*.md` files in the same `prompt-utils` trees are code-*generation* instructions; loading them would tell the reviewer how to write code rather than how to judge it. See [docs/009-house-standards/plan.md](docs/009-house-standards/plan.md).
+- **Standards are big.** Frontend ~14k tokens, backend ~24k. Anything that adds to the review prompt shares a budget with the diff — measure before adding more.
+- **Path-based area detection is additive, never a substitute** for the conventional-commit header. It must not make an unroutable PR routable; commit hygiene stays mandatory (RULES.md R2).
 
 ## Behavioural expectations
 

@@ -52,6 +52,41 @@ merge:
   # findings cannot block is pure cost.
   required_checks: [build, test, ai-review]   # default: all three
 
+# Areas are detected from conventional-commit headers, and additionally
+# from the paths a PR touches. Path detection is additive: a commit
+# labelled `feat(frontend)` that also edits `apps/api-backend/` still gets
+# the backend rules and standards applied. It cannot rescue a PR with no
+# valid commit header — commit hygiene stays mandatory.
+areas:
+  paths:
+    frontend: ["apps/*frontend*/**"]
+    backend: ["apps/*backend*/**"]
+
+# The house engineering standards the reviewer judges against, checked out
+# by the workflow from the standards repository. Each area's `checklist.md`
+# is the review-relevant artifact; the `PROMPT.md` / `CREATE-*.md` files in
+# the same tree are code-generation instructions and are deliberately not
+# loaded — they would tell a reviewer how to write code, not how to judge it.
+#
+# ql-pipeline itself is infrastructure tooling, not an `apps/*` product
+# app, so its own PRs (areas: infrastructure, docs) match no standards
+# document and are reviewed against `rules/*.rules` alone. The standards
+# below apply to the product repositories this pipeline governs.
+standards:
+  enabled: true
+  root: .standards
+  # Budget per area. The real backend checklists total ~94k characters
+  # (~24k tokens) and the frontend ~55k (~14k); this leaves both intact.
+  # Lower it to cut review cost at the price of dropping trailing sections.
+  max_chars_per_area: 120000
+  docs:
+    frontend:
+      - workflow/stage-5-frontend/checklist.md
+    backend:
+      - workflow/stage-4-backend/backend/checklist.md
+      - workflow/stage-4-backend/sql/checklist.md
+      - workflow/stage-4-backend/tests/checklist.md
+
 fixer:
   max_fix_attempts: 3
   # An explicit override, not the shipped default: this file governs

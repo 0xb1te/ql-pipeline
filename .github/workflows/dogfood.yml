@@ -24,3 +24,4 @@ jobs:
       config-path: pipeline.config.yml
     secrets:
       CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+      STANDARDS_TOKEN: ${{ secrets.STANDARDS_TOKEN }}

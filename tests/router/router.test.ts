@@ -11,6 +11,8 @@ function testConfig(overrides: Partial<PipelineConfig['gates']> = {}): PipelineC
     },
     merge: { targetBranch: 'main', targetBranchByArea: {}, method: 'merge', deleteBranch: true, requiredChecks: ['build', 'test'] },
     fixer: { maxFixAttempts: 3, protectedPaths: ['rules/'] },
+    areas: { paths: {} },
+    standards: { enabled: false, root: '.standards', docs: {}, maxCharsPerArea: 90_000 },
   };
 }
 

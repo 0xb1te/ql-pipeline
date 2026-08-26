@@ -24,12 +24,30 @@ on:
         description: Git ref of ql-pipeline to run. Pin a tag/sha in production consumers.
         type: string
         default: main
+      standards-repo:
+        description: >-
+          Repository holding the engineering standards the reviewer applies
+          (the prompt-utils workflow docs). Set to an empty string to review
+          without standards — also set `standards.enabled: false` in the
+          pipeline config if you do.
+        type: string
+        default: 0xb1te/prompt-utils
+      standards-ref:
+        description: Git ref of the standards repository to apply.
+        type: string
+        default: main
     secrets:
       CURSOR_API_KEY:
         description: Cursor CLI API key, used for the AI review and the auto-fix agent.
         required: true
       GH_TOKEN:
         description: Token used to read PR data, manage labels/reviews, and push fix commits. Falls back to the calling workflow's default GITHUB_TOKEN.
+        required: false
+      STANDARDS_TOKEN:
+        description: >-
+          Token with read access to the standards repository. Required when
+          it is private — the default GITHUB_TOKEN is scoped to the repo
+          under review and cannot read another one. Falls back to GH_TOKEN.
         required: false
 
 jobs:
@@ -168,8 +186,26 @@ jobs:
           ref: ${{ inputs.ql-pipeline-ref }}
           path: .ql-pipeline
 
-      - name: Hide the ql-pipeline checkout from the repo under review
-        run: echo '/.ql-pipeline/' >> .git/info/exclude
+      # The engineering standards the reviewer judges against. A private
+      # standards repo needs STANDARDS_TOKEN — the default GITHUB_TOKEN is
+      # scoped to the repo under review and cannot read another one.
+      # `continue-on-error` so that a failure here surfaces as the
+      # pipeline's own explanatory message rather than a bare checkout
+      # error; the review then refuses to proceed without its standards.
+      - name: Checkout engineering standards
+        if: ${{ inputs.standards-repo != '' }}
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.standards-repo }}
+          ref: ${{ inputs.standards-ref }}
+          token: ${{ secrets.STANDARDS_TOKEN || secrets.GH_TOKEN || github.token }}
+          path: .standards
+
+      - name: Hide the ql-pipeline and standards checkouts from the repo under review
+        run: |
+          echo '/.ql-pipeline/' >> .git/info/exclude
+          echo '/.standards/' >> .git/info/exclude
 
       - uses: actions/setup-node@v4
         with:

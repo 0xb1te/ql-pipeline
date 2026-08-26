@@ -8,12 +8,18 @@ import { runFix } from '../fixer/fixer.js';
 import { executeMergeDecision, findingToReviewComment } from '../merger/merger.js';
 import { runReview } from '../reviewer/reviewer.js';
 import { formatRulesForPrompt, resolveRuleFiles, ruleFileIds } from '../rules/rule-resolver.js';
+import { areasFromPaths } from '../router/area-paths.js';
 import { touchesProtectedPaths } from '../router/self-protection.js';
+import {
+  formatStandardsForPrompt,
+  resolveStandards,
+  standardsIds,
+} from '../standards/standards-resolver.js';
 import { formatAuditSummary } from '../shared/audit-summary.js';
 import { mergeGateReports, parseGateReport, type GateReport } from '../shared/gate-report.js';
 import type { GithubClient, PullRequestInfo } from '../shared/github-client.js';
 import type { Logger } from '../shared/logger.js';
-import type { Finding, GateOutcome } from '../shared/types.js';
+import { AREAS, type Finding, type GateOutcome } from '../shared/types.js';
 import { gateFindings, isReviewRequired } from '../verdict/required-checks.js';
 import { decidePipelineOutcome } from '../verdict/verdict.js';
 import { createPipelineContext, resolveRouting } from './bootstrap.js';
@@ -102,13 +108,26 @@ export async function runGovern(reportsDir: string): Promise<void> {
 
   const { route, targetBranch } = routing;
   logger.info('routed PR', { areas: route.areas, types: route.types, targetBranch });
-  await client.addLabels(pr, route.areas.map((area) => `area:${area}`));
+
+  const changedFiles = await client.listChangedFiles(pr);
+
+  // Areas implied by the code the PR actually touches, on top of the ones
+  // its commit headers declare. A PR labelled `feat(frontend)` that also
+  // edits `apps/api-backend/` gets the backend rules and standards applied
+  // to it too — the commit header cannot narrow what gets reviewed.
+  const pathAreas = areasFromPaths(changedFiles, config.areas.paths);
+  const reviewAreas = AREAS.filter((area) => route.areas.includes(area) || pathAreas.includes(area));
+  const addedByPath = pathAreas.filter((area) => !route.areas.includes(area));
+  if (addedByPath.length > 0) {
+    logger.info('additional areas detected from changed paths', { areas: addedByPath });
+  }
+
+  await client.addLabels(pr, reviewAreas.map((area) => `area:${area}`));
 
   // RULES.md R4: the pipeline never auto-merges or auto-fixes changes to
   // its own governance paths. Checked structurally and before the AI is
   // consulted — making the AI's judgment the enforcement mechanism for its
   // own constitution would defeat the point.
-  const changedFiles = await client.listChangedFiles(pr);
   if (touchesProtectedPaths(changedFiles, config.fixer.protectedPaths)) {
     await escalateToHuman(
       client,
@@ -146,17 +165,43 @@ export async function runGovern(reportsDir: string): Promise<void> {
   } else if (!isReviewRequired(config.merge.requiredChecks)) {
     logger.info('skipping AI review: "ai-review" is not in merge.required_checks for this repo');
   } else {
-    const resolvedRules = resolveRuleFiles(route.areas, { pipelineRoot: PIPELINE_ROOT, consumerRoot });
+    const resolvedRules = resolveRuleFiles(reviewAreas, { pipelineRoot: PIPELINE_ROOT, consumerRoot });
     for (const rule of resolvedRules) {
       logger.info(`rules: ${rule.id} (${rule.source})`);
+    }
+
+    const { standards, missing } = resolveStandards(reviewAreas, config.standards, consumerRoot);
+    for (const standard of standards) {
+      logger.info(`standards: ${standard.id} (${standard.docPath})${standard.truncated ? ' [truncated]' : ''}`);
+    }
+
+    // A configured standards document that isn't there means this review
+    // would silently be weaker than the repo believes it is — the same
+    // "documentation promises what the code doesn't do" failure RULES.md
+    // R6.0 exists to prevent. Fail loudly instead: it is trivially fixed
+    // by granting the checkout token access, or by turning standards off.
+    if (missing.length > 0) {
+      await escalateToHuman(
+        client,
+        pr,
+        logger,
+        `engineering standards could not be loaded: ${missing.join(', ')}`,
+        '**The engineering standards for this PR could not be loaded**, so it was not reviewed against them ' +
+          `and will not be merged. Missing from \`${config.standards.root}\`:\n\n` +
+          missing.map((path) => `- \`${path}\``).join('\n') +
+          '\n\nCheck that the standards repository is checked out and that the workflow token can read it, ' +
+          'or set `standards.enabled: false` in the pipeline config to review without them.',
+      );
+      return;
     }
 
     const { description, diff } = await client.getPullRequestDetails(pr);
     const reviewResult = await runReview(
       {
-        areas: route.areas,
-        ruleFiles: ruleFileIds(resolvedRules),
+        areas: reviewAreas,
+        ruleFiles: [...ruleFileIds(resolvedRules), ...standardsIds(standards)],
         rulesText: formatRulesForPrompt(resolvedRules),
+        standardsText: formatStandardsForPrompt(standards),
         gateOutcomes,
         prDescription: description,
         diff,

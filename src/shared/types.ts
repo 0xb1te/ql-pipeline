@@ -95,10 +95,38 @@ export interface FixerConfig {
   readonly protectedPaths: readonly string[];
 }
 
+/**
+ * Path globs that imply an area on top of the conventional-commit header.
+ * Projects following the `apps/<name>-frontend` / `apps/<name>-backend`
+ * monorepo convention get their areas detected from the code a PR actually
+ * touches, so a mislabelled commit cannot dodge an area's review rules.
+ */
+export type AreaPathsConfig = Readonly<Partial<Record<Area, readonly string[]>>>;
+
+export interface AreasConfig {
+  readonly paths: AreaPathsConfig;
+}
+
+/**
+ * External engineering standards (the prompt-utils workflow docs) injected
+ * into the review as authoritative context alongside `rules/*.rules`.
+ */
+export interface StandardsConfig {
+  readonly enabled: boolean;
+  /** Where the standards repository is checked out, relative to the workspace. */
+  readonly root: string;
+  /** Per-area document paths, relative to `root`. */
+  readonly docs: Readonly<Partial<Record<Area, readonly string[]>>>;
+  /** Budget guard: standards are large, and they share the prompt with the diff. */
+  readonly maxCharsPerArea: number;
+}
+
 export interface PipelineConfig {
   readonly gates: GatesConfig;
   readonly merge: MergeConfig;
   readonly fixer: FixerConfig;
+  readonly areas: AreasConfig;
+  readonly standards: StandardsConfig;
 }
 
 export interface AreaGate {

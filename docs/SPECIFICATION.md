@@ -18,6 +18,8 @@ A versioned DevOps pipeline that governs pull requests automatically: it interpr
 | **R2** | A set of rules applied **dynamically per PR**, selected by what the PR changed | [`src/router/router.ts`](../src/router/router.ts), [`src/rules/rule-resolver.ts`](../src/rules/rule-resolver.ts) | `tests/router/router.test.ts`, `tests/rules/rule-resolver.test.ts` |
 | **R3** | Merge / block / fix PRs into the branch **designated by config** | [`src/verdict/verdict.ts`](../src/verdict/verdict.ts), [`src/merger/target-branch.ts`](../src/merger/target-branch.ts) | `tests/verdict/verdict.test.ts`, `tests/merger/target-branch.test.ts` |
 | **R4** | Detect the change type by **interpreting the conventional commit**, `<type>(<area>)` | [`src/commit-parser/commit-parser.ts`](../src/commit-parser/commit-parser.ts) | `tests/commit-parser/commit-parser.test.ts` (100% branch coverage) |
+| **R6** | Review against the **house engineering standards** (the prompt-utils workflow docs), not just generic rules | [`src/standards/standards-resolver.ts`](../src/standards/standards-resolver.ts) | `tests/standards/standards-resolver.test.ts` |
+| **R7** | Detect areas from the **monorepo layout** (`apps/*frontend*`, `apps/*backend*`), so a mislabelled commit can't narrow review scope | [`src/router/area-paths.ts`](../src/router/area-paths.ts) | `tests/router/area-paths.test.ts` |
 | **R5** | **Build and test before approving**, so nothing that crashes reaches production | [`src/router/gate-runner.ts`](../src/router/gate-runner.ts), [`src/verdict/required-checks.ts`](../src/verdict/required-checks.ts) | `tests/router/gate-runner.test.ts`, `tests/verdict/required-checks.test.ts` |
 | **UC1** | A clean `feat(frontend)` PR is reviewed, found mergeable, approved and **auto-merged** | end-to-end through [`src/main.ts`](../src/main.ts) | `tests/integration/pipeline-flow.test.ts` → "UC1" |
 | **UC2** | A flawed `feat(backend)` PR gets a **complaint**, a **Cursor CLI fix commit**, and is **re-reviewed until resolved** | [`src/fixer/`](../src/fixer/) | `tests/integration/pipeline-flow.test.ts` → "UC2 full loop" |
@@ -32,6 +34,28 @@ area ::= frontend | backend | mobile | ios | android | infrastructure | docs
 ```
 
 A PR where neither any commit nor the PR title matches is **unroutable** and fails closed with an explanatory comment — the AI never reviews a change the pipeline cannot route.
+
+### Area detection
+
+Areas come from two sources, unioned:
+
+1. **Conventional-commit headers** — the primary signal, and the one that decides routability.
+2. **Changed paths** — `apps/*frontend*/**` → `frontend`, `apps/*backend*/**` → `backend` by default, configurable per area.
+
+Path detection is deliberately **additive, not a substitute**. Commit hygiene stays mandatory (a PR with no parseable header is still unroutable), but a PR labelled `feat(frontend)` that also edits `apps/api-backend/` cannot thereby dodge the backend rules and standards.
+
+### Engineering standards
+
+Beyond `rules/*.rules`, the reviewer is given the organisation's own workflow documentation for the areas a PR touches — checked out from a standards repository at review time, never vendored, so it is always current.
+
+| Area | Documents |
+|---|---|
+| `frontend` | `workflow/stage-5-frontend/checklist.md` |
+| `backend` | `workflow/stage-4-backend/{backend,sql,tests}/checklist.md` |
+
+Only the `checklist.md` files are loaded. The `PROMPT.md` and `CREATE-*.md` files in the same tree are **code-generation** instructions — feeding them to a reviewer would tell it how to write code rather than how to judge it.
+
+Standards are cited like rules, as `<area>.standards#<section>`, and are subject to the same grounding requirement. Loading is fail-closed: if `standards.enabled` is true and a configured document is missing, the PR is escalated rather than reviewed without it — a review that silently ignores the standards is worse than no review, because the repo would believe it happened.
 
 ## 3. Locked design decisions
 
@@ -100,7 +124,8 @@ Each is a guarantee the implementation must keep, not a best effort.
 | **The pipeline cannot rewrite its own laws** | Protected paths are enforced twice: a PR touching them routes to a human, and any fix-agent edit to them is hard-reverted via `git checkout --` before a commit is made. A prompt can be ignored; a revert cannot. |
 | **The reviewer is read-only** | The tree is snapshotted before and after the review; any difference fails the run. An unreadable snapshot counts as modified — unverifiable is never treated as safe. |
 | **Only the reviewed revision merges** | The head SHA is re-checked before merging and pinned on the merge API call, so a commit racing the run cannot be merged unreviewed. |
-| **Findings are grounded** | Findings citing a file, line, or rule ID that doesn't exist are discarded, not repaired — the hallucination guard on the reviewer itself. |
+| **Findings are grounded** | Findings citing a file, line, or reference id (rule file *or* standards document) that doesn't exist are discarded, not repaired — the hallucination guard on the reviewer itself. |
+| **Standards are applied or the PR is stopped** | If standards are enabled and a configured document cannot be loaded, the PR escalates to a human. The pipeline never quietly reviews against fewer standards than the repo has declared. |
 | **The agent never commits** | The fix agent only produces a working-tree diff. The pipeline decides what is staged (exactly the paths the agent touched, never build artifacts), writes the commit message, and pushes. |
 | **Fork PRs are never falsely "fixed"** | A fork's branch cannot be pushed to with the base repo's token; such PRs are reviewed and complained about, then escalated. |
 | **Untrusted content never reaches a shell** | PR diffs and complaints are passed to `cursor-agent` as a single argv element via `spawn`; agent-created filenames are staged through a git pathspec file. Only trusted config strings run through a shell. |

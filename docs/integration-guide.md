@@ -22,6 +22,9 @@ jobs:
     uses: 0xb1te/ql-pipeline/.github/workflows/pr-pipeline.yml@main
     secrets:
       CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+      # Read access to the engineering-standards repo. Required: it is
+      # private, and the default GITHUB_TOKEN is scoped to this repo only.
+      STANDARDS_TOKEN: ${{ secrets.STANDARDS_TOKEN }}
 ```
 
 This adds **three checks** to every PR, which run in order:
@@ -39,6 +42,7 @@ The `checks /` prefix is your calling job's id — rename the job and the prefix
 - **Pin `@main` to a tag or SHA in production** once ql-pipeline has releases — `@main` tracks the latest commit, which is fine for trying it out but not for a repo whose merges depend on it staying stable.
 - **The `concurrency` block is your responsibility, not ql-pipeline's.** A new commit pushed to a PR should cancel the in-flight run for the old one (including a stale fix-loop attempt) — the reusable workflow doesn't declare this for you since it's a property of *your* workflow, not the called one.
 - **Required secret:** `CURSOR_API_KEY`, used by both the reviewer and the fixer. The workflow installs the Cursor CLI on the runner itself; you don't need to.
+- **Required secret:** `STANDARDS_TOKEN` — a PAT or GitHub App token with **read** access to `0xb1te/prompt-utils`. The engineering standards live there, it's a private repo, and a workflow's default `GITHUB_TOKEN` can only read the repo it runs in. Without it the `ql-pipeline` check fails with an explicit message rather than quietly reviewing against no standards. (Set `standards.enabled: false` in your config if you genuinely want to run without them.)
 - **Optional secret:** `GH_TOKEN`. Omit it and the workflow falls back to the default `GITHUB_TOKEN` — but note the consequence: **commits pushed with the default token do not trigger new workflow runs**, so an auto-fix commit will not re-run the pipeline on its own. For the fix loop to close automatically (fix → re-review → merge), supply a PAT or GitHub App token as `GH_TOKEN`. With the default token the fix still lands on the PR; it just waits for the next push or a manual re-run to be re-reviewed.
 
 ### Fork pull requests
@@ -109,6 +113,67 @@ fixer:
 ```
 
 Every key under `merge:` and `fixer:` has the sensible default shown above and can be omitted. `gates:` has no fallback of its own — an area with no configured gate is simply ungated for that area, since ql-pipeline has no way to guess your build/test commands.
+
+## 4b. Area detection and the `apps/*` convention
+
+Areas come from two places, and the pipeline uses the **union**:
+
+1. **Your conventional-commit headers** — `feat(backend): …`. This is what decides whether a PR is routable at all.
+2. **The paths the PR touches** — by default `apps/*frontend*/**` → `frontend`, `apps/*backend*/**` → `backend`, matching the house monorepo layout.
+
+Path detection is **additive**. A PR whose commits all say `feat(frontend)` but which also edits `apps/api-backend/` gets the backend rules *and* backend standards applied too — you cannot narrow what gets reviewed by how you word a commit. It does **not** rescue a PR with no valid commit header; that is still unroutable.
+
+Override the mapping for any area if your layout differs:
+
+```yaml
+areas:
+  paths:
+    frontend: ["apps/*frontend*/**", "packages/ui/**"]
+    backend: ["apps/*backend*/**"]
+    infrastructure: ["infra/**", "terraform/**"]
+```
+
+Globs support `*` (within a path segment), `**` (across segments), and `?` (one character).
+
+## 4c. Engineering standards
+
+The reviewer judges your code against the organisation's own workflow documentation, not just the generic rule sets. The standards repository is checked out at review time — never vendored — so reviews always reflect the current standards.
+
+Defaults:
+
+| Area | Documents loaded from `0xb1te/prompt-utils` |
+|---|---|
+| `frontend` | `workflow/stage-5-frontend/checklist.md` |
+| `backend` | `workflow/stage-4-backend/backend/checklist.md`, `.../sql/checklist.md`, `.../tests/checklist.md` |
+
+Only the `checklist.md` files are used. The `PROMPT.md` and `CREATE-*.md` files in those trees are *code-generation* instructions — giving them to a reviewer would tell it how to write code, not how to judge it.
+
+The reviewer cites standards findings as `backend.standards#09-controllers`, and they are held to the same grounding requirement as rule findings: a citation to a section or file that doesn't exist is discarded.
+
+```yaml
+standards:
+  enabled: true            # false = review with rules only
+  root: .standards         # where the workflow checks the standards repo out
+  max_chars_per_area: 120000
+  docs:
+    frontend: ["workflow/stage-5-frontend/checklist.md"]
+    backend:
+      - workflow/stage-4-backend/backend/checklist.md
+      - workflow/stage-4-backend/sql/checklist.md
+      - workflow/stage-4-backend/tests/checklist.md
+```
+
+Point at a different standards repo or pin a ref from the caller workflow:
+
+```yaml
+    with:
+      standards-repo: your-org/your-standards
+      standards-ref: v2.1.0
+```
+
+**Cost.** The real checklists are large: ~55k characters (~14k tokens) for frontend, ~94k (~24k tokens) for backend. A PR touching both sends roughly 37k tokens of standards on top of the diff. That is the price of reviewing against your actual documented architecture; lower `max_chars_per_area` to trade completeness for cost (trailing sections are dropped whole, never mid-rule, and the truncation is stated in the prompt and the run log).
+
+**Fail-closed.** If `enabled` is true and a configured document can't be loaded — usually a missing or under-scoped `STANDARDS_TOKEN` — the `ql-pipeline` check fails and says exactly which documents were missing. It will not review against a subset and report success.
 
 ## 5. Overriding rules per area
 

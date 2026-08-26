@@ -20,6 +20,7 @@ function context(overrides: Partial<ReviewContext> = {}): ReviewContext {
     areas: ['backend'],
     ruleFiles: ['_common.rules', 'backend.rules'],
     rulesText: '## MUST\n- no string-concat SQL',
+    standardsText: '(no engineering standards are configured for the areas this PR touches)',
     gateOutcomes: [],
     prDescription: 'adds a payments endpoint',
     diff: 'diff --git a/x b/x\n+++ b/x\n@@ -0,0 +1,1 @@\n+const x = 1;\n',

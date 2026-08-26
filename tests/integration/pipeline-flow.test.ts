@@ -29,6 +29,8 @@ const CONFIG: PipelineConfig = {
   },
   merge: { targetBranch: 'main', targetBranchByArea: {}, method: 'merge', deleteBranch: true, requiredChecks: ['build', 'test', 'ai-review'] },
   fixer: { maxFixAttempts: 3, protectedPaths: ['rules/', 'prompts/', 'pipeline.config.yml', '.github/workflows/'] },
+  areas: { paths: {} },
+  standards: { enabled: false, root: '.standards', docs: {}, maxCharsPerArea: 90_000 },
 };
 
 const PR = {
@@ -96,6 +98,7 @@ describe('UC1: a clean frontend PR routes, gates, reviews clean, and auto-merges
         areas: route.decision.areas,
         ruleFiles: route.decision.ruleFiles,
         rulesText: '## MUST\n- no inline styles',
+        standardsText: '',
         gateOutcomes,
         prDescription: 'Adds a dark-mode toggle component.',
         diff: CLEAN_DIFF,
@@ -166,6 +169,7 @@ describe('UC2 (review portion): a flawed backend PR produces a FIX decision, not
         areas: route.decision.areas,
         ruleFiles: route.decision.ruleFiles,
         rulesText: '## SECURITY\n- no string-concatenated SQL',
+        standardsText: '',
         gateOutcomes: [],
         prDescription: 'Adds a payments endpoint.',
         diff,
@@ -252,6 +256,7 @@ describe('UC2 full loop: a flawed PR gets fixed by the bot and merges on re-revi
         areas: ['backend'],
         ruleFiles: ['_common.rules', 'backend.rules'],
         rulesText: '## SECURITY\n- no string-concatenated SQL',
+        standardsText: '',
         gateOutcomes: [],
         prDescription: 'Adds a payments endpoint.',
         diff,
@@ -322,6 +327,7 @@ describe('UC2 full loop: a flawed PR gets fixed by the bot and merges on re-revi
         areas: ['backend'],
         ruleFiles: ['_common.rules', 'backend.rules'],
         rulesText: '## SECURITY\n- no string-concatenated SQL',
+        standardsText: '',
         gateOutcomes: [],
         prDescription: 'Adds a payments endpoint.',
         diff: diff.replace('" + userId', '", [userId]'), // now parameterized

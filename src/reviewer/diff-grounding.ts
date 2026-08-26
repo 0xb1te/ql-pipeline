@@ -82,15 +82,19 @@ export interface GroundingResult {
 }
 
 /**
- * Applies the reviewer's grounding requirement (plan.md §4.4): a finding
- * must cite a file/line that really appears in the diff, and a rule file
- * that was actually loaded for this PR. Anything else is discarded rather
- * than trusted — our hallucination guard on the reviewer itself.
+ * Applies the reviewer's grounding requirement (SPECIFICATION.md §6): a
+ * finding must cite a file/line that really appears in the diff, and a
+ * reference that was actually loaded for this PR. Anything else is
+ * discarded rather than trusted — the hallucination guard on the reviewer.
+ *
+ * A "reference" is any loaded document id: a rule file (`backend.rules`)
+ * or an engineering standards document (`backend.standards`). Both are
+ * cited the same way, `<id>#<section>`.
  */
 export function groundFindings(
   findings: readonly Finding[],
   diffIndex: DiffLineIndex,
-  loadedRuleFiles: readonly string[],
+  loadedReferences: readonly string[],
 ): GroundingResult {
   const grounded: Finding[] = [];
   const discarded: { finding: Finding; reason: string }[] = [];
@@ -104,8 +108,11 @@ export function groundFindings(
       discarded.push({ finding, reason: `line ${finding.line} of "${finding.file}" does not appear in the diff` });
       continue;
     }
-    if (!loadedRuleFiles.some((ruleFile) => finding.rule.startsWith(`${ruleFile.replace(/\.rules$/, '')}.rules#`))) {
-      discarded.push({ finding, reason: `rule "${finding.rule}" is not from a rule file loaded for this PR` });
+    if (!loadedReferences.some((reference) => finding.rule.startsWith(`${reference}#`))) {
+      discarded.push({
+        finding,
+        reason: `rule "${finding.rule}" does not cite a rule file or standards document loaded for this PR`,
+      });
       continue;
     }
     grounded.push(finding);

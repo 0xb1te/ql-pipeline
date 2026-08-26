@@ -15,6 +15,8 @@ function config(overrides: Partial<PipelineConfig['merge']> = {}): PipelineConfi
       ...overrides,
     },
     fixer: { maxFixAttempts: 3, protectedPaths: [] },
+    areas: { paths: {} },
+    standards: { enabled: false, root: '.standards', docs: {}, maxCharsPerArea: 90000 },
   };
 }
 

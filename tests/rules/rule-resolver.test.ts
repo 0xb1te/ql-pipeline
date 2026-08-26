@@ -103,6 +103,32 @@ describe('resolveRuleFiles', () => {
 
     expect(resolveRuleFiles([], PATHS, files)).toHaveLength(1);
   });
+
+  it('skips an area that ships no rule file, since its standards carry it instead', () => {
+    // Most areas deliberately have no hand-written rule file: the house
+    // engineering standards are authoritative for them, and duplicating a
+    // requirement here would create two definitions that can disagree.
+    const files = reader({ [shipped('_common.rules')]: 'common rules' });
+
+    const resolved = resolveRuleFiles(['backend'], PATHS, files);
+
+    expect(resolved).toHaveLength(1);
+    expect(resolved[0]?.id).toBe('_common.rules');
+  });
+
+  it('still honours a consumer override for an area that ships no rule file', () => {
+    const files = reader({
+      [shipped('_common.rules')]: 'common rules',
+      [consumer('backend.rules')]: 'consumer backend',
+    });
+
+    const resolved = resolveRuleFiles(['backend'], PATHS, files);
+
+    expect(resolved.map((file) => [file.id, file.source])).toEqual([
+      ['_common.rules', 'shipped'],
+      ['backend.rules', 'consumer'],
+    ]);
+  });
 });
 
 describe('ruleFileIds', () => {

@@ -53,23 +53,44 @@ const DEFAULT_AREA_PATHS: AreaPathsConfig = {
 };
 
 /**
- * Default mapping onto the prompt-utils workflow documentation. The
- * `checklist.md` of each stage is the review-relevant artifact — the
- * `PROMPT.md` and `CREATE-*.md` files are generation instructions, which
- * would tell a reviewer how to write code rather than how to judge it.
+ * Default mapping onto the prompt-utils workflow documentation — the
+ * authoritative definition of how code in each area should be structured.
+ *
+ * Only `checklist.md` files are loaded. The `PROMPT.md` and `CREATE-*.md`
+ * files in the same trees are code-generation instructions: they would
+ * tell a reviewer how to write code rather than how to judge it.
+ *
+ * `frontend` loads two stages because both own part of it — stage 2 owns
+ * the visible surface, stage 5 the non-visual architecture — and a PR
+ * under `apps/*frontend*` can legitimately be either kind of work.
+ *
+ * `mobile`/`ios`/`android` map to the frontend standard because in this
+ * architecture mobile apps are the frontend packaged with Capacitor
+ * (see `workflow/stage-7-deployment/07-capacitor-apps/`); there is no
+ * separate native codebase and no dedicated mobile checklist upstream.
+ *
+ * `docs` is absent deliberately: the workflow has no documentation
+ * checklist, so `rules/docs.rules` covers that area on its own.
  */
 const DEFAULT_STANDARDS: StandardsConfig = {
   enabled: true,
   root: '.standards',
   docs: {
-    frontend: ['workflow/stage-5-frontend/checklist.md'],
+    frontend: ['workflow/stage-2-mockup/checklist.md', 'workflow/stage-5-frontend/checklist.md'],
     backend: [
       'workflow/stage-4-backend/backend/checklist.md',
       'workflow/stage-4-backend/sql/checklist.md',
       'workflow/stage-4-backend/tests/checklist.md',
     ],
+    mobile: ['workflow/stage-5-frontend/checklist.md'],
+    ios: ['workflow/stage-5-frontend/checklist.md'],
+    android: ['workflow/stage-5-frontend/checklist.md'],
+    infrastructure: ['workflow/stage-7-deployment/checklist.md'],
   },
-  maxCharsPerArea: 120_000,
+  // Sized so no area truncates: frontend is the largest at ~124k
+  // characters (stage 2 + stage 5). Lower it to cut review cost, at the
+  // price of dropping trailing checklist sections.
+  maxCharsPerArea: 140_000,
 };
 
 export function loadConfig(path: string): PipelineConfig {

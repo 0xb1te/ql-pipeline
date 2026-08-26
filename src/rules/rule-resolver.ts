@@ -70,8 +70,14 @@ export function resolveRuleFiles(
       continue;
     }
 
+    // An area with no shipped rule file is normal, not an error: for most
+    // areas the house engineering standards (docs/SPECIFICATION.md) are the
+    // authoritative source, and duplicating them here as hand-written rules
+    // would mean two definitions of the same requirement that can disagree.
     const shippedPath = join(paths.pipelineRoot, 'rules', id);
-    resolved.push({ id, area, source: 'shipped', path: shippedPath, text: reader.read(shippedPath) });
+    if (reader.exists(shippedPath)) {
+      resolved.push({ id, area, source: 'shipped', path: shippedPath, text: reader.read(shippedPath) });
+    }
   }
 
   return resolved;

@@ -43,14 +43,18 @@ describe('parseConfig', () => {
         enabled: true,
         root: '.standards',
         docs: {
-          frontend: ['workflow/stage-5-frontend/checklist.md'],
+          frontend: ['workflow/stage-2-mockup/checklist.md', 'workflow/stage-5-frontend/checklist.md'],
           backend: [
             'workflow/stage-4-backend/backend/checklist.md',
             'workflow/stage-4-backend/sql/checklist.md',
             'workflow/stage-4-backend/tests/checklist.md',
           ],
+          mobile: ['workflow/stage-5-frontend/checklist.md'],
+          ios: ['workflow/stage-5-frontend/checklist.md'],
+          android: ['workflow/stage-5-frontend/checklist.md'],
+          infrastructure: ['workflow/stage-7-deployment/checklist.md'],
         },
-        maxCharsPerArea: 120_000,
+        maxCharsPerArea: 140_000,
       },
     });
   });

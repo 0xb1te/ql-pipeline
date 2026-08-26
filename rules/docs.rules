@@ -1,13 +1,15 @@
 # docs.rules
-version: 1
+# The `docs` area is the one area the house engineering standards do not
+# cover — the prompt-utils workflow has no documentation checklist — so
+# these few rules stand on their own rather than duplicating a standard.
+# Every other area is governed by `<area>.standards`; see rules/_common.rules.
+version: 2
 
 ## MUST
-- No broken relative links to files that don't exist in the repo.
-- Code samples in documentation are syntactically valid for the language they claim to be.
-- No secrets, API keys, or internal-only URLs/hostnames included as examples.
+- No broken relative links to files that do not exist in the repository.
+- Code samples are syntactically valid for the language they claim to be.
+- No secrets, API keys, or internal-only URLs and hostnames used as examples.
 
 ## SHOULD
-- Behavior changes in `src/` are reflected in the relevant docs in the same PR (README, integration guide, etc.).
-
-## SECURITY
-- (No additional checks beyond the MUST items above — docs changes carry low inherent security risk.)
+- Behaviour changes in code are reflected in the documentation that describes them, in the same PR.
+- Documentation states what is *not* covered or not yet true, rather than implying completeness it does not have.

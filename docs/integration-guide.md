@@ -139,14 +139,19 @@ Globs support `*` (within a path segment), `**` (across segments), and `?` (one 
 
 The reviewer judges your code against the organisation's own workflow documentation, not just the generic rule sets. The standards repository is checked out at review time — never vendored — so reviews always reflect the current standards.
 
-Defaults:
+Defaults — these mappings **are** the area rules; `rules/*.rules` deliberately does not restate them:
 
-| Area | Documents loaded from `0xb1te/prompt-utils` |
-|---|---|
-| `frontend` | `workflow/stage-5-frontend/checklist.md` |
-| `backend` | `workflow/stage-4-backend/backend/checklist.md`, `.../sql/checklist.md`, `.../tests/checklist.md` |
+| Area | Documents loaded from `0xb1te/prompt-utils` | Size |
+|---|---|---|
+| `frontend` | `stage-2-mockup/checklist.md` + `stage-5-frontend/checklist.md` | ~123k chars (~31k tokens) |
+| `backend` | `stage-4-backend/{backend,sql,tests}/checklist.md` | ~94k (~24k tokens) |
+| `mobile`, `ios`, `android` | `stage-5-frontend/checklist.md` | ~55k (~14k tokens) |
+| `infrastructure` | `stage-7-deployment/checklist.md` | ~12k (~3k tokens) |
+| `docs` | — (no upstream checklist; `rules/docs.rules` covers it) | — |
 
 Only the `checklist.md` files are used. The `PROMPT.md` and `CREATE-*.md` files in those trees are *code-generation* instructions — giving them to a reviewer would tell it how to write code, not how to judge it.
+
+Mobile maps to the frontend checklist because in this architecture mobile apps are the frontend packaged with Capacitor (`stage-7-deployment/07-capacitor-apps/`) — there is no separate native codebase upstream. If you do maintain native code, override `standards.docs` for those areas.
 
 The reviewer cites standards findings as `backend.standards#09-controllers`, and they are held to the same grounding requirement as rule findings: a citation to a section or file that doesn't exist is discarded.
 
@@ -171,7 +176,13 @@ Point at a different standards repo or pin a ref from the caller workflow:
       standards-ref: v2.1.0
 ```
 
-**Cost.** The real checklists are large: ~55k characters (~14k tokens) for frontend, ~94k (~24k tokens) for backend. A PR touching both sends roughly 37k tokens of standards on top of the diff. That is the price of reviewing against your actual documented architecture; lower `max_chars_per_area` to trade completeness for cost (trailing sections are dropped whole, never mid-rule, and the truncation is stated in the prompt and the run log).
+**Cost — read this before enabling on a busy repo.** The checklists are large. A frontend PR sends ~31k tokens of standards, a backend PR ~24k, and a PR touching **both sends ~54k tokens** on top of the diff. That is the price of reviewing against your actual documented architecture rather than a generic rule list.
+
+Ways to trim, in order of how much you lose:
+
+1. Drop `stage-2-mockup/checklist.md` from `frontend` if that repo never does visual-surface work (saves ~17k tokens).
+2. Lower `max_chars_per_area` — trailing sections are dropped whole, never mid-rule, and the truncation is stated in both the prompt and the run log.
+3. Remove `ai-review` from `merge.required_checks` on low-risk repos, which skips the review entirely.
 
 **Fail-closed.** If `enabled` is true and a configured document can't be loaded — usually a missing or under-scoped `STANDARDS_TOKEN` — the `ql-pipeline` check fails and says exactly which documents were missing. It will not review against a subset and report success.
 

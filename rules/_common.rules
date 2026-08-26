@@ -1,18 +1,35 @@
 # _common.rules
-# Applied to every PR regardless of area. Loaded in addition to the area-specific rule file(s).
-version: 1
+# Applied to every PR regardless of area, in addition to the house
+# engineering standards loaded for the PR's areas.
+#
+# SCOPE — read this before adding anything here.
+#
+# The authoritative definition of how code should be structured is the
+# house engineering standards (the prompt-utils stage checklists), loaded
+# per area as `<area>.standards`. This file deliberately does NOT restate
+# them: two definitions of the same requirement can drift apart, and the
+# reviewer would then be citing whichever it happened to read first.
+#
+# What belongs here is only what no stage checklist covers — properties of
+# the *pull request itself* rather than of the architecture: secrets in a
+# diff, commit hygiene, suppressed checks, dependency provenance.
+#
+# If you are about to add an architectural, layering, naming, testing, or
+# framework rule here: it belongs in the standards repository instead.
+version: 2
 
 ## MUST
 - No secrets, API keys, tokens, passwords, or private keys anywhere in the diff.
 - No commented-out code blocks left in the diff.
 - No TODO/FIXME comments without a linked task or issue reference.
 - The PR's conventional-commit header matches the area(s) it actually touches.
-- Every finding this reviewer raises must cite a file and line that exist in the diff, and a rule ID that exists in a loaded `.rules` file; ungrounded findings are discarded, not trusted.
 
 ## SHOULD
 - The PR description explains the "why", not just the "what".
 - Commits are logically scoped (one concern per commit) rather than one giant diff.
+- Anything the author knows is incomplete or deliberately out of scope is stated in the PR description rather than left for the reviewer to discover.
 
 ## SECURITY
-- No disabling of linters, type checks, or tests via inline suppressions (`eslint-disable`, `// @ts-ignore`, `.skip`, etc.) without a one-line justification comment.
+- No disabling of linters, type checks, or tests via inline suppressions (`eslint-disable`, `// @ts-ignore`, `.skip`, `@SuppressWarnings`, etc.) without a one-line justification comment.
+- No test weakened, skipped, or deleted in order to make a build pass; a failing test is either a real defect or a wrong expectation, and both need a deliberate decision.
 - No new dependency added without a corresponding lockfile change.

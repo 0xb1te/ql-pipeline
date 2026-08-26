@@ -48,12 +48,17 @@ Path detection is deliberately **additive, not a substitute**. Commit hygiene st
 
 Beyond `rules/*.rules`, the reviewer is given the organisation's own workflow documentation for the areas a PR touches — checked out from a standards repository at review time, never vendored, so it is always current.
 
-| Area | Documents |
-|---|---|
-| `frontend` | `workflow/stage-5-frontend/checklist.md` |
-| `backend` | `workflow/stage-4-backend/{backend,sql,tests}/checklist.md` |
+| Area | Documents | Why |
+|---|---|---|
+| `frontend` | `stage-2-mockup/checklist.md`, `stage-5-frontend/checklist.md` | Two stages own the frontend — stage 2 the visible surface, stage 5 the non-visual architecture — and a PR under `apps/*frontend*` can be either |
+| `backend` | `stage-4-backend/{backend,sql,tests}/checklist.md` | Layers, schema, and the six-path test strategy |
+| `mobile`, `ios`, `android` | `stage-5-frontend/checklist.md` | Mobile apps are the frontend packaged with Capacitor; no separate native codebase, no dedicated mobile checklist upstream |
+| `infrastructure` | `stage-7-deployment/checklist.md` | Provisioning, secrets, release promotion |
+| `docs` | — | The workflow has no documentation checklist, so `rules/docs.rules` covers this area alone |
 
 Only the `checklist.md` files are loaded. The `PROMPT.md` and `CREATE-*.md` files in the same tree are **code-generation** instructions — feeding them to a reviewer would tell it how to write code rather than how to judge it.
+
+**These mappings are the area rules.** `rules/*.rules` deliberately contains only `_common.rules` (properties of the pull request itself — secrets, commit hygiene, suppressed checks) and `docs.rules` (the one uncovered area). Restating an architectural requirement in both places would create two definitions that can drift apart, and the reviewer would cite whichever it read first.
 
 Standards are cited like rules, as `<area>.standards#<section>`, and are subject to the same grounding requirement. Loading is fail-closed: if `standards.enabled` is true and a configured document is missing, the PR is escalated rather than reviewed without it — a review that silently ignores the standards is worse than no review, because the repo would believe it happened.
 

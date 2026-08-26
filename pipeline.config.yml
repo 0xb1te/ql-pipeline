@@ -62,30 +62,47 @@ areas:
     frontend: ["apps/*frontend*/**"]
     backend: ["apps/*backend*/**"]
 
-# The house engineering standards the reviewer judges against, checked out
-# by the workflow from the standards repository. Each area's `checklist.md`
-# is the review-relevant artifact; the `PROMPT.md` / `CREATE-*.md` files in
-# the same tree are code-generation instructions and are deliberately not
-# loaded — they would tell a reviewer how to write code, not how to judge it.
+# The house engineering standards the reviewer judges against — the
+# authoritative definition of how code in each area should be structured,
+# checked out by the workflow from the standards repository.
 #
-# ql-pipeline itself is infrastructure tooling, not an `apps/*` product
-# app, so its own PRs (areas: infrastructure, docs) match no standards
-# document and are reviewed against `rules/*.rules` alone. The standards
-# below apply to the product repositories this pipeline governs.
+# Only each stage's `checklist.md` is loaded. The `PROMPT.md` and
+# `CREATE-*.md` files in the same trees are code-generation instructions:
+# they would tell a reviewer how to write code, not how to judge it.
+#
+# These mappings ARE the area rules. `rules/*.rules` deliberately does not
+# restate them — see rules/_common.rules for why.
 standards:
   enabled: true
   root: .standards
-  # Budget per area. The real backend checklists total ~94k characters
-  # (~24k tokens) and the frontend ~55k (~14k); this leaves both intact.
-  # Lower it to cut review cost at the price of dropping trailing sections.
-  max_chars_per_area: 120000
+  # Sized so no area truncates; frontend is the largest at ~124k chars.
+  # Lower it to cut review cost, at the price of dropping trailing
+  # checklist sections (cut on a section boundary, never mid-rule).
+  max_chars_per_area: 140000
   docs:
+    # Two stages own the frontend: stage 2 the visible surface, stage 5
+    # the non-visual architecture. A PR under apps/*frontend* can
+    # legitimately be either kind of work, so both apply.
     frontend:
+      - workflow/stage-2-mockup/checklist.md
       - workflow/stage-5-frontend/checklist.md
     backend:
       - workflow/stage-4-backend/backend/checklist.md
       - workflow/stage-4-backend/sql/checklist.md
       - workflow/stage-4-backend/tests/checklist.md
+    # Mobile apps are the frontend packaged with Capacitor (see
+    # workflow/stage-7-deployment/07-capacitor-apps/); there is no separate
+    # native codebase and no dedicated mobile checklist upstream.
+    mobile:
+      - workflow/stage-5-frontend/checklist.md
+    ios:
+      - workflow/stage-5-frontend/checklist.md
+    android:
+      - workflow/stage-5-frontend/checklist.md
+    infrastructure:
+      - workflow/stage-7-deployment/checklist.md
+    # `docs` is absent deliberately: the workflow has no documentation
+    # checklist, so rules/docs.rules covers that area on its own.
 
 fixer:
   max_fix_attempts: 3

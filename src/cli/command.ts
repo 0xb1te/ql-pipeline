@@ -2,7 +2,10 @@ import type { GateStage } from './gate-command.js';
 
 export type Command =
   | { readonly kind: 'gate'; readonly stage: GateStage; readonly reportPath: string }
-  | { readonly kind: 'govern'; readonly reportsDir: string };
+  | { readonly kind: 'govern'; readonly reportsDir: string }
+  | { readonly kind: 'init'; readonly root: string }
+  | { readonly kind: 'upgrade'; readonly root: string; readonly force: boolean }
+  | { readonly kind: 'doctor'; readonly root: string };
 
 export type CommandParse =
   | { readonly ok: true; readonly command: Command }
@@ -10,8 +13,13 @@ export type CommandParse =
 
 export const USAGE = [
   'usage:',
-  '  main.js gate --stage <test|build> [--report <path>]',
-  '  main.js govern [--reports <dir>]',
+  '  ql-pipeline init [--root <dir>]                 scaffold this repo',
+  '  ql-pipeline upgrade [--root <dir>] [--force]    refresh managed files',
+  '  ql-pipeline doctor [--root <dir>]               check the setup',
+  '',
+  'run inside CI by the reusable workflow:',
+  '  ql-pipeline gate --stage <test|build> [--report <path>]',
+  '  ql-pipeline govern [--reports <dir>]',
 ].join('\n');
 
 function readFlag(argv: readonly string[], flag: string): string | undefined {
@@ -46,6 +54,20 @@ export function parseCommand(argv: readonly string[]): CommandParse {
 
   if (subcommand === 'govern') {
     return { ok: true, command: { kind: 'govern', reportsDir: readFlag(argv, '--reports') ?? 'gate-reports' } };
+  }
+
+  const root = readFlag(argv, '--root') ?? '.';
+
+  if (subcommand === 'init') {
+    return { ok: true, command: { kind: 'init', root } };
+  }
+
+  if (subcommand === 'upgrade') {
+    return { ok: true, command: { kind: 'upgrade', root, force: argv.includes('--force') } };
+  }
+
+  if (subcommand === 'doctor') {
+    return { ok: true, command: { kind: 'doctor', root } };
   }
 
   return { ok: false, reason: `unknown command "${subcommand ?? '(none)'}"\n\n${USAGE}` };

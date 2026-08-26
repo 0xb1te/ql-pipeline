@@ -1,0 +1,45 @@
+# ql-pipeline configuration for this repository.
+#
+# Scaffolded once by `ql-pipeline init`. This file is YOURS — `upgrade`
+# never overwrites it. Full reference: docs/integration-guide.md in
+# https://github.com/0xb1te/ql-pipeline
+
+# Build and test commands per area, run as the `build` and `test` checks.
+# EDIT THESE — ql-pipeline cannot guess your commands. An area with no
+# entry here is simply ungated, which is valid.
+gates:
+  frontend:
+    build: "pnpm install --frozen-lockfile && pnpm build"
+    test: "pnpm test"
+  backend:
+    build: "./gradlew assemble"
+    test: "./gradlew test"
+
+merge:
+  # Required. The pipeline governs ONLY pull requests targeting this
+  # branch; a PR aimed anywhere else is left completely untouched.
+  target_branch: main
+
+  # method: merge            # squash | merge | rebase   (default: merge)
+  # delete_branch: true      # default: true
+
+  # Which stages block a merge. A stage left out still runs, but its
+  # failures become advisory — except `ai-review`, which is skipped
+  # entirely when not required. Drop it for a gates-only pipeline.
+  # required_checks: [build, test, ai-review]
+
+# Areas are detected from conventional-commit headers AND from the paths a
+# PR touches. Path detection is additive: a commit labelled feat(frontend)
+# that also edits apps/api-backend/ still gets the backend rules applied.
+# Uncomment and edit only if your layout differs from the house convention.
+# areas:
+#   paths:
+#     frontend: ["apps/*frontend*/**"]
+#     backend: ["apps/*backend*/**"]
+
+# The house engineering standards the reviewer judges against. The
+# defaults map every area onto the prompt-utils stage checklists; override
+# only if this repo needs something different.
+# standards:
+#   enabled: true              # false = review against rules only
+#   max_chars_per_area: 140000 # lower to cut review cost

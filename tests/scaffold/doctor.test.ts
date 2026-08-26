@@ -1,0 +1,130 @@
+import { describe, expect, it } from 'vitest';
+import { runDoctorChecks, worstStatus, type DoctorInput } from '../../src/scaffold/doctor.js';
+
+function input(overrides: Partial<DoctorInput> = {}): DoctorInput {
+  return {
+    callerWorkflowPresent: true,
+    callerWorkflowReferencesPipeline: true,
+    configPresent: true,
+    configError: null,
+    targetBranch: 'main',
+    gatedAreas: ['frontend', 'backend'],
+    standardsEnabled: true,
+    standardsRootPresent: true,
+    missingStandardsDocs: [],
+    standardsIgnored: true,
+    cursorRuleCount: 7,
+    ...overrides,
+  };
+}
+
+const statusOf = (results: ReturnType<typeof runDoctorChecks>, name: string): string | undefined =>
+  results.find((result) => result.name === name)?.status;
+
+describe('runDoctorChecks', () => {
+  it('passes everything on a fully configured repo', () => {
+    expect(worstStatus(runDoctorChecks(input()))).toBe('pass');
+  });
+
+  it('fails when no caller workflow exists', () => {
+    const results = runDoctorChecks(input({ callerWorkflowPresent: false }));
+
+    expect(statusOf(results, 'caller workflow')).toBe('fail');
+    expect(worstStatus(results)).toBe('fail');
+  });
+
+  it('warns when a governance workflow exists but does not call ql-pipeline', () => {
+    const results = runDoctorChecks(input({ callerWorkflowReferencesPipeline: false }));
+
+    expect(statusOf(results, 'caller workflow')).toBe('warn');
+  });
+
+  it('fails when the config is missing', () => {
+    expect(statusOf(runDoctorChecks(input({ configPresent: false })), 'pipeline config')).toBe('fail');
+  });
+
+  it('fails when the config does not parse, surfacing the reason', () => {
+    const results = runDoctorChecks(input({ configError: 'merge.target_branch must be a non-empty string' }));
+
+    expect(statusOf(results, 'pipeline config')).toBe('fail');
+    expect(results.find((r) => r.name === 'pipeline config')?.detail).toContain('target_branch');
+  });
+
+  it('does not claim the gates are fine when the config could not be read', () => {
+    expect(statusOf(runDoctorChecks(input({ configError: 'broken' })), 'gates')).toBe('warn');
+  });
+
+  it('warns when no area has gate commands, since those checks would pass vacuously', () => {
+    expect(statusOf(runDoctorChecks(input({ gatedAreas: [] })), 'gates')).toBe('warn');
+  });
+
+  it('warns, not fails, when the standards are simply not cloned locally', () => {
+    // CI clones them itself, so this only degrades the editor experience.
+    const results = runDoctorChecks(input({ standardsRootPresent: false }));
+
+    expect(statusOf(results, 'standards')).toBe('warn');
+    expect(worstStatus(results)).toBe('warn');
+  });
+
+  it('fails when a configured standards document is missing from a present checkout', () => {
+    const results = runDoctorChecks(input({ missingStandardsDocs: ['workflow/stage-5-frontend/checklist.md'] }));
+
+    expect(statusOf(results, 'standards')).toBe('fail');
+  });
+
+  it('warns when standards are disabled, because reviews are then weaker than the default', () => {
+    expect(statusOf(runDoctorChecks(input({ standardsEnabled: false })), 'standards')).toBe('warn');
+  });
+
+  it('does not claim standards are "disabled" when the config could not be read at all', () => {
+    // We never read the setting, so reporting it as disabled would state a
+    // fact we do not have.
+    const results = runDoctorChecks(input({ configError: 'broken', standardsEnabled: false }));
+
+    expect(results.find((result) => result.name === 'standards')?.detail).toContain('not checked');
+  });
+
+  it('does not nag about gitignore when standards are disabled entirely', () => {
+    const results = runDoctorChecks(input({ standardsEnabled: false, standardsIgnored: false }));
+
+    expect(results.find((result) => result.name === 'standards ignored')).toBeUndefined();
+  });
+
+  it('warns when the standards checkout could be committed by accident', () => {
+    expect(statusOf(runDoctorChecks(input({ standardsIgnored: false })), 'standards ignored')).toBe('warn');
+  });
+
+  it('warns when no cursor rules are installed', () => {
+    expect(statusOf(runDoctorChecks(input({ cursorRuleCount: 0 })), 'cursor rules')).toBe('warn');
+  });
+
+  it('offers a fix for every non-passing check that has one', () => {
+    const results = runDoctorChecks(
+      input({ callerWorkflowPresent: false, configPresent: false, cursorRuleCount: 0, standardsIgnored: false }),
+    );
+
+    // "not checked" results are downstream of another failure that does
+    // carry the fix; suggesting one here would point at the wrong thing.
+    const actionable = results.filter((r) => r.status !== 'pass' && !r.detail.includes('not checked'));
+
+    expect(actionable.length).toBeGreaterThan(0);
+    for (const result of actionable) {
+      expect(result.fix, `${result.name} should suggest a fix`).toBeDefined();
+    }
+  });
+});
+
+describe('worstStatus', () => {
+  it('is pass for an empty list', () => {
+    expect(worstStatus([])).toBe('pass');
+  });
+
+  it('reports fail over warn', () => {
+    expect(
+      worstStatus([
+        { name: 'a', status: 'warn', detail: '' },
+        { name: 'b', status: 'fail', detail: '' },
+      ]),
+    ).toBe('fail');
+  });
+});

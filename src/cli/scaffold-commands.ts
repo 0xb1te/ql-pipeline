@@ -1,0 +1,288 @@
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join, posix, relative, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parseConfig } from '../shared/config.js';
+import { resolveStandards } from '../standards/standards-resolver.js';
+import { runDoctorChecks, worstStatus, type CheckResult, type DoctorInput } from '../scaffold/doctor.js';
+import { MANIFEST_PATH, parseManifest, serializeManifest, type ScaffoldManifest } from '../scaffold/manifest.js';
+import {
+  isWrite,
+  nextManifest,
+  planInit,
+  planUpgrade,
+  type ExistingFile,
+  type ScaffoldAction,
+  type TemplateFile,
+} from '../scaffold/plan.js';
+
+// dist/cli/scaffold-commands.js -> the installed package root is two up.
+const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const TEMPLATES_ROOT = join(PACKAGE_ROOT, 'templates');
+
+const CONFIG_PATH = '.github/pipeline.config.yml';
+const CALLER_WORKFLOW_PATH = '.github/workflows/pr-governance.yml';
+const CURSOR_RULES_DIR = '.cursor/rules';
+const STANDARDS_IGNORE_ENTRY = '.standards/';
+
+function packageVersion(): string {
+  try {
+    const raw = readFileSync(join(PACKAGE_ROOT, 'package.json'), 'utf-8');
+    const parsed = JSON.parse(raw) as { version?: unknown };
+    return typeof parsed.version === 'string' ? parsed.version : '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
+
+/** Paths are stored POSIX-style so a manifest written on Windows matches one written on Linux. */
+function toPosix(path: string): string {
+  return path.split(sep).join(posix.sep);
+}
+
+/** The full set of files ql-pipeline scaffolds, discovered from the shipped templates. */
+export function loadTemplates(): TemplateFile[] {
+  const templates: TemplateFile[] = [
+    {
+      dest: CALLER_WORKFLOW_PATH,
+      mode: 'managed',
+      content: readFileSync(join(TEMPLATES_ROOT, 'consumer', '.github', 'workflows', 'pr-governance.yml'), 'utf-8'),
+    },
+    {
+      dest: CONFIG_PATH,
+      mode: 'owned',
+      content: readFileSync(join(TEMPLATES_ROOT, 'consumer', '.github', 'pipeline.config.yml'), 'utf-8'),
+    },
+  ];
+
+  // Discovered rather than listed, so adding a rule to the template needs
+  // no code change here.
+  const rulesDir = join(TEMPLATES_ROOT, 'cursor-rules', '.cursor', 'rules');
+  if (existsSync(rulesDir)) {
+    for (const name of readdirSync(rulesDir).filter((entry) => entry.endsWith('.mdc')).sort()) {
+      templates.push({
+        dest: `${CURSOR_RULES_DIR}/${name}`,
+        mode: 'managed',
+        content: readFileSync(join(rulesDir, name), 'utf-8'),
+      });
+    }
+  }
+
+  return templates;
+}
+
+function readExisting(root: string, templates: readonly TemplateFile[]): Map<string, ExistingFile> {
+  const existing = new Map<string, ExistingFile>();
+  for (const template of templates) {
+    const absolute = join(root, template.dest);
+    if (existsSync(absolute)) {
+      existing.set(template.dest, { content: readFileSync(absolute, 'utf-8') });
+    }
+  }
+  return existing;
+}
+
+function readManifest(root: string): ScaffoldManifest | null {
+  const absolute = join(root, MANIFEST_PATH);
+  if (!existsSync(absolute)) {
+    return null;
+  }
+  const parsed = parseManifest(readFileSync(absolute, 'utf-8'));
+  // A corrupt manifest means we cannot prove we wrote anything, which is
+  // the conservative reading: nothing gets overwritten without --force.
+  return parsed.ok ? parsed.manifest : null;
+}
+
+function writeFile(root: string, dest: string, content: string): void {
+  const absolute = join(root, dest);
+  mkdirSync(dirname(absolute), { recursive: true });
+  writeFileSync(absolute, content, 'utf-8');
+}
+
+function applyActions(root: string, actions: readonly ScaffoldAction[]): void {
+  for (const action of actions) {
+    if (isWrite(action)) {
+      writeFile(root, action.dest, action.content);
+    }
+  }
+}
+
+/** Appends `.standards/` to .gitignore if absent. Never rewrites the file. */
+export function ensureStandardsIgnored(root: string): 'added' | 'already-present' {
+  const absolute = join(root, '.gitignore');
+  const current = existsSync(absolute) ? readFileSync(absolute, 'utf-8') : '';
+
+  if (current.split(/\r?\n/).some((line) => line.trim() === STANDARDS_IGNORE_ENTRY)) {
+    return 'already-present';
+  }
+
+  const prefix = current.length === 0 || current.endsWith('\n') ? '' : '\n';
+  writeFileSync(absolute, `${current}${prefix}${STANDARDS_IGNORE_ENTRY}\n`, 'utf-8');
+  return 'added';
+}
+
+function describe(action: ScaffoldAction): string {
+  switch (action.kind) {
+    case 'create':
+      return `  created   ${action.dest}`;
+    case 'update':
+      return `  updated   ${action.dest}`;
+    case 'overwrite-modified':
+      return `  forced    ${action.dest} (your edits were discarded)`;
+    case 'unchanged':
+      return `  current   ${action.dest}`;
+    case 'skip-owned':
+      return `  yours     ${action.dest} (never overwritten)`;
+    case 'skip-modified':
+      return `  MODIFIED  ${action.dest} (edited locally — left alone)`;
+  }
+}
+
+export function runInit(root: string): void {
+  const templates = loadTemplates();
+  const actions = planInit({ templates, existing: readExisting(root, templates) });
+
+  applyActions(root, actions);
+  writeFile(root, MANIFEST_PATH, serializeManifest(nextManifest(packageVersion(), templates, actions)));
+  const ignore = ensureStandardsIgnored(root);
+
+  console.log('ql-pipeline init\n');
+  for (const action of actions) {
+    console.log(describe(action));
+  }
+  console.log(`  ${ignore === 'added' ? 'created  ' : 'current  '} .gitignore (${STANDARDS_IGNORE_ENTRY})`);
+
+  const created = actions.filter((action) => action.kind === 'create').length;
+  console.log(`\n${created} file(s) written.\n`);
+  console.log('Next steps — none of these can be done for you:');
+  console.log('  1. Add repository secrets CURSOR_API_KEY and STANDARDS_TOKEN');
+  console.log('     (STANDARDS_TOKEN needs read access to 0xb1te/prompt-utils)');
+  console.log(`  2. Edit ${CONFIG_PATH} — set your real build and test commands`);
+  console.log('  3. Clone the standards for your editor:');
+  console.log('     git clone git@github.com:0xb1te/prompt-utils.git .standards');
+  console.log('  4. Open one PR and watch it through before requiring the checks');
+  console.log('\nThen run `ql-pipeline doctor` to verify the setup.');
+}
+
+export function runUpgrade(root: string, force: boolean): void {
+  const templates = loadTemplates();
+  const actions = planUpgrade({
+    templates,
+    existing: readExisting(root, templates),
+    manifest: readManifest(root),
+    force,
+  });
+
+  applyActions(root, actions);
+  writeFile(root, MANIFEST_PATH, serializeManifest(nextManifest(packageVersion(), templates, actions)));
+
+  console.log(`ql-pipeline upgrade → v${packageVersion()}\n`);
+  for (const action of actions) {
+    console.log(describe(action));
+  }
+
+  const written = actions.filter(isWrite).length;
+  const modified = actions.filter((action) => action.kind === 'skip-modified');
+  console.log(`\n${written} file(s) written.`);
+
+  if (modified.length > 0) {
+    console.log(
+      `\n${modified.length} managed file(s) were edited locally and left untouched. Review them against the` +
+        ' current template, then either re-apply your changes elsewhere or run `ql-pipeline upgrade --force`' +
+        ' to discard them.',
+    );
+  }
+}
+
+function collectDoctorInput(root: string): DoctorInput {
+  const workflowsDir = join(root, '.github', 'workflows');
+  let callerWorkflowPresent = false;
+  let callerWorkflowReferencesPipeline = false;
+
+  if (existsSync(workflowsDir)) {
+    for (const name of readdirSync(workflowsDir).filter((entry) => /\.ya?ml$/.test(entry))) {
+      const content = readFileSync(join(workflowsDir, name), 'utf-8');
+      if (content.includes('ql-pipeline/.github/workflows/pr-pipeline.yml')) {
+        callerWorkflowPresent = true;
+        callerWorkflowReferencesPipeline = true;
+        break;
+      }
+      if (name === 'pr-governance.yml') {
+        callerWorkflowPresent = true;
+      }
+    }
+  }
+
+  const configAbsolute = join(root, CONFIG_PATH);
+  const configPresent = existsSync(configAbsolute);
+
+  let configError: string | null = null;
+  let targetBranch: string | null = null;
+  let gatedAreas: string[] = [];
+  let standardsEnabled = false;
+  let standardsRoot = '.standards';
+  let missingStandardsDocs: readonly string[] = [];
+
+  if (configPresent) {
+    try {
+      const config = parseConfig(readFileSync(configAbsolute, 'utf-8'), CONFIG_PATH);
+      targetBranch = config.merge.targetBranch;
+      gatedAreas = Object.entries(config.gates)
+        .filter(([, commands]) => commands?.build !== undefined || commands?.test !== undefined)
+        .map(([area]) => area);
+      standardsEnabled = config.standards.enabled;
+      standardsRoot = config.standards.root;
+
+      if (standardsEnabled && existsSync(join(root, standardsRoot))) {
+        const areas = Object.keys(config.standards.docs) as Parameters<typeof resolveStandards>[0][number][];
+        missingStandardsDocs = resolveStandards(areas, config.standards, root).missing;
+      }
+    } catch (cause) {
+      configError = cause instanceof Error ? cause.message : String(cause);
+    }
+  }
+
+  const gitignore = existsSync(join(root, '.gitignore')) ? readFileSync(join(root, '.gitignore'), 'utf-8') : '';
+  const rulesDir = join(root, CURSOR_RULES_DIR);
+
+  return {
+    callerWorkflowPresent,
+    callerWorkflowReferencesPipeline,
+    configPresent,
+    configError,
+    targetBranch,
+    gatedAreas,
+    standardsEnabled,
+    standardsRootPresent: existsSync(join(root, standardsRoot)),
+    missingStandardsDocs,
+    standardsIgnored: gitignore.split(/\r?\n/).some((line) => line.trim() === STANDARDS_IGNORE_ENTRY),
+    cursorRuleCount: existsSync(rulesDir) ? readdirSync(rulesDir).filter((n) => n.endsWith('.mdc')).length : 0,
+  };
+}
+
+const SYMBOL: Record<CheckResult['status'], string> = { pass: '  ok  ', warn: ' warn ', fail: ' FAIL ' };
+
+/** Returns true when nothing failed, so the caller can set the exit code. */
+export function runDoctor(root: string): boolean {
+  const results = runDoctorChecks(collectDoctorInput(root));
+
+  console.log(`ql-pipeline doctor — ${toPosix(relative(process.cwd(), root) || '.')}\n`);
+  for (const result of results) {
+    console.log(`[${SYMBOL[result.status]}] ${result.name}: ${result.detail}`);
+    if (result.fix !== undefined && result.status !== 'pass') {
+      console.log(`          → ${result.fix}`);
+    }
+  }
+
+  const worst = worstStatus(results);
+  console.log(
+    '\nNot checkable from here: whether CURSOR_API_KEY and STANDARDS_TOKEN are set as repository secrets.' +
+      ' Verify those in GitHub settings.',
+  );
+
+  if (worst === 'fail') {
+    console.log('\nSetup is incomplete — see the FAIL lines above.');
+    return false;
+  }
+  console.log(worst === 'warn' ? '\nUsable, with warnings above.' : '\nAll checks passed.');
+  return true;
+}

@@ -3,13 +3,23 @@
   "version": "0.1.0",
   "description": "AI-governed PR pipeline: conventional-commit routing, per-area rule sets, AI review, and an auto-fix loop, shipped as a reusable GitHub Actions workflow.",
   "type": "module",
-  "private": true,
   "license": "MIT",
+  "bin": {
+    "ql-pipeline": "dist/main.js"
+  },
+  "files": [
+    "dist",
+    "rules",
+    "prompts",
+    "templates",
+    "pipeline.config.yml"
+  ],
   "engines": {
     "node": ">=20"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "prepare": "npm run build",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint src tests",
     "test": "vitest run",

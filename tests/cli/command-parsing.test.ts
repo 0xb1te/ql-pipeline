@@ -56,6 +56,30 @@ describe('parseCommand', () => {
     expect(parseCommand(['gate', '--stage', 'ai-review']).ok).toBe(false);
   });
 
+  it('parses init with the default root', () => {
+    expect(parseCommand(['init'])).toEqual({ ok: true, command: { kind: 'init', root: '.' } });
+  });
+
+  it('parses upgrade, defaulting to not forcing', () => {
+    expect(parseCommand(['upgrade'])).toEqual({ ok: true, command: { kind: 'upgrade', root: '.', force: false } });
+  });
+
+  it('parses upgrade --force', () => {
+    const result = parseCommand(['upgrade', '--force']);
+
+    expect(result.ok).toBe(true);
+    if (result.ok && result.command.kind === 'upgrade') {
+      expect(result.command.force).toBe(true);
+    }
+  });
+
+  it('parses doctor with an explicit root', () => {
+    expect(parseCommand(['doctor', '--root', 'packages/api'])).toEqual({
+      ok: true,
+      command: { kind: 'doctor', root: 'packages/api' },
+    });
+  });
+
   it('rejects an unknown subcommand', () => {
     const result = parseCommand(['deploy']);
 

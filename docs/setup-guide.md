@@ -4,6 +4,20 @@ The shortest path from nothing to a governed PR. Full configuration reference: [
 
 Budget about 20 minutes, most of it waiting for the first run.
 
+## The fast path
+
+The CLI does steps 2–4 for you:
+
+```bash
+pnpm add -D github:0xb1te/ql-pipeline
+pnpm ql-pipeline init     # workflow + config + cursor rules + .gitignore
+pnpm ql-pipeline doctor   # tells you exactly what is still missing
+```
+
+Then do step 1 (the two secrets — nothing can do that for you), fill in your real build commands, and go to step 4b. Keep it current later with `pnpm update ql-pipeline && pnpm ql-pipeline upgrade` — see [cli.md](cli.md).
+
+The manual steps below are the same thing done by hand, and explain what each file is for.
+
 ---
 
 ## Step 1 — Create the two secrets

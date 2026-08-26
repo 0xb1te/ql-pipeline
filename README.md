@@ -6,6 +6,7 @@ Reviews are grounded in **your own engineering standards** — the `prompt-utils
 
 - **What it must do:** [docs/SPECIFICATION.md](docs/SPECIFICATION.md) — the canonical contract, with every requirement mapped to its code and tests.
 - **Turning it on for a repo:** [docs/setup-guide.md](docs/setup-guide.md) — start here.
+- **CLI reference:** [docs/cli.md](docs/cli.md) — `init`, `upgrade`, `doctor`.
 - **Cursor rules for your projects:** [templates/cursor-rules/](templates/cursor-rules/) — the write-side mirror of this review, pointing at the same `prompt-utils` checklists.
 - **Full configuration reference:** [docs/integration-guide.md](docs/integration-guide.md).
 - **Developing it:** [RULES.md](RULES.md) · [AGENT.md](AGENT.md).
@@ -52,17 +53,19 @@ Feature-complete against the specification. Build-out and conformance tracked as
 | [007](docs/007-spec-conformance/plan.md) | Spec conformance: target-branch governance, rule overrides, required checks, and seven live-run bugs | Done |
 | [008](docs/008-modular-checks/plan.md) | Modular checks: split into test / build / ql-pipeline jobs, CLI subcommands | Done |
 | [009](docs/009-house-standards/plan.md) | House engineering standards (prompt-utils) + `apps/*` area detection | Done |
+| [010](docs/010-scaffold-cli/plan.md) | Scaffolding CLI: install as a package, `init` / `upgrade` / `doctor` | Done |
 
-345 tests across 31 files; the commit parser and verdict engine hold 100% branch coverage. **Not yet verified:** a live Actions run against a real PR, and a live `cursor-agent` review/fix cycle — see [SPECIFICATION.md §8](docs/SPECIFICATION.md).
+394 tests across 34 files; the commit parser and verdict engine hold 100% branch coverage. **Not yet verified:** a live Actions run against a real PR, and a live `cursor-agent` review/fix cycle — see [SPECIFICATION.md §8](docs/SPECIFICATION.md).
 
 ## Repository layout
 
 ```
-rules/*.rules              Per-area rule sets applied to incoming PRs (7 areas + _common)
+rules/*.rules              _common (PR hygiene) + docs; every other area is governed by the standards
 prompts/*.md               Reviewer and fixer prompt templates (both run via Cursor CLI)
 pipeline.config.yml        This repo's own config, and the annotated example of the schema
-src/main.ts                Thin dispatcher over the CLI subcommands, one per check
-src/cli/                   command parsing, shared bootstrap, and the gate/govern commands
+src/main.ts                Thin dispatcher over every CLI subcommand
+src/cli/                   command parsing, shared bootstrap, gate/govern, and the scaffolding commands
+src/scaffold/              Pure planning for init/upgrade/doctor: manifest, drift detection, checks
 src/commit-parser/         Pure conventional-commit header parsing
 src/router/                Pure routing decision, gate execution, self-protection check
 src/rules/                 Rule resolution, including consumer per-area overrides
@@ -73,8 +76,9 @@ src/merger/                Target-branch resolution; approve + merge + delete-br
 src/shared/                Types, config, logger, GitHub client, exec, worktree snapshots, gate reports, audit summary
 tests/                     Mirrors src/; tests/integration/ holds the end-to-end and chaos-safety suites
 .github/workflows/         pr-pipeline.yml (the reusable workflow) · dogfood.yml · self-check.yml
-templates/cursor-rules/    Copy-paste Cursor rules for governed projects (the write-side mirror)
-docs/                      SPECIFICATION.md, setup-guide.md, integration-guide.md, one folder per task
+templates/consumer/        Caller workflow + starter config, scaffolded by `ql-pipeline init`
+templates/cursor-rules/    Cursor rules for governed projects (the write-side mirror)
+docs/                      SPECIFICATION.md, setup-guide.md, cli.md, integration-guide.md, one folder per task
 ```
 
 ## Development

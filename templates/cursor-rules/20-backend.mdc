@@ -1,0 +1,75 @@
+---
+description: Backend rules — the Stage-4 layered architecture, the tech-stack handoff, and the layer documents to consult.
+globs: apps/*backend*/**
+---
+
+# Backend
+
+Owned by **Stage 4**. Authoritative document: `.standards/workflow/stage-4-backend/backend/checklist.md`.
+
+## Read the stack document first
+
+The layer documents `01`–`20` are **technology-agnostic**. They are mapped onto concrete libraries, annotations, and idioms by exactly one stack document:
+
+```
+.standards/workflow/stage-4-backend/backend/21-tech-stack/PROMPT.md
+.standards/workflow/stage-4-backend/backend/21-tech-stack/<stack>/CREATE-<stack>.md
+```
+
+Load the stack document for this project **before** any layer doc and before writing code. If the project has not selected one, ask — do not infer a stack from what happens to be in the build file.
+
+## Layers
+
+```
+.standards/workflow/stage-4-backend/backend/
+  01-dependencies-libraries  02-configuration     03-security
+  04-entities-orm            05-repositories      06-services
+  07-facades-integrations    08-use-cases         09-controllers
+  10-dtos-mappers            11-validation        12-error-handling
+  13-logging-observability   14-testing           15-caching
+  16-events-messaging        17-scheduling        18-api-documentation
+  19-database-migrations     20-build-packaging   21-tech-stack
+  22-shared-library
+```
+
+Each has a `CREATE-prompt.md`. Read the one for the layer you are touching.
+
+## Architecture
+
+Dependencies point inward. A layer may use the one below it, never the one above:
+
+```
+controllers → use-cases → services → repositories → entities
+                  ↑
+          facades / integrations
+```
+
+- **Controllers** do HTTP: parse, validate, delegate, map the response. No business logic.
+- **Use cases** orchestrate a single business operation.
+- **Services** hold domain logic.
+- **Repositories** are the only thing that touches the database.
+- **Facades** wrap external systems so the domain never imports a vendor SDK.
+- **DTOs** cross the boundary; entities do not leave the repository layer.
+
+Feature-based structure is a hard blocker in the checklist (§00.1) — organise by domain module, not by technical layer at the top level.
+
+## Hard rules
+
+1. **Parameterised queries only.** No string-concatenated SQL, ever. This is the single most common blocking finding.
+2. **Validate all external input** — body, params, query, headers — before it reaches domain code.
+3. **Every endpoint has an explicit auth check**, or a one-line comment stating why it is deliberately public.
+4. **No secrets in code, committed config, or logs.**
+5. **No deprecated crypto** — no MD5/SHA-1 for passwords, no ECB mode.
+6. **Error responses never leak** stack traces or internal implementation detail.
+7. **No `any`** (or the stack's equivalent escape hatch) in domain code.
+8. **The contract is `openapi.json`.** Implement it; do not drift from it. A needed change to the contract is a route-back to Stage 3, not a unilateral edit.
+
+## Related documents
+
+- Schema and migrations: `.standards/workflow/stage-4-backend/sql/checklist.md`
+- Tests: `.standards/workflow/stage-4-backend/tests/checklist.md`
+- Shared library: `.standards/workflow/stage-4-backend/backend/22-shared-library/CREATE-shared-library.md`
+
+## Before declaring done
+
+Walk `.standards/workflow/stage-4-backend/backend/checklist.md`. Note its hard blockers: **§00 deployment topology** and **§00.1 feature-based architecture** must be settled before code, and the **Stage-3 coverage gate** requires every contract operation to be implemented or explicitly accounted for.

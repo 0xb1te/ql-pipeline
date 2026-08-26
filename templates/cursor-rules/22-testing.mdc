@@ -1,0 +1,40 @@
+---
+description: The six-path testing strategy — what a complete test suite covers, and what never counts as making a test pass.
+globs: **/*.test.*,**/*.spec.*,**/test/**,**/tests/**,**/__tests__/**
+---
+
+# Testing
+
+Owned by **Stage 4 / tests** for the backend: `.standards/workflow/stage-4-backend/tests/checklist.md`. Frontend testing is `.standards/workflow/stage-5-frontend/18-testing/CREATE-prompt.md`.
+
+## The six paths
+
+A feature is not tested because it has *a* test. Cover each path that applies:
+
+| # | Path | Covers | Document |
+|---|---|---|---|
+| 01 | Happy | The intended flow with valid input | `.standards/workflow/stage-4-backend/tests/01-happy-path/CREATE-prompt.md` |
+| 02 | Sad | Valid request, business rule refuses it | `.../02-sad-path/CREATE-prompt.md` |
+| 03 | Edge | Boundaries — empty, one, maximum, null, unicode, timezone | `.../03-edge-cases/CREATE-prompt.md` |
+| 04 | Error | Dependency fails — DB down, timeout, upstream 500 | `.../04-error-path/CREATE-prompt.md` |
+| 05 | Security | Authn/authz, injection, tenant isolation, privilege escalation | `.../05-security-path/CREATE-prompt.md` |
+| 06 | Performance | Load and latency where the checklist requires it | `.../06-performance-load/CREATE-prompt.md` |
+
+The happy path alone is the most common gap the reviewer flags. If a path genuinely does not apply, say so and why — do not leave it silently absent.
+
+## Hard rules
+
+1. **Never weaken a test to make it pass.** A failing test is either a real defect or an expectation that is genuinely wrong. Both need a deliberate decision. Deleting the assertion, loosening it to something vacuous, or marking it skipped to get green is a blocking finding.
+2. **No `.skip` / `.only` committed** without a one-line justification and a linked task.
+3. **Tests are deterministic.** No dependence on wall-clock time, ordering between tests, network, or real external services. Inject the clock and the transport.
+4. **Assert behaviour, not implementation.** A test that breaks on a rename but not on a behaviour change is testing the wrong thing.
+5. **One reason to fail per test.** A test asserting six unrelated things tells you nothing when it goes red.
+6. **Name the scenario, not the function.** `rejects a transfer that would overdraw the account` beats `test transfer 2`.
+
+## Coverage
+
+The backend checklist sets the coverage bar — read it rather than assuming a number. Coverage is a floor, not a goal: fully-covered code with only happy-path assertions is not tested.
+
+## Before declaring done
+
+Walk `.standards/workflow/stage-4-backend/tests/checklist.md` for backend work. Confirm each of the six paths is either covered or explicitly N/A with a justification.

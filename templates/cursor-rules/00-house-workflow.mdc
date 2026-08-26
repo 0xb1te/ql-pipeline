@@ -1,0 +1,68 @@
+---
+description: House development methodology — the prompt-utils stage workflow, where the standards live, and which stage owns which part of the codebase.
+alwaysApply: true
+---
+
+# House workflow
+
+This project follows the **prompt-utils** methodology. The standards are checked out at `.standards/` and are **authoritative** — where they and your instincts disagree, they win.
+
+Read the relevant document before writing code. Do not work from memory of what these rules "usually" say.
+
+## Where the standards are
+
+```
+.standards/WORKFLOW.md                     the methodology overview — read this first
+.standards/workflow/stage-1-viability/     is the idea worth building (GO / NO-GO / PIVOT)
+.standards/workflow/stage-2-mockup/        the complete visual surface, against a mock layer
+.standards/workflow/stage-3-openapi/       the OpenAPI contract + backend behavioural brief
+.standards/workflow/stage-4-backend/       backend implementation
+  ├── backend/                               20 layer folders (01-dependencies … 20-build-packaging)
+  ├── sql/                                   database schema and migrations
+  └── tests/                                 the six-path testing strategy
+.standards/workflow/stage-5-frontend/      non-visual frontend architecture (26 layer folders)
+.standards/workflow/stage-6-integration/   wiring frontend to a live backend
+.standards/workflow/stage-7-deployment/    IaC provisioning and deployment
+.standards/workflow/stage-8-polish/        small/medium changes to a shipped app
+.standards/workflow/stage-10-feature/      large features on an isolated branch
+```
+
+Every stage folder holds the same three things:
+
+- **`PROMPT.md`** — how to execute the stage.
+- **`checklist.md`** — the quality gate. **This is what the PR reviewer checks against**, so treat it as the definition of done.
+- **Numbered sub-folders** — one per layer/concern, each with a `CREATE-prompt.md`.
+
+If `.standards/` is missing, stop and ask for it to be cloned (see `.cursor/rules/README.md`). Do not guess at the standards.
+
+## Which stage owns what
+
+| You are changing | Stage that owns it | Read |
+|---|---|---|
+| Components, pages, design tokens, styles, animations, copy, mock handlers | **Stage 2** | `.standards/workflow/stage-2-mockup/checklist.md` |
+| The API contract (`openapi.json`, error envelope, pagination) | **Stage 3** | `.standards/workflow/stage-3-openapi/checklist.md` |
+| Entities, repositories, services, use cases, controllers, DTOs, jobs | **Stage 4** | `.standards/workflow/stage-4-backend/backend/checklist.md` |
+| Schema and migrations | **Stage 4 / sql** | `.standards/workflow/stage-4-backend/sql/checklist.md` |
+| State, guards, hooks, real auth, analytics, storage, error reporting | **Stage 5** | `.standards/workflow/stage-5-frontend/checklist.md` |
+| Connecting the frontend to a live backend, e2e smoke flows | **Stage 6** | `.standards/workflow/stage-6-integration/` |
+| Infrastructure, secrets, releases | **Stage 7** | `.standards/workflow/stage-7-deployment/checklist.md` |
+
+Picking the wrong stage is the most common way to produce work that fails review — the stages have explicit ownership boundaries and crossing one is a violation regardless of how good the code is.
+
+## Non-negotiables
+
+1. **Never re-author another stage's territory.** Each stage's `PROMPT.md` carries an anti-rewrite contract naming exactly what it may not touch. If the change you need lives in another stage's territory, that is a route-back, not a patch.
+2. **Never invent backend surface.** The frontend calls only operations that exist in `openapi.json`. A missing operation is a route-back to Stage 3/4, not an assumption.
+3. **Route-backs are recorded, not improvised.** When a stage is blocked by an upstream gap, write an RB ticket in `route-backs.md` with an explicit **A** (resolve upstream) or **B** (defer behind an off-by-default flag) decision. Do not silently downgrade a capability.
+4. **The checklist is the definition of done.** Before saying a task is complete, walk the relevant `checklist.md` and confirm each applicable item. Items marked N/A need a written justification.
+
+## Repository layout
+
+Product code lives under `apps/`:
+
+```
+apps/<name>-frontend/    frontend application
+apps/<name>-backend/     backend service
+```
+
+The PR pipeline detects which area a change belongs to from both the commit header and these paths, and applies that area's standards. Putting code in the wrong place changes which rules it is judged by.

@@ -1,0 +1,98 @@
+---
+description: How to start and structure a task — routing it to the right stage, cutting the branch, defining scope, and knowing when it is done. Follow this before writing any code for a new piece of work.
+alwaysApply: true
+---
+
+# Starting a task
+
+Before writing code, do these four things in order. Skipping straight to implementation is how work ends up in the wrong stage and gets rejected in review.
+
+## 1. Route the task to a track
+
+The product is already built. **Which track a task belongs to is decided by its size and surface, not by preference.**
+
+| The task is | Track | Read |
+|---|---|---|
+| A bug, a copy tweak, a new field, one endpoint on an existing screen | **Stage 8 — polish** | `.standards/workflow/stage-8-polish/01-features-to-implement/CREATE-prompt.md` |
+| A defect in shipped behaviour | **Stage 8 — flaws** | `.standards/workflow/stage-8-polish/02-flaws-to-fix/CREATE-prompt.md` |
+| Removing a shipped feature | **Stage 8 — revert** | `.standards/workflow/stage-8-polish/03-features-to-revert/CREATE-prompt.md` |
+| Restructuring frontend architecture | **Stage 8 — arch (FE)** | `.standards/workflow/stage-8-polish/04-architectural-changes-frontend/CREATE-prompt.md` |
+| Restructuring backend architecture | **Stage 8 — arch (BE)** | `.standards/workflow/stage-8-polish/05-architectural-changes-backend/CREATE-prompt.md` |
+| A whole new module or domain | **Stage 10 — feature** | `.standards/workflow/stage-10-feature/PROMPT.md` |
+
+### The Stage 10 size test
+
+Use Stage 10 **only if all three are true**:
+
+1. **New surface** — it introduces a new business module (`src/modules/<feature>/`), not fields on an existing one.
+2. **Iterated UX** — the interface needs several mockup rounds, not a one-shot addition.
+3. **New contract** — it adds a meaningful set of new endpoints/entities/events, not a one-line delta.
+
+If any is false it is Stage 8 polish. When genuinely unsure, **ask which track the user wants and record the answer** — do not pick silently.
+
+## 2. Cut the branch
+
+```
+task/<short-slug>        Stage 8 work
+feature/<name>           Stage 10 work (branch isolation is mandatory there)
+```
+
+Branch from current mainline HEAD. Never commit directly to the target branch.
+
+For Stage 10, follow `.standards/workflow/stage-10-feature/01-branch-isolation/CREATE-prompt.md`: snapshot the frozen baseline and define the feature flag **before** any code.
+
+## 3. Write the task brief before coding
+
+Produce a short brief and get agreement on it first. It costs minutes and prevents the two expensive failures: building the wrong thing, and building the right thing in the wrong stage.
+
+```markdown
+# <Task title>
+
+**Track:** Stage 8 polish / Stage 10 feature (+ which sub-folder)
+**Areas:** frontend | backend | both        ← determines which standards apply
+**Branch:** task/<slug>
+**Target branch:** main
+
+## Problem
+What is wrong or missing today, in one paragraph. Not the solution.
+
+## Scope
+- In scope: …
+- Out of scope: …          ← be explicit; this is what stops scope creep in review
+
+## Stage ownership
+Which stage owns each file this will touch, and confirmation that nothing
+crosses another stage's anti-rewrite boundary.
+
+## Contract impact
+New/changed operations in `openapi.json`, or "none".
+A frontend task needing an operation that does not exist yet is BLOCKED on a
+route-back — it does not invent the endpoint.
+
+## Route-backs
+RB tickets this task is blocked on, each with an A (resolve upstream) or
+B (defer behind an off-by-default flag) decision. "None" is a valid answer.
+
+## Definition of done
+The applicable items from the owning stage's `checklist.md`.
+```
+
+## 4. Confirm the checklist before declaring done
+
+Open the owning stage's `checklist.md` and walk the applicable items:
+
+- `.standards/workflow/stage-5-frontend/checklist.md`
+- `.standards/workflow/stage-4-backend/backend/checklist.md`
+- `.standards/workflow/stage-4-backend/sql/checklist.md`
+- `.standards/workflow/stage-4-backend/tests/checklist.md`
+
+Every applicable item must pass. An item that genuinely does not apply is marked **N/A with a written justification** — never left silently unaddressed.
+
+**This is the same checklist the automated PR reviewer loads.** Anything you skip here is found there, with the loop cost of a review round trip.
+
+## While working
+
+- **Stay inside the declared scope.** Something worth fixing that is out of scope goes in the PR description or a new task — not into this diff.
+- **Do not weaken tests to make them pass.** A failing test is either a real defect or a test that encodes a wrong expectation; both need a deliberate decision, not deletion.
+- **Do not disable lint or type checks** to move faster. If a suppression is genuinely correct, it carries a one-line justification comment.
+- **Report honestly.** Say plainly what is incomplete, skipped, or uncertain. A brief that overstates completeness costs more than one that admits a gap.

@@ -1,0 +1,68 @@
+---
+description: Commit message and pull request conventions. The PR pipeline parses these to decide which rules and standards apply, so a malformed header stops the review before it starts.
+alwaysApply: true
+---
+
+# Commits and pull requests
+
+An automated pipeline governs every PR. It reads your commit headers to decide which rules and engineering standards to review against — so the header is not cosmetic, it is routing.
+
+## Commit format
+
+```
+<type>(<area>): <description>
+
+type ::= feat | fix | refactor | perf | chore | docs | test | ci | build | revert
+area ::= frontend | backend | mobile | ios | android | infrastructure | docs
+```
+
+Rules:
+
+- Description is **imperative, lowercase, no trailing period** — `add dark-mode toggle`, not `Added dark-mode toggle.`
+- The area must be the area you actually changed.
+- One concern per commit.
+
+```
+✅ feat(backend): add payments endpoint
+✅ fix(frontend): stop the toggle resetting on route change
+❌ Added payments endpoint          → unroutable; the pipeline will reject the PR
+❌ feat: add payments endpoint      → no area
+❌ feature(backend): …              → "feature" is not a valid type
+```
+
+**A PR where neither any commit nor the PR title matches this grammar is rejected before review.** The pipeline cannot tell which standards apply, so it fails closed rather than guessing.
+
+## Areas are detected from paths too
+
+The pipeline unions the areas in your commit headers with the areas implied by the files you touched (`apps/*frontend*/**` → frontend, `apps/*backend*/**` → backend).
+
+A PR labelled `feat(frontend)` that also edits `apps/api-backend/` **is reviewed against the backend standards as well**. You cannot narrow the review by how you word a commit — so label honestly, and if a change genuinely spans both areas, expect both checklists to apply.
+
+## Pull requests
+
+- One task, one PR. Link the task brief.
+- Target the branch the pipeline governs (usually `main`). A PR aimed elsewhere is ignored entirely by the pipeline — no checks, no review.
+- The description states **what changed, why, and how it was verified**. If part of the scope was deliberately left out, say so.
+- Never push to the target branch directly.
+
+## What the pipeline will do
+
+Three checks appear on the PR, in order:
+
+| Check | What it runs |
+|---|---|
+| `test` | The configured test gate for the PR's areas |
+| `build` | The configured build gate (skipped if tests fail) |
+| `ql-pipeline` | AI review against the rules **and** the stage checklists, then merge / fix / block |
+
+Outcomes:
+
+- **MERGE** — no blocking findings. Approved and merged automatically.
+- **FIX** — blocking findings that are auto-fixable. A bot commit `fix(<area>): resolve pipeline complaint (attempt N) [bot]` is pushed and the PR is re-reviewed. Capped at 3 attempts.
+- **BLOCK** — labelled `needs-human`. Read the request-changes review; it cites the exact rule or checklist section.
+
+Findings cite their source: `backend.rules#no-string-concat-sql` (a rule) or `backend.standards#09-controllers` (a checklist section in `.standards/`). When a finding cites a standards section, open that section — the reviewer is quoting your own documentation back at you.
+
+## Things that always require a human
+
+PRs touching `.github/workflows/`, `.github/pipeline.config.yml`, or `.github/pipeline-rules/` are never auto-merged or auto-fixed. Expect `needs-human` and a manual review.

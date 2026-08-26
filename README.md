@@ -6,6 +6,7 @@ Reviews are grounded in **your own engineering standards** — the `prompt-utils
 
 - **What it must do:** [docs/SPECIFICATION.md](docs/SPECIFICATION.md) — the canonical contract, with every requirement mapped to its code and tests.
 - **Turning it on for a repo:** [docs/setup-guide.md](docs/setup-guide.md) — start here.
+- **Cursor rules for your projects:** [templates/cursor-rules/](templates/cursor-rules/) — the write-side mirror of this review, pointing at the same `prompt-utils` checklists.
 - **Full configuration reference:** [docs/integration-guide.md](docs/integration-guide.md).
 - **Developing it:** [RULES.md](RULES.md) · [AGENT.md](AGENT.md).
 
@@ -72,7 +73,8 @@ src/merger/                Target-branch resolution; approve + merge + delete-br
 src/shared/                Types, config, logger, GitHub client, exec, worktree snapshots, gate reports, audit summary
 tests/                     Mirrors src/; tests/integration/ holds the end-to-end and chaos-safety suites
 .github/workflows/         pr-pipeline.yml (the reusable workflow) · dogfood.yml · self-check.yml
-docs/                      SPECIFICATION.md, integration-guide.md, and one folder per task
+templates/cursor-rules/    Copy-paste Cursor rules for governed projects (the write-side mirror)
+docs/                      SPECIFICATION.md, setup-guide.md, integration-guide.md, one folder per task
 ```
 
 ## Development

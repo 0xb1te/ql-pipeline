@@ -1,0 +1,31 @@
+---
+description: Database schema and migration rules — additive, backwards-compatible, reversible.
+globs: **/migration/**,**/migrations/**,**/db/**,**/*.sql
+---
+
+# Schema and migrations
+
+Owned by **Stage 4 / sql**. Authoritative document: `.standards/workflow/stage-4-backend/sql/checklist.md`, with the stack-specific detail in `.standards/workflow/stage-4-backend/sql/postgresql/CREATE-postgresql.md`.
+
+Also read the layer document: `.standards/workflow/stage-4-backend/backend/19-database-migrations/CREATE-prompt.md`.
+
+## Hard rules
+
+1. **Migrations are additive and backwards-compatible.** The previous application version must keep working against the new schema. This is what makes a rolling deploy safe and a rollback survivable.
+2. **Never edit an applied migration.** Once it has run anywhere, it is immutable. Fix it forward with a new migration.
+3. **Destructive changes are a two-step deploy, minimum.** Dropping or renaming a column means: deploy code that stops using it → verify → drop it in a later migration. Never both in one release.
+4. **Every migration is reversible**, or documents explicitly why it cannot be.
+5. **Name migrations to the project's convention** and keep versions strictly ordered — no gaps, no reused numbers.
+6. **Index what you query.** A new foreign key or a new lookup column that will be filtered on needs its index in the same migration.
+7. **Large-table changes state their locking impact.** A migration that rewrites a big table must say so in the PR description; a lock that is fine on your laptop is an outage in production.
+8. **No data migrations mixed into schema migrations** unless the checklist's pattern for it is followed.
+
+## In the PR
+
+Call out explicitly:
+
+- Any destructive or table-rewriting operation.
+- The rollback plan.
+- Whether the migration is safe to run while the previous version is still serving traffic.
+
+The reviewer treats an unexplained destructive migration as a blocking finding.

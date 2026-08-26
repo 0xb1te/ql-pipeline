@@ -81,6 +81,23 @@ and on the PR itself: an `area:backend` label and a summary comment naming the a
 
 Read the `ql-pipeline` job log. It states which rule files and which standards documents it loaded — that is the fastest way to confirm your standards are actually reaching the reviewer.
 
+## Step 4b — Give Cursor the same rules the pipeline reviews against
+
+The pipeline is the review side. [`templates/cursor-rules/`](../templates/cursor-rules/) is the **write** side — copy-paste Cursor rules that point at the same `prompt-utils` checklists, so work is produced against the standards it will later be judged by.
+
+```bash
+mkdir -p .cursor/rules
+cp -r /path/to/ql-pipeline/templates/cursor-rules/*.mdc .cursor/rules/
+
+# Clone the standards where Cursor can read them — the SAME path CI uses
+git clone git@github.com:0xb1te/prompt-utils.git .standards
+echo '.standards/' >> .gitignore
+```
+
+Using `.standards/` locally is deliberate: it is exactly where the workflow checks `prompt-utils` out during review, so every path reference in the rules resolves identically in your editor and in CI.
+
+See [templates/cursor-rules/README.md](../templates/cursor-rules/README.md) for what each rule covers.
+
 ## Step 5 — Enforce
 
 Once a real PR has been through the loop and you're happy with the findings: **Settings → Branches → Branch protection** → require whichever of `checks / test`, `checks / build`, `checks / ql-pipeline` you want to gate merges on.

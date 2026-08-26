@@ -1,0 +1,62 @@
+---
+description: Frontend rules — the Stage-2 / Stage-5 ownership split, the anti-rewrite contract, and the layer documents to consult.
+globs: apps/*frontend*/**
+---
+
+# Frontend
+
+Two stages own the frontend, and they own **different halves of it**. Working in the wrong half is the most common frontend review failure.
+
+| Stage | Owns | Document |
+|---|---|---|
+| **Stage 2 — mockup** | The entire *visible* surface | `.standards/workflow/stage-2-mockup/checklist.md` |
+| **Stage 5 — frontend** | The *non-visual* architecture | `.standards/workflow/stage-5-frontend/checklist.md` |
+
+## The anti-rewrite contract
+
+**Stage 5 never modifies Stage-2 territory.** That territory is:
+
+- Presentational components, widgets, pages
+- Styles, design tokens, themes, motion tokens, animations, assets, fonts, icons
+- User-visible copy and the default-locale message catalogue
+- Models and validation schemas for HTTP payloads
+- Typed endpoint descriptors, service wrappers, the shared HTTP client
+- The shared error envelope, error codes enum, pagination model
+- Mock handlers (disabled when the real backend lands — **never deleted**)
+
+Stage 5 wires non-visual capability into the **seams those components already expose** — props, contexts, hooks, DI tokens. If a component needs a capability and has no seam for it, that is a **route-back to Stage 2**, not a patch to the component.
+
+Concretely: if your change adds state, a guard, analytics, real auth, storage, or error reporting, and you find yourself editing a file under `src/shared/ui/`, `src/shared/widgets/`, `src/modules/*/components/`, or `src/modules/*/pages/` — stop. You are in Stage-2 territory.
+
+## Stage 5 layers
+
+Read the layer document for what you are building before you build it:
+
+```
+.standards/workflow/stage-5-frontend/
+  01-components   02-models      03-services       04-routing-lazy-loading
+  05-guards       06-state-management               07-hooks-composables-mixins
+  08-directives-decorators       09-pipes-filters-transforms
+  10-utilities-helpers           11-styles-theming  12-assets
+  13-i18n-localization           14-forms           15-auth-security
+  16-analytics-telemetry         17-error-handling-logging
+  18-testing      19-animations-motion              20-performance
+  21-storage      22-notifications-realtime         23-build-config-devops
+  24-accessibility-a11y          25-documentation   26-legal-compliance
+```
+
+Each has a `CREATE-prompt.md`.
+
+## Hard rules
+
+1. **Never invent backend surface.** Call only operations present in `openapi.json`. A capability whose endpoint does not exist is a route-back (`route-backs.md`) with an explicit **A** (resolve upstream) or **B** (defer behind an off-by-default feature flag) decision — never a guessed endpoint, never a silent downgrade.
+2. **No business logic in presentational components.** Events go upward; data comes down through typed props.
+3. **DTOs belong to the component that uses them** — not to a parent, and not to an unrelated or business-specific component.
+4. **Every user-visible string goes through i18n.** No inline literals.
+5. **No hardcoded API URLs or environment values.** Use the environment config module.
+6. **No secrets in client-bundled code.** Anything shipped to the browser is public.
+7. **No `any`.** Use a real type, or `unknown` with narrowing.
+
+## Before declaring done
+
+Walk `.standards/workflow/stage-5-frontend/checklist.md` (and Stage 2's if you touched the visible surface). Its 00-Preflight section is a **hard blocker**: every capability must have its backend operations verified present in `openapi.json`, with an RB ticket for each gap, before implementation begins.

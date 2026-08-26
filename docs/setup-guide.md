@@ -86,8 +86,7 @@ Read the `ql-pipeline` job log. It states which rule files and which standards d
 The pipeline is the review side. [`templates/cursor-rules/`](../templates/cursor-rules/) is the **write** side — copy-paste Cursor rules that point at the same `prompt-utils` checklists, so work is produced against the standards it will later be judged by.
 
 ```bash
-mkdir -p .cursor/rules
-cp -r /path/to/ql-pipeline/templates/cursor-rules/*.mdc .cursor/rules/
+cp -r /path/to/ql-pipeline/templates/cursor-rules/.cursor .
 
 # Clone the standards where Cursor can read them — the SAME path CI uses
 git clone git@github.com:0xb1te/prompt-utils.git .standards

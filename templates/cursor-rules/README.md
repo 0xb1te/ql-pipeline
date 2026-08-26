@@ -9,9 +9,9 @@ These are the **write side**. ql-pipeline is the **review side**. Both read the 
 ## Install into a project
 
 ```bash
-# 1. Copy the rules in
-mkdir -p .cursor/rules
-cp -r /path/to/ql-pipeline/templates/cursor-rules/*.mdc .cursor/rules/
+# 1. Copy the rules in — the template mirrors the target layout, so this
+#    drops straight into place as .cursor/rules/
+cp -r /path/to/ql-pipeline/templates/cursor-rules/.cursor .
 
 # 2. Make the standards readable by Cursor, at the SAME path CI uses
 git clone git@github.com:0xb1te/prompt-utils.git .standards

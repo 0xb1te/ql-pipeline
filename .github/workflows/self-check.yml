@@ -32,5 +32,19 @@ jobs:
       - name: Build
         run: npm run build
 
+      # dist/ is committed (not gitignored) so `pnpm add github:...` never
+      # needs to run an install-time build script — pnpm 10+ blocks git
+      # dependencies from running lifecycle scripts by default, which
+      # otherwise breaks the whole install (docs/011-*/plan.md). That only
+      # holds if the committed dist/ actually matches src/, so a PR that
+      # changes src/ without rebuilding dist/ fails here.
+      - name: Verify committed dist/ matches source
+        run: |
+          if ! git diff --quiet -- dist/; then
+            echo "::error::dist/ does not match src/. Run 'npm run build' and commit the result."
+            git diff --stat -- dist/
+            exit 1
+          fi
+
       - name: Test
         run: npm test

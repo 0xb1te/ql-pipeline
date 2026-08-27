@@ -12,15 +12,25 @@ The pipeline **engine** does not need this CLI — consumers reference the reusa
 pnpm add -D github:0xb1te/ql-pipeline
 ```
 
-Pin a tag in production repos so an upstream change never surprises you:
+Pin a commit or tag in production repos so an upstream change never surprises you:
 
 ```bash
 pnpm add -D github:0xb1te/ql-pipeline#v0.1.0
 ```
 
-Installing from git runs the package's `prepare` script, which builds it — you need Node 20+ and network access to GitHub, nothing else.
+`dist/` ships committed in the repository — install never needs to run a build script, just Node 20+ and network access to GitHub. This is deliberate: recent pnpm versions block git-hosted packages from running lifecycle scripts by default (`ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`), which would otherwise break the install entirely. See [docs/011-committed-dist/plan.md](011-committed-dist/plan.md) if you're wondering why a TypeScript repo has compiled JS in git.
 
 > **Do you need a registry?** Not to start. Move to GitHub Packages later if you want semver ranges (`^0.2.0`) or CI installs without SSH keys; the CLI is unaffected either way.
+
+### In a pnpm workspace (monorepo)
+
+`.github/workflows/` and `.cursor/rules/` belong at the **true repository root**, not inside a workspace package — so if your repo is a pnpm workspace, install at the root explicitly:
+
+```bash
+pnpm add -D github:0xb1te/ql-pipeline -w
+```
+
+Without `-w`, pnpm refuses with `ERR_PNPM_ADDING_TO_ROOT` rather than guess whether you meant the root or the package you're standing in.
 
 ## Commands
 

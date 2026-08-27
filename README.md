@@ -54,6 +54,7 @@ Feature-complete against the specification. Build-out and conformance tracked as
 | [008](docs/008-modular-checks/plan.md) | Modular checks: split into test / build / ql-pipeline jobs, CLI subcommands | Done |
 | [009](docs/009-house-standards/plan.md) | House engineering standards (prompt-utils) + `apps/*` area detection | Done |
 | [010](docs/010-scaffold-cli/plan.md) | Scaffolding CLI: install as a package, `init` / `upgrade` / `doctor` | Done |
+| [011](docs/011-committed-dist/plan.md) | Fix real pnpm git-install breaks: commit `dist/`, document `-w` for workspaces | Done |
 
 394 tests across 34 files; the commit parser and verdict engine hold 100% branch coverage. **Not yet verified:** a live Actions run against a real PR, and a live `cursor-agent` review/fix cycle — see [SPECIFICATION.md §8](docs/SPECIFICATION.md).
 

@@ -9,7 +9,7 @@ Budget about 20 minutes, most of it waiting for the first run.
 The CLI does steps 2–4 for you:
 
 ```bash
-pnpm add -D github:0xb1te/ql-pipeline     # in a pnpm workspace, add -w — see docs/cli.md
+pnpm add -D github:0xb1te/ql-pipeline -w   # in a pnpm workspace, add -w — see docs/cli.md
 pnpm ql-pipeline init                      # workflow + config + cursor rules + .gitignore
 pnpm ql-pipeline doctor                    # tells you exactly what is still missing
 ```
@@ -20,18 +20,22 @@ The manual steps below are the same thing done by hand, and explain what each fi
 
 ---
 
+
+
 ## Step 1 — Create the two secrets
 
 In the repository you want governed: **Settings → Secrets and variables → Actions → New repository secret**.
 
-| Secret | Value | Why |
-|---|---|---|
-| `CURSOR_API_KEY` | Your Cursor API key | Powers both the AI review and the auto-fix agent |
+
+| Secret            | Value                                                                     | Why                                                                                                                                                                        |
+| ----------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CURSOR_API_KEY`  | Your Cursor API key                                                       | Powers both the AI review and the auto-fix agent                                                                                                                           |
 | `STANDARDS_TOKEN` | A PAT (or GitHub App token) with **read** access to `0xb1te/prompt-utils` | The engineering standards live in that private repo. A workflow's default token can only read the repo it runs in, so without this the pipeline cannot load your standards |
+
 
 > For an organisation, set both once as **organisation** secrets and share them with the relevant repos rather than repeating them per repository.
 
-**On `STANDARDS_TOKEN` scope:** a fine-grained PAT limited to `0xb1te/prompt-utils` with *Contents: Read-only* is enough. Don't reuse a broad token here.
+**On** `STANDARDS_TOKEN` **scope:** a fine-grained PAT limited to `0xb1te/prompt-utils` with *Contents: Read-only* is enough. Don't reuse a broad token here.
 
 ## Step 2 — Add the caller workflow
 
@@ -55,6 +59,8 @@ jobs:
       CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
       STANDARDS_TOKEN: ${{ secrets.STANDARDS_TOKEN }}
 ```
+
+
 
 ## Step 3 — Add the pipeline config
 
@@ -97,7 +103,7 @@ Read the `ql-pipeline` job log. It states which rule files and which standards d
 
 ## Step 4b — Give Cursor the same rules the pipeline reviews against
 
-The pipeline is the review side. [`templates/cursor-rules/`](../templates/cursor-rules/) is the **write** side — copy-paste Cursor rules that point at the same `prompt-utils` checklists, so work is produced against the standards it will later be judged by.
+The pipeline is the review side. `[templates/cursor-rules/](../templates/cursor-rules/)` is the **write** side — copy-paste Cursor rules that point at the same `prompt-utils` checklists, so work is produced against the standards it will later be judged by.
 
 ```bash
 cp -r /path/to/ql-pipeline/templates/cursor-rules/.cursor .
@@ -117,6 +123,8 @@ Once a real PR has been through the loop and you're happy with the findings: **S
 
 ---
 
+
+
 ## What to expect on a governed PR
 
 - **Labels** `area:<area>` per matched area; `needs-human` when the pipeline won't decide alone.
@@ -125,24 +133,34 @@ Once a real PR has been through the loop and you're happy with the findings: **S
 - **Bot commits** `fix(<area>): resolve pipeline complaint (attempt N) [bot]` when the fix agent repairs something.
 - **Nothing at all** on PRs targeting a branch other than the configured `target_branch`.
 
+
+
 ## Reading the decision
 
-| Decision | Means |
-|---|---|
+
+| Decision  | Means                                                                               |
+| --------- | ----------------------------------------------------------------------------------- |
 | **MERGE** | No blocking findings. Approved and merged; advisory findings ride along as comments |
-| **FIX** | Blocking findings, all auto-fixable, attempts remaining. A fix commit is pushed |
-| **BLOCK** | Something needs a person. Labelled `needs-human` |
+| **FIX**   | Blocking findings, all auto-fixable, attempts remaining. A fix commit is pushed     |
+| **BLOCK** | Something needs a person. Labelled `needs-human`                                    |
+
+
+
 
 ## Troubleshooting the first run
 
-| Symptom | Cause | Fix |
-|---|---|---|
-| `ql-pipeline` fails with "engineering standards could not be loaded" | `STANDARDS_TOKEN` missing or can't read `0xb1te/prompt-utils` | Fix the token's scope, or set `standards.enabled: false` to run without standards |
-| "This PR could not be routed" | No commit *and* not the PR title matches `<type>(<area>): <description>` | Reword a commit or the PR title |
-| No checks appear at all | The PR targets a branch other than `merge.target_branch` | Expected — the pipeline governs only its configured branch |
-| Everything is red on a PR touching `.github/` | Self-protection: PRs touching pipeline governance always go to a human | Expected. Review it yourself |
-| A fix commit lands but nothing re-reviews it | Commits pushed with the default `GITHUB_TOKEN` don't trigger new runs | Supply a PAT/App token as `GH_TOKEN` so the loop closes automatically |
-| Review cost higher than expected | The standards are large (~14k tokens frontend, ~24k backend) | Lower `standards.max_chars_per_area`, or drop `ai-review` from `merge.required_checks` on low-risk repos |
+
+| Symptom                                                              | Cause                                                                    | Fix                                                                                                      |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `ql-pipeline` fails with "engineering standards could not be loaded" | `STANDARDS_TOKEN` missing or can't read `0xb1te/prompt-utils`            | Fix the token's scope, or set `standards.enabled: false` to run without standards                        |
+| "This PR could not be routed"                                        | No commit *and* not the PR title matches `<type>(<area>): <description>` | Reword a commit or the PR title                                                                          |
+| No checks appear at all                                              | The PR targets a branch other than `merge.target_branch`                 | Expected — the pipeline governs only its configured branch                                               |
+| Everything is red on a PR touching `.github/`                        | Self-protection: PRs touching pipeline governance always go to a human   | Expected. Review it yourself                                                                             |
+| A fix commit lands but nothing re-reviews it                         | Commits pushed with the default `GITHUB_TOKEN` don't trigger new runs    | Supply a PAT/App token as `GH_TOKEN` so the loop closes automatically                                    |
+| Review cost higher than expected                                     | The standards are large (~14k tokens frontend, ~24k backend)             | Lower `standards.max_chars_per_area`, or drop `ai-review` from `merge.required_checks` on low-risk repos |
+
+
+
 
 ## If your layout isn't `apps/*frontend*` / `apps/*backend*`
 
@@ -154,3 +172,4 @@ areas:
     frontend: ["apps/*frontend*/**", "packages/ui/**"]
     backend: ["apps/*backend*/**", "services/**"]
 ```
+

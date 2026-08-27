@@ -27,7 +27,7 @@ const CONFIG: PipelineConfig = {
   gates: {
     frontend: { build: 'npm run build', test: 'npm test' },
   },
-  merge: { targetBranch: 'main', targetBranchByArea: {}, method: 'merge', deleteBranch: true, requiredChecks: ['build', 'test', 'ai-review'] },
+  merge: { targetBranch: 'main', targetBranchByArea: {}, method: 'merge', deleteBranch: true, requiredChecks: ['build', 'test', 'ai-review'], requireHumanApproval: false },
   fixer: { maxFixAttempts: 3, protectedPaths: ['rules/', 'prompts/', 'pipeline.config.yml', '.github/workflows/'] },
   areas: { paths: {} },
   standards: { enabled: false, root: '.standards', docs: {}, maxCharsPerArea: 90_000 },

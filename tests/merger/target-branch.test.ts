@@ -9,6 +9,7 @@ function merge(overrides: Partial<MergeConfig> = {}): MergeConfig {
     method: 'merge',
     deleteBranch: true,
     requiredChecks: ['build', 'test', 'ai-review'],
+    requireHumanApproval: false,
     ...overrides,
   };
 }

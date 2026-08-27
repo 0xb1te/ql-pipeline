@@ -179,6 +179,13 @@ export async function runGovern(reportsDir) {
             logger.info('aborting merge: the PR moved while this run was working; the newer run governs it', execution);
             return;
         }
+        if (execution.kind === 'awaiting-human') {
+            logger.info('approved and labelled ready-to-merge; a human makes the merge call', {
+                targetBranch,
+                advisoryFindingCount: decision.advisoryFindings.length,
+            });
+            return;
+        }
         logger.info('merged', { targetBranch, advisoryFindingCount: decision.advisoryFindings.length });
         return;
     }

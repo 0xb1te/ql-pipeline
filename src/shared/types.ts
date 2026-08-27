@@ -88,6 +88,15 @@ export interface MergeConfig {
   readonly method: MergeMethod;
   readonly deleteBranch: boolean;
   readonly requiredChecks: readonly RequiredCheck[];
+  /**
+   * When true, a MERGE verdict approves the PR and labels it `ready-to-merge`
+   * but never calls the merge API — a person makes the final call.
+   *
+   * For teams that want AI review without AI merge. Also the mode ql-sprint
+   * requires: it drives this pipeline unattended across a whole sprint, and
+   * the human gate is what stands between a wrong review and a wrong `main`.
+   */
+  readonly requireHumanApproval: boolean;
 }
 
 export interface FixerConfig {

@@ -33,6 +33,7 @@ describe('parseConfig', () => {
         method: 'squash',
         deleteBranch: false,
         requiredChecks: ['build', 'test'],
+        requireHumanApproval: false,
       },
       fixer: {
         maxFixAttempts: 5,
@@ -69,6 +70,7 @@ describe('parseConfig', () => {
       method: 'merge',
       deleteBranch: true,
       requiredChecks: ['build', 'test', 'ai-review'],
+      requireHumanApproval: false,
     });
     expect(config.fixer).toEqual({
       maxFixAttempts: 3,

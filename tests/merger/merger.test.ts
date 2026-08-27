@@ -65,6 +65,7 @@ describe('executeMergeDecision', () => {
     method: 'merge',
     deleteBranch: true,
     requiredChecks: ['build', 'test', 'ai-review'],
+    requireHumanApproval: false,
   };
 
   it('approves with no comments, merges, and deletes the branch when there are no advisory findings', async () => {
@@ -147,5 +148,67 @@ describe('executeMergeDecision', () => {
     await executeMergeDecision(client, PR, [], mergeConfig);
 
     expect(order).toEqual(['staleness-check', 'approve', 'merge', 'delete']);
+  });
+});
+
+describe('human-approval mode', () => {
+  const humanApproval: MergeConfig = {
+    targetBranch: 'main',
+    targetBranchByArea: {},
+    method: 'merge',
+    deleteBranch: true,
+    requiredChecks: ['build', 'test', 'ai-review'],
+    requireHumanApproval: true,
+  };
+
+  it('never calls the merge API', async () => {
+    // The whole point of the mode. If this ever passes while merge is called,
+    // an unattended run could merge to main without a person.
+    const client = fakeClient();
+
+    const result = await executeMergeDecision(client, PR, [], humanApproval);
+
+    expect(result).toEqual({ kind: 'awaiting-human' });
+    expect(client.mergePullRequest).not.toHaveBeenCalled();
+  });
+
+  it('still approves the PR and attaches advisory findings', async () => {
+    // The review is the valuable part and must survive the mode change —
+    // a human deciding whether to merge needs to see what the pipeline found.
+    const client = fakeClient();
+    const advisory = [finding()];
+
+    await executeMergeDecision(client, PR, advisory, humanApproval);
+
+    expect(client.approveWithComments).toHaveBeenCalledWith(PR, [findingToReviewComment(advisory[0]!)]);
+  });
+
+  it('labels the PR so an orchestrator can find it', async () => {
+    const client = fakeClient();
+
+    await executeMergeDecision(client, PR, [], humanApproval);
+
+    expect(client.addLabels).toHaveBeenCalledWith(PR, ['ready-to-merge']);
+  });
+
+  it('leaves the branch alone', async () => {
+    // Deleting the branch of a PR nobody has merged would destroy the work.
+    const client = fakeClient();
+
+    await executeMergeDecision(client, PR, [], humanApproval);
+
+    expect(client.deleteBranch).not.toHaveBeenCalled();
+  });
+
+  it('still refuses a stale PR before approving anything', async () => {
+    // The staleness check must run first in both modes, or a human would be
+    // asked to approve a revision that was never reviewed.
+    const client = fakeClient('def456');
+
+    const result = await executeMergeDecision(client, PR, [], humanApproval);
+
+    expect(result.kind).toBe('stale');
+    expect(client.approveWithComments).not.toHaveBeenCalled();
+    expect(client.addLabels).not.toHaveBeenCalled();
   });
 });

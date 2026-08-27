@@ -7,6 +7,8 @@ export function findingToReviewComment(finding) {
         body: `**[${finding.severity}] ${finding.rule}**\n\n${finding.problem}${suggestion}`,
     };
 }
+/** Label applied instead of merging when `merge.require_human_approval` is on. */
+export const READY_TO_MERGE_LABEL = 'ready-to-merge';
 /**
  * Carries out a MERGE verdict: re-check that the head commit is still the
  * one that was reviewed, approve the PR (attaching any advisory `should`
@@ -27,6 +29,15 @@ export async function executeMergeDecision(client, pr, advisoryFindings, mergeCo
     }
     const comments = advisoryFindings.map(findingToReviewComment);
     await client.approveWithComments(pr, comments);
+    // Human-approval mode stops here, one call short of merging. The approval
+    // and the advisory comments still land, so the PR carries the full review —
+    // but the merge itself is a person's to make. Deliberately placed after the
+    // staleness check and the approval so the only difference between the two
+    // modes is whether the merge API is called at all.
+    if (mergeConfig.requireHumanApproval) {
+        await client.addLabels(pr, [READY_TO_MERGE_LABEL]);
+        return { kind: 'awaiting-human' };
+    }
     await client.mergePullRequest(pr, mergeConfig.method, pr.headSha);
     if (mergeConfig.deleteBranch) {
         await client.deleteBranch(pr);

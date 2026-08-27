@@ -12,6 +12,7 @@ function config(overrides: Partial<PipelineConfig['merge']> = {}): PipelineConfi
       method: 'merge',
       deleteBranch: true,
       requiredChecks: ['build', 'test', 'ai-review'],
+    requireHumanApproval: false,
       ...overrides,
     },
     fixer: { maxFixAttempts: 3, protectedPaths: [] },

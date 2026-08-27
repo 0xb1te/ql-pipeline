@@ -5,10 +5,14 @@ export declare function findingToReviewComment(finding: Finding): ReviewComment;
 export type MergeExecution = {
     readonly kind: 'merged';
 } | {
+    readonly kind: 'awaiting-human';
+} | {
     readonly kind: 'stale';
     readonly reviewedSha: string;
     readonly currentSha: string;
 };
+/** Label applied instead of merging when `merge.require_human_approval` is on. */
+export declare const READY_TO_MERGE_LABEL = "ready-to-merge";
 /**
  * Carries out a MERGE verdict: re-check that the head commit is still the
  * one that was reviewed, approve the PR (attaching any advisory `should`

@@ -241,12 +241,17 @@ function validateMerge(value, sourceLabel) {
     const deleteBranch = rawDeleteBranch === undefined
         ? DEFAULT_DELETE_BRANCH
         : assertBoolean(rawDeleteBranch, 'merge.delete_branch', sourceLabel);
+    const rawRequireHumanApproval = merge['require_human_approval'];
+    const requireHumanApproval = rawRequireHumanApproval === undefined
+        ? false
+        : assertBoolean(rawRequireHumanApproval, 'merge.require_human_approval', sourceLabel);
     return {
         targetBranch,
         targetBranchByArea: validateTargetBranchByArea(merge['target_branch_by_area'], sourceLabel),
         method: method,
         deleteBranch,
         requiredChecks: validateRequiredChecks(merge['required_checks'], sourceLabel),
+        requireHumanApproval,
     };
 }
 function validateTargetBranchByArea(value, sourceLabel) {

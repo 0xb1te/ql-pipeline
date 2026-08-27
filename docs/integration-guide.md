@@ -104,6 +104,13 @@ merge:
   # Drop `ai-review` here to run this as a gates-only pipeline.
   required_checks: [build, test, ai-review]   # default shown
 
+  # Take the review without the merge. On a MERGE verdict the pipeline
+  # approves the PR, attaches its advisory findings, labels it
+  # `ready-to-merge` — and stops. The merge API is never called and the
+  # branch is not deleted; a person makes the final call.
+  # Unlike dropping `ai-review` from required_checks, you keep the review.
+  require_human_approval: false   # default: false
+
 fixer:
   max_fix_attempts: 3       # default: 3
   protected_paths:          # default shown — paths the fix agent can never touch,

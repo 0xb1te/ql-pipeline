@@ -26,6 +26,7 @@ const CONFIG: PipelineConfig = {
     method: 'merge',
     deleteBranch: true,
     requiredChecks: ['build', 'test', 'ai-review'],
+    requireHumanApproval: false,
   },
   fixer: {
     maxFixAttempts: 3,

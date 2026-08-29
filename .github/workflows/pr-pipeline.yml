@@ -27,11 +27,11 @@ on:
       standards-repo:
         description: >-
           Repository holding the engineering standards the reviewer applies
-          (the prompt-utils workflow docs). Set to an empty string to review
+          (the ql-docs workflow docs). Set to an empty string to review
           without standards — also set `standards.enabled: false` in the
           pipeline config if you do.
         type: string
-        default: 0xb1te/prompt-utils
+        default: 0xb1te/ql-docs
       standards-ref:
         description: Git ref of the standards repository to apply.
         type: string

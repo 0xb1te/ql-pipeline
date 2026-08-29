@@ -30,12 +30,12 @@ In the repository you want governed: **Settings → Secrets and variables → Ac
 | Secret            | Value                                                                     | Why                                                                                                                                                                        |
 | ----------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `CURSOR_API_KEY`  | Your Cursor API key                                                       | Powers both the AI review and the auto-fix agent                                                                                                                           |
-| `STANDARDS_TOKEN` | A PAT (or GitHub App token) with **read** access to `0xb1te/prompt-utils` | The engineering standards live in that private repo. A workflow's default token can only read the repo it runs in, so without this the pipeline cannot load your standards |
+| `STANDARDS_TOKEN` | A PAT (or GitHub App token) with **read** access to `0xb1te/ql-docs` | The engineering standards live in that private repo. A workflow's default token can only read the repo it runs in, so without this the pipeline cannot load your standards |
 
 
 > For an organisation, set both once as **organisation** secrets and share them with the relevant repos rather than repeating them per repository.
 
-**On** `STANDARDS_TOKEN` **scope:** a fine-grained PAT limited to `0xb1te/prompt-utils` with *Contents: Read-only* is enough. Don't reuse a broad token here.
+**On** `STANDARDS_TOKEN` **scope:** a fine-grained PAT limited to `0xb1te/ql-docs` with *Contents: Read-only* is enough. Don't reuse a broad token here.
 
 ## Step 2 — Add the caller workflow
 
@@ -103,17 +103,17 @@ Read the `ql-pipeline` job log. It states which rule files and which standards d
 
 ## Step 4b — Give Cursor the same rules the pipeline reviews against
 
-The pipeline is the review side. `[templates/cursor-rules/](../templates/cursor-rules/)` is the **write** side — copy-paste Cursor rules that point at the same `prompt-utils` checklists, so work is produced against the standards it will later be judged by.
+The pipeline is the review side. `[templates/cursor-rules/](../templates/cursor-rules/)` is the **write** side — copy-paste Cursor rules that point at the same `ql-docs` checklists, so work is produced against the standards it will later be judged by.
 
 ```bash
 cp -r /path/to/ql-pipeline/templates/cursor-rules/.cursor .
 
 # Clone the standards where Cursor can read them — the SAME path CI uses
-git clone git@github.com:0xb1te/prompt-utils.git .standards
+git clone git@github.com:0xb1te/ql-docs.git .standards
 echo '.standards/' >> .gitignore
 ```
 
-Using `.standards/` locally is deliberate: it is exactly where the workflow checks `prompt-utils` out during review, so every path reference in the rules resolves identically in your editor and in CI.
+Using `.standards/` locally is deliberate: it is exactly where the workflow checks `ql-docs` out during review, so every path reference in the rules resolves identically in your editor and in CI.
 
 See [templates/cursor-rules/README.md](../templates/cursor-rules/README.md) for what each rule covers.
 
@@ -152,7 +152,7 @@ Once a real PR has been through the loop and you're happy with the findings: **S
 
 | Symptom                                                              | Cause                                                                    | Fix                                                                                                      |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| `ql-pipeline` fails with "engineering standards could not be loaded" | `STANDARDS_TOKEN` missing or can't read `0xb1te/prompt-utils`            | Fix the token's scope, or set `standards.enabled: false` to run without standards                        |
+| `ql-pipeline` fails with "engineering standards could not be loaded" | `STANDARDS_TOKEN` missing or can't read `0xb1te/ql-docs`            | Fix the token's scope, or set `standards.enabled: false` to run without standards                        |
 | "This PR could not be routed"                                        | No commit *and* not the PR title matches `<type>(<area>): <description>` | Reword a commit or the PR title                                                                          |
 | No checks appear at all                                              | The PR targets a branch other than `merge.target_branch`                 | Expected — the pipeline governs only its configured branch                                               |
 | Everything is red on a PR touching `.github/`                        | Self-protection: PRs touching pipeline governance always go to a human   | Expected. Review it yourself                                                                             |

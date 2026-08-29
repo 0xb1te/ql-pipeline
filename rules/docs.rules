@@ -1,6 +1,6 @@
 # docs.rules
 # The `docs` area is the one area the house engineering standards do not
-# cover — the prompt-utils workflow has no documentation checklist — so
+# cover — the ql-docs workflow has no documentation checklist — so
 # these few rules stand on their own rather than duplicating a standard.
 # Every other area is governed by `<area>.standards`; see rules/_common.rules.
 version: 2

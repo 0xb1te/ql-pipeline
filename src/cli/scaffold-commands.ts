@@ -155,10 +155,10 @@ export function runInit(root: string): void {
   console.log(`\n${created} file(s) written.\n`);
   console.log('Next steps — none of these can be done for you:');
   console.log('  1. Add repository secrets CURSOR_API_KEY and STANDARDS_TOKEN');
-  console.log('     (STANDARDS_TOKEN needs read access to 0xb1te/prompt-utils)');
+  console.log('     (STANDARDS_TOKEN needs read access to 0xb1te/ql-docs)');
   console.log(`  2. Edit ${CONFIG_PATH} — set your real build and test commands`);
   console.log('  3. Clone the standards for your editor:');
-  console.log('     git clone git@github.com:0xb1te/prompt-utils.git .standards');
+  console.log('     git clone git@github.com:0xb1te/ql-docs.git .standards');
   console.log('  4. Open one PR and watch it through before requiring the checks');
   console.log('\nThen run `ql-pipeline doctor` to verify the setup.');
 }

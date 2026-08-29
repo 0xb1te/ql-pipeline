@@ -2,12 +2,12 @@
 
 An AI-governed pull request pipeline, shipped as a reusable GitHub Actions workflow. It interprets conventional commits (`<type>(<area>): <description>`) to detect what changed, applies the matching per-area rule set, gates the PR behind build + test, reviews it with Cursor CLI, and then **merges**, **auto-fixes**, or **blocks** it — merging only into the branch its config designates.
 
-Reviews are grounded in **your own engineering standards** — the `prompt-utils` workflow checklists for the areas a PR touches — not just generic rules.
+Reviews are grounded in **your own engineering standards** — the `ql-docs` workflow checklists for the areas a PR touches — not just generic rules.
 
 - **What it must do:** [docs/SPECIFICATION.md](docs/SPECIFICATION.md) — the canonical contract, with every requirement mapped to its code and tests.
 - **Turning it on for a repo:** [docs/setup-guide.md](docs/setup-guide.md) — start here.
 - **CLI reference:** [docs/cli.md](docs/cli.md) — `init`, `upgrade`, `doctor`.
-- **Cursor rules for your projects:** [templates/cursor-rules/](templates/cursor-rules/) — the write-side mirror of this review, pointing at the same `prompt-utils` checklists.
+- **Cursor rules for your projects:** [templates/cursor-rules/](templates/cursor-rules/) — the write-side mirror of this review, pointing at the same `ql-docs` checklists.
 - **Full configuration reference:** [docs/integration-guide.md](docs/integration-guide.md).
 - **Developing it:** [RULES.md](RULES.md) · [AGENT.md](AGENT.md).
 
@@ -52,7 +52,7 @@ Feature-complete against the specification. Build-out and conformance tracked as
 | [006](docs/006-phase5-hardening/plan.md) | Hardening: self-protection routing, audit trail, docs | Done |
 | [007](docs/007-spec-conformance/plan.md) | Spec conformance: target-branch governance, rule overrides, required checks, and seven live-run bugs | Done |
 | [008](docs/008-modular-checks/plan.md) | Modular checks: split into test / build / ql-pipeline jobs, CLI subcommands | Done |
-| [009](docs/009-house-standards/plan.md) | House engineering standards (prompt-utils) + `apps/*` area detection | Done |
+| [009](docs/009-house-standards/plan.md) | House engineering standards (ql-docs) + `apps/*` area detection | Done |
 | [010](docs/010-scaffold-cli/plan.md) | Scaffolding CLI: install as a package, `init` / `upgrade` / `doctor` | Done |
 | [011](docs/011-committed-dist/plan.md) | Fix real pnpm git-install breaks: commit `dist/`, document `-w` for workspaces | Done |
 | [012](docs/012-human-approval/plan.md) | Human-approval merge mode: approve and label, never merge | Done |

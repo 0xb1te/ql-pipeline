@@ -67,7 +67,7 @@ export interface AreasConfig {
     readonly paths: AreaPathsConfig;
 }
 /**
- * External engineering standards (the prompt-utils workflow docs) injected
+ * External engineering standards (the ql-docs workflow docs) injected
  * into the review as authoritative context alongside `rules/*.rules`.
  */
 export interface StandardsConfig {

@@ -3,11 +3,11 @@
 | | |
 |---|---|
 | **Status** | 🟢 Done |
-| **Goal** | Make the reviewer judge code against the organisation's own workflow documentation (`prompt-utils`), and detect areas from the `apps/*frontend*` / `apps/*backend*` monorepo layout. |
+| **Goal** | Make the reviewer judge code against the organisation's own workflow documentation (`ql-docs`), and detect areas from the `apps/*frontend*` / `apps/*backend*` monorepo layout. |
 
 ## What the standards actually are
 
-`0xb1te/prompt-utils` holds the house workflow, organised by stage:
+`0xb1te/ql-docs` holds the house workflow, organised by stage:
 
 ```
 workflow/
@@ -27,7 +27,7 @@ So the pipeline loads only the checklists. That was a judgement call, and it's t
 
 ## How the standards reach the runner
 
-`prompt-utils` is a **private** GitHub repo, so vendoring a copy into ql-pipeline would go stale and a plain checkout won't authenticate. The workflow checks it out at review time into `.standards/`, using a `STANDARDS_TOKEN` secret, exactly as it already checks out ql-pipeline itself. Reviews therefore always reflect the current standards, with no sync step to forget.
+`ql-docs` is a **private** GitHub repo, so vendoring a copy into ql-pipeline would go stale and a plain checkout won't authenticate. The workflow checks it out at review time into `.standards/`, using a `STANDARDS_TOKEN` secret, exactly as it already checks out ql-pipeline itself. Reviews therefore always reflect the current standards, with no sync step to forget.
 
 The default `GITHUB_TOKEN` is scoped to the repo under review and **cannot** read another repository — so `STANDARDS_TOKEN` is genuinely required, not optional polish. This is stated in the integration guide rather than left to be discovered.
 
@@ -54,7 +54,7 @@ Findings previously had to cite `<something>.rules#<id>`; the check was hardcode
 
 ## Verified against the real documents
 
-Not just fixtures — the resolver was run against the actual local `prompt-utils` checkout:
+Not just fixtures — the resolver was run against the actual local `ql-docs` checkout:
 
 | Areas | Loaded | Size |
 |---|---|---|

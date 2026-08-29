@@ -38,7 +38,7 @@ merge:
 #     backend: ["apps/*backend*/**"]
 
 # The house engineering standards the reviewer judges against. The
-# defaults map every area onto the prompt-utils stage checklists; override
+# defaults map every area onto the ql-docs stage checklists; override
 # only if this repo needs something different.
 # standards:
 #   enabled: true              # false = review against rules only

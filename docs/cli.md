@@ -91,7 +91,7 @@ pnpm ql-pipeline doctor
 [ warn ] gates: no area has build or test commands configured, so those checks will pass vacuously
           → set gates.<area>.build / .test in the pipeline config
 [ warn ] standards: not checked out locally (CI clones them itself, so this only affects your editor)
-          → git clone git@github.com:0xb1te/prompt-utils.git .standards
+          → git clone git@github.com:0xb1te/ql-docs.git .standards
 [  ok  ] cursor rules: 7 rule(s) installed
 ```
 
@@ -115,7 +115,7 @@ ql-pipeline govern               # the "ql-pipeline" check
 # once, per repository
 pnpm add -D github:0xb1te/ql-pipeline
 pnpm ql-pipeline init
-git clone git@github.com:0xb1te/prompt-utils.git .standards
+git clone git@github.com:0xb1te/ql-docs.git .standards
 # …add secrets, edit gates, open one PR and watch it…
 pnpm ql-pipeline doctor
 

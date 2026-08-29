@@ -123,7 +123,7 @@ function standardsChecks(input: DoctorInput): CheckResult[] {
       name: 'standards',
       status: 'warn',
       detail: 'not checked out locally (CI clones them itself, so this only affects your editor)',
-      fix: 'git clone git@github.com:0xb1te/prompt-utils.git .standards',
+      fix: 'git clone git@github.com:0xb1te/ql-docs.git .standards',
     });
     return results;
   }

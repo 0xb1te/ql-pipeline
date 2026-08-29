@@ -42,7 +42,7 @@ The `checks /` prefix is your calling job's id — rename the job and the prefix
 - **Pin `@main` to a tag or SHA in production** once ql-pipeline has releases — `@main` tracks the latest commit, which is fine for trying it out but not for a repo whose merges depend on it staying stable.
 - **The `concurrency` block is your responsibility, not ql-pipeline's.** A new commit pushed to a PR should cancel the in-flight run for the old one (including a stale fix-loop attempt) — the reusable workflow doesn't declare this for you since it's a property of *your* workflow, not the called one.
 - **Required secret:** `CURSOR_API_KEY`, used by both the reviewer and the fixer. The workflow installs the Cursor CLI on the runner itself; you don't need to.
-- **Required secret:** `STANDARDS_TOKEN` — a PAT or GitHub App token with **read** access to `0xb1te/prompt-utils`. The engineering standards live there, it's a private repo, and a workflow's default `GITHUB_TOKEN` can only read the repo it runs in. Without it the `ql-pipeline` check fails with an explicit message rather than quietly reviewing against no standards. (Set `standards.enabled: false` in your config if you genuinely want to run without them.)
+- **Required secret:** `STANDARDS_TOKEN` — a PAT or GitHub App token with **read** access to `0xb1te/ql-docs`. The engineering standards live there, it's a private repo, and a workflow's default `GITHUB_TOKEN` can only read the repo it runs in. Without it the `ql-pipeline` check fails with an explicit message rather than quietly reviewing against no standards. (Set `standards.enabled: false` in your config if you genuinely want to run without them.)
 - **Optional secret:** `GH_TOKEN`. Omit it and the workflow falls back to the default `GITHUB_TOKEN` — but note the consequence: **commits pushed with the default token do not trigger new workflow runs**, so an auto-fix commit will not re-run the pipeline on its own. For the fix loop to close automatically (fix → re-review → merge), supply a PAT or GitHub App token as `GH_TOKEN`. With the default token the fix still lands on the PR; it just waits for the next push or a manual re-run to be re-reviewed.
 
 ### Fork pull requests
@@ -148,7 +148,7 @@ The reviewer judges your code against the organisation's own workflow documentat
 
 Defaults — these mappings **are** the area rules; `rules/*.rules` deliberately does not restate them:
 
-| Area | Documents loaded from `0xb1te/prompt-utils` | Size |
+| Area | Documents loaded from `0xb1te/ql-docs` | Size |
 |---|---|---|
 | `frontend` | `stage-2-mockup/checklist.md` + `stage-5-frontend/checklist.md` | ~123k chars (~31k tokens) |
 | `backend` | `stage-4-backend/{backend,sql,tests}/checklist.md` | ~94k (~24k tokens) |

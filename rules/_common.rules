@@ -5,7 +5,7 @@
 # SCOPE — read this before adding anything here.
 #
 # The authoritative definition of how code should be structured is the
-# house engineering standards (the prompt-utils stage checklists), loaded
+# house engineering standards (the ql-docs stage checklists), loaded
 # per area as `<area>.standards`. This file deliberately does NOT restate
 # them: two definitions of the same requirement can drift apart, and the
 # reviewer would then be citing whichever it happened to read first.

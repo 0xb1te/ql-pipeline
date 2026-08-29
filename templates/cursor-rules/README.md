@@ -1,8 +1,8 @@
 # Cursor rules — house workflow
 
-Copy-paste rules that make Cursor produce work matching the house methodology (`prompt-utils`) and pass the [ql-pipeline](https://github.com/0xb1te/ql-pipeline) PR review.
+Copy-paste rules that make Cursor produce work matching the house methodology (`ql-docs`) and pass the [ql-pipeline](https://github.com/0xb1te/ql-pipeline) PR review.
 
-These are the **write side**. ql-pipeline is the **review side**. Both read the same `prompt-utils` checklists, so what Cursor is told to do here is exactly what the pipeline will check for later.
+These are the **write side**. ql-pipeline is the **review side**. Both read the same `ql-docs` checklists, so what Cursor is told to do here is exactly what the pipeline will check for later.
 
 ---
 
@@ -14,13 +14,13 @@ These are the **write side**. ql-pipeline is the **review side**. Both read the 
 cp -r /path/to/ql-pipeline/templates/cursor-rules/.cursor .
 
 # 2. Make the standards readable by Cursor, at the SAME path CI uses
-git clone git@github.com:0xb1te/prompt-utils.git .standards
+git clone git@github.com:0xb1te/ql-docs.git .standards
 
 # 3. Keep the clone out of the repo
 echo '.standards/' >> .gitignore
 ```
 
-> **Why `.standards/`?** ql-pipeline checks `prompt-utils` out to exactly that path when reviewing a PR. Using the same location locally means every `.standards/workflow/...` reference in these rules resolves identically in your editor and in CI — one set of paths, no translation.
+> **Why `.standards/`?** ql-pipeline checks `ql-docs` out to exactly that path when reviewing a PR. Using the same location locally means every `.standards/workflow/...` reference in these rules resolves identically in your editor and in CI — one set of paths, no translation.
 
 Keep it current with `git -C .standards pull`.
 

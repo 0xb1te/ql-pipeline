@@ -1,11 +1,11 @@
 ---
-description: House development methodology — the prompt-utils stage workflow, where the standards live, and which stage owns which part of the codebase.
+description: House development methodology — the ql-docs stage workflow, where the standards live, and which stage owns which part of the codebase.
 alwaysApply: true
 ---
 
 # House workflow
 
-This project follows the **prompt-utils** methodology. The standards are checked out at `.standards/` and are **authoritative** — where they and your instincts disagree, they win.
+This project follows the **ql-docs** methodology. The standards are checked out at `.standards/` and are **authoritative** — where they and your instincts disagree, they win.
 
 Read the relevant document before writing code. Do not work from memory of what these rules "usually" say.
 

@@ -34,7 +34,7 @@ const DEFAULT_AREA_PATHS = {
     backend: ['apps/*backend*/**'],
 };
 /**
- * Default mapping onto the prompt-utils workflow documentation — the
+ * Default mapping onto the ql-docs workflow documentation — the
  * authoritative definition of how code in each area should be structured.
  *
  * Only `checklist.md` files are loaded. The `PROMPT.md` and `CREATE-*.md`

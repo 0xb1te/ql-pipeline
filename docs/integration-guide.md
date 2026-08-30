@@ -150,15 +150,15 @@ Defaults — these mappings **are** the area rules; `rules/*.rules` deliberately
 
 | Area | Documents loaded from `0xb1te/ql-docs` | Size |
 |---|---|---|
-| `frontend` | `stage-2-mockup/checklist.md` + `stage-5-frontend/checklist.md` | ~123k chars (~31k tokens) |
-| `backend` | `stage-4-backend/{backend,sql,tests}/checklist.md` | ~94k (~24k tokens) |
-| `mobile`, `ios`, `android` | `stage-5-frontend/checklist.md` | ~55k (~14k tokens) |
-| `infrastructure` | `stage-7-deployment/checklist.md` | ~12k (~3k tokens) |
+| `frontend` | `workflow/rules/stage-2-mockup/checklist.md` + `stage-5-frontend/checklist.md` | ~128k chars (~32k tokens) |
+| `backend` | `workflow/rules/stage-4-backend/{backend,sql}/checklist.md` + `stage-6-tests/backend/checklist.md` | ~100k (~25k tokens) |
+| `mobile`, `ios`, `android` | `workflow/rules/stage-5-frontend/checklist.md` | ~58k (~14k tokens) |
+| `infrastructure` | `workflow/rules/stage-8-deployment/checklist.md` | ~12k (~3k tokens) |
 | `docs` | — (no upstream checklist; `rules/docs.rules` covers it) | — |
 
 Only the `checklist.md` files are used. The `PROMPT.md` and `CREATE-*.md` files in those trees are *code-generation* instructions — giving them to a reviewer would tell it how to write code, not how to judge it.
 
-Mobile maps to the frontend checklist because in this architecture mobile apps are the frontend packaged with Capacitor (`stage-7-deployment/07-capacitor-apps/`) — there is no separate native codebase upstream. If you do maintain native code, override `standards.docs` for those areas.
+Mobile maps to the frontend checklist because in this architecture mobile apps are the frontend packaged with Capacitor (`workflow/rules/stage-8-deployment/07-capacitor-apps/`) — there is no separate native codebase upstream. If you do maintain native code, override `standards.docs` for those areas.
 
 The reviewer cites standards findings as `backend.standards#09-controllers`, and they are held to the same grounding requirement as rule findings: a citation to a section or file that doesn't exist is discarded.
 
@@ -168,11 +168,11 @@ standards:
   root: .standards         # where the workflow checks the standards repo out
   max_chars_per_area: 120000
   docs:
-    frontend: ["workflow/stage-5-frontend/checklist.md"]
+    frontend: ["workflow/rules/stage-5-frontend/checklist.md"]
     backend:
-      - workflow/stage-4-backend/backend/checklist.md
-      - workflow/stage-4-backend/sql/checklist.md
-      - workflow/stage-4-backend/tests/checklist.md
+      - workflow/rules/stage-4-backend/backend/checklist.md
+      - workflow/rules/stage-4-backend/sql/checklist.md
+      - workflow/rules/stage-6-tests/backend/checklist.md
 ```
 
 Point at a different standards repo or pin a ref from the caller workflow:

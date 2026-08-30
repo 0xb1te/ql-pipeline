@@ -46,7 +46,7 @@ Path detection is deliberately **additive, not a substitute**. Commit hygiene st
 
 ### Engineering standards
 
-Beyond `rules/*.rules`, the reviewer is given the organisation's own workflow documentation for the areas a PR touches — checked out from a standards repository at review time, never vendored, so it is always current.
+Beyond `rules/*.rules`, the reviewer is given the organisation's own workflow documentation for the areas a PR touches — read live from `house-api` at review time, never vendored or checked out, so it is always current.
 
 | Area | Documents | Why |
 |---|---|---|

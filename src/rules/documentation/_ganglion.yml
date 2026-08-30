@@ -1,0 +1,20 @@
+cns: "1.0"
+ganglion: rules.resolver
+region: rules
+layer: resolver
+path: src/rules
+
+role: >
+  Resolves which `.rules` files apply to a PR's matched areas - a consumer's own override fully
+  replacing the shipped default for that area, never merging into it.
+
+upstream:
+  - entrypoint.cli
+downstream: []
+
+neurons:
+  - id: rules.resolver.ruleResolver
+    file: ruleResolver.yml
+    unit: ../rule-resolver.ts
+
+revision: 2026-08-30

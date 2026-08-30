@@ -1,0 +1,50 @@
+cns: "1.0"
+neuron: merger
+kind: function
+region: merge
+layer: merger
+unit: src/merger/merger.ts
+
+responsibility: >
+  Carries out a MERGE verdict: re-checks the head commit is still the one reviewed, approves
+  with any advisory findings attached as comments, merges (or just labels, in human-approval
+  mode), and deletes the branch if configured to.
+
+invariants:
+  - The staleness check always runs before approving, and the merge call is pinned to the reviewed head SHA so GitHub itself rejects a merge if a newer commit landed mid-run
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: findingToReviewComment
+    intent: Renders a should-severity finding as an advisory PR review comment.
+    accepts: Finding
+    returns: ReviewComment
+    pure: true
+    afferent:
+      - from: merge.merger.merger#executeMergeDecision
+        via: direct-call
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
+  - signal: executeMergeDecision
+    intent: >
+      Re-checks the PR's head commit is unchanged, approves it with any advisory comments, and
+      merges (or labels ready-to-merge without merging, in human-approval mode), deleting the
+      branch if configured to.
+    accepts: "GithubClient, PullRequestInfo (subset), readonly Finding[], MergeConfig"
+    returns: Promise<MergeExecution>
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent:
+      - to: merge.merger.merger#findingToReviewComment
+        via: direct-call
+        because: renders each advisory finding as a review comment attached to the approval
+      - to: shared.core.githubClient#createGithubClient
+        via: di
+        because: getHeadSha/approveWithComments/addLabels/mergePullRequest/deleteBranch are whatever createGithubClient's Octokit-backed implementation returns
+
+revision: 2026-08-30

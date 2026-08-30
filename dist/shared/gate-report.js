@@ -4,12 +4,14 @@
  * where compilers and test runners put the actual errors.
  */
 export const MAX_OUTPUT_CHARS = 4000;
+// @signal truncateOutput
 export function truncateOutput(output, max = MAX_OUTPUT_CHARS) {
     if (output.length <= max) {
         return output;
     }
     return `[... ${output.length - max} characters truncated ...]\n${output.slice(-max)}`;
 }
+// @signal serializeGateReport
 export function serializeGateReport(report) {
     const trimmed = {
         stage: report.stage,
@@ -22,6 +24,7 @@ export function serializeGateReport(report) {
  * trusted: a malformed report means the pipeline cannot tell whether the
  * gates passed, which has to fail closed like any other unknown.
  */
+// @signal parseGateReport
 export function parseGateReport(raw) {
     let data;
     try {
@@ -79,6 +82,7 @@ function parseOutcome(value, index, stage) {
     return { ok: true, value: { area: area, gate: stage, command, passed, output } };
 }
 /** Merges several stage reports into one outcome list, in stage order. */
+// @signal mergeGateReports
 export function mergeGateReports(reports) {
     const order = ['test', 'build'];
     return order.flatMap((stage) => reports.filter((report) => report.stage === stage).flatMap((r) => r.outcomes));

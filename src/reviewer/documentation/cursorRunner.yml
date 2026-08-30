@@ -1,0 +1,54 @@
+cns: "1.0"
+neuron: cursorRunner
+kind: function
+region: review
+layer: reviewer
+unit: src/reviewer/cursor-runner.ts
+
+responsibility: >
+  Invokes the real cursor-agent CLI with untrusted, PR-derived content passed as a single argv
+  element (never a shell string), and answers whether a read-only invocation actually left the
+  checkout untouched.
+
+invariants:
+  - The prompt is passed via spawn's argv array, never interpolated into a shell string, so shell metacharacters in PR-derived content are inert (RULES.md R5.4)
+
+receptors: []
+
+effectors:
+  - kind: filesystem
+    target: the cursor-agent CLI binary
+    signal: runCursorAgent
+    effect: spawns cursor-agent with the given prompt and mode, capturing its stdout, stderr, and exit code
+
+signals:
+  - signal: runCursorAgent
+    intent: >
+      Spawns cursor-agent with the given prompt, in read-only ask mode or full agent mode (paired
+      with --force so a headless run never blocks on a permission prompt).
+    accepts: "prompt, CursorAgentRunOptions"
+    returns: Promise<CursorAgentInvocation>
+    afferent:
+      - from: review.reviewer.reviewer#runReview
+        via: di
+      - from: fix.fixer.fixer#runFix
+        via: di
+    efferent: []
+
+  - signal: reviewerMutatedCheckout
+    intent: >
+      Answers whether a read-only reviewer invocation actually left the checkout untouched, by
+      comparing worktree snapshots taken before and after - either snapshot being unavailable
+      counts as "modified", never as "unchanged".
+    accepts: "WorktreeState | null, WorktreeState | null"
+    returns: boolean
+    pure: true
+    afferent:
+      - from: review.reviewer.reviewer#runReview
+        via: direct-call
+    efferent:
+      - to: shared.core.worktree#worktreeChanged
+        via: direct-call
+        because: the actual before/after comparison this signal's verdict is based on
+
+revision: 2026-08-30

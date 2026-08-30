@@ -1,3 +1,4 @@
+// @neuron rules.resolver.ruleResolver
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Area } from '../shared/types.js';
@@ -46,6 +47,7 @@ const defaultReader: RuleFileReader = {
  * merging into them — a partial merge would leave it ambiguous which
  * definition of a rule ID won, and the reviewer cites rule IDs as evidence.
  */
+// @signal resolveRuleFiles
 export function resolveRuleFiles(
   areas: readonly Area[],
   paths: RuleResolutionPaths,
@@ -84,11 +86,13 @@ export function resolveRuleFiles(
 }
 
 /** The rule-file IDs the reviewer is allowed to cite, for the grounding check. */
+// @signal ruleFileIds
 export function ruleFileIds(files: readonly ResolvedRuleFile[]): string[] {
   return files.map((file) => file.id);
 }
 
 /** Concatenates the resolved rules into the block injected into the reviewer prompt. */
+// @signal formatRulesForPrompt
 export function formatRulesForPrompt(files: readonly ResolvedRuleFile[]): string {
   return files.map((file) => `----- ${file.id} (${file.source}) -----\n${file.text}`).join('\n\n');
 }

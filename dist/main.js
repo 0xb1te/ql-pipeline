@@ -1,3 +1,4 @@
+// @neuron entrypoint.main.main
 import { resolve } from 'node:path';
 import * as core from '@actions/core';
 import { parseCommand } from './cli/command.js';
@@ -19,6 +20,7 @@ import { runDoctor, runInit, runUpgrade } from './cli/scaffold-commands.js';
  *
  *   ql-pipeline init / upgrade / doctor
  */
+// @signal main
 async function main() {
     const parsed = parseCommand(process.argv.slice(2));
     if (!parsed.ok) {
@@ -41,7 +43,7 @@ async function main() {
         case 'doctor':
             // The only command whose exit code reports a verdict rather than a
             // crash — a failing check should fail a CI step that runs it.
-            process.exitCode = runDoctor(resolve(command.root)) ? 0 : 1;
+            process.exitCode = (await runDoctor(resolve(command.root))) ? 0 : 1;
             return;
     }
 }

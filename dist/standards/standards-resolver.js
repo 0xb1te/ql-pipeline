@@ -1,9 +1,11 @@
+// @neuron standards.reader.standardsResolver
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 const defaultReader = {
-    exists: (path) => existsSync(path),
-    read: (path) => readFileSync(path, 'utf-8'),
+    exists: (path) => Promise.resolve(existsSync(path)),
+    read: (path) => Promise.resolve(readFileSync(path, 'utf-8')),
 };
+// @signal standardsIdFor
 export function standardsIdFor(area) {
     return `${area}.standards`;
 }
@@ -13,6 +15,7 @@ export function standardsIdFor(area) {
  * the reviewer half a rule; dropping whole trailing sections at least
  * leaves every included rule intact and says what was dropped.
  */
+// @signal truncateAtSection
 export function truncateAtSection(text, maxChars) {
     if (text.length <= maxChars) {
         return { text, truncated: false };
@@ -33,7 +36,8 @@ export function truncateAtSection(text, maxChars) {
  * reviewer can cite, budgeted per area so a large checklist cannot crowd
  * the diff out of the prompt.
  */
-export function resolveStandards(areas, config, workspaceRoot, reader = defaultReader) {
+// @signal resolveStandards
+export async function resolveStandards(areas, config, workspaceRoot, reader = defaultReader) {
     if (!config.enabled) {
         return { standards: [], missing: [] };
     }
@@ -48,11 +52,11 @@ export function resolveStandards(areas, config, workspaceRoot, reader = defaultR
         const included = [];
         for (const docPath of docPaths) {
             const absolute = join(workspaceRoot, config.root, docPath);
-            if (!reader.exists(absolute)) {
+            if (!(await reader.exists(absolute))) {
                 missing.push(docPath);
                 continue;
             }
-            parts.push(`===== ${docPath} =====\n\n${reader.read(absolute)}`);
+            parts.push(`===== ${docPath} =====\n\n${await reader.read(absolute)}`);
             included.push(docPath);
         }
         if (parts.length === 0) {
@@ -70,10 +74,12 @@ export function resolveStandards(areas, config, workspaceRoot, reader = defaultR
     return { standards, missing };
 }
 /** The reference ids the reviewer may cite for these standards. */
+// @signal standardsIds
 export function standardsIds(standards) {
     return standards.map((standard) => standard.id);
 }
 /** Renders the standards block injected into the reviewer prompt. */
+// @signal formatStandardsForPrompt
 export function formatStandardsForPrompt(standards) {
     if (standards.length === 0) {
         return '(no engineering standards are configured for the areas this PR touches)';

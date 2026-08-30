@@ -1,6 +1,8 @@
+// @neuron fix.fixer.complaint
 import type { Finding } from '../shared/types.js';
 
 /** Renders findings as numbered plain-text entries for the fixer prompt. */
+// @signal formatFindingsForPrompt
 export function formatFindingsForPrompt(findings: readonly Finding[]): string {
   return findings
     .map((finding, index) => {
@@ -16,6 +18,7 @@ export function formatFindingsForPrompt(findings: readonly Finding[]): string {
 }
 
 /** Substitutes the placeholders documented in prompts/fixer.md. */
+// @signal buildFixerPrompt
 export function buildFixerPrompt(
   template: string,
   findings: readonly Finding[],
@@ -29,6 +32,7 @@ export function buildFixerPrompt(
 }
 
 /** The top-level body of the request-changes review posted alongside per-finding comments. */
+// @signal formatComplaintSummary
 export function formatComplaintSummary(findings: readonly Finding[], attemptNumber: number, maxAttempts: number): string {
   const attemptsLeft = attemptNumber < maxAttempts;
   const nextStep = attemptsLeft

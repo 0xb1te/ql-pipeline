@@ -24,10 +24,12 @@ export interface DoctorInput {
 /**
  * Everything `doctor` can determine without network access or secrets.
  *
- * It deliberately cannot verify that `CURSOR_API_KEY` or `STANDARDS_TOKEN`
- * are set — those live in GitHub Actions secrets, which a local CLI has no
- * business reading. It says so rather than implying a clean bill of health
- * it cannot give.
+ * It deliberately cannot verify that `CURSOR_API_KEY`, `HOUSE_API_URL`,
+ * `QL_AUTH_URL`, `QL_AUTH_CLIENT_ID`, or `QL_AUTH_CLIENT_SECRET` are set —
+ * those live in GitHub Actions secrets, which a local CLI has no business
+ * reading. It says so rather than implying a clean bill of health it
+ * cannot give. It also never reaches house-api itself: `govern` is the only
+ * thing that does, in CI, where those secrets actually live.
  */
 export declare function runDoctorChecks(input: DoctorInput): CheckResult[];
 export declare function worstStatus(results: readonly CheckResult[]): CheckStatus;

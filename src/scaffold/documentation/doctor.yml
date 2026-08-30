@@ -1,0 +1,40 @@
+cns: "1.0"
+neuron: doctor
+kind: function
+region: scaffold
+layer: core
+unit: src/scaffold/doctor.ts
+
+responsibility: >
+  Everything `doctor` can determine about a repo's setup without network access or secrets -
+  the caller workflow, the config, gates, standards, and Cursor rules - saying plainly what it
+  cannot verify rather than implying a clean bill of health it cannot give.
+
+excludes:
+  - Verifying CURSOR_API_KEY/HOUSE_API_URL/QL_AUTH_* are set - those live in repository secrets, which a local CLI has no business reading
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: runDoctorChecks
+    intent: Runs every doctor check against a DoctorInput snapshot and returns each one's pass/warn/fail status with a suggested fix.
+    accepts: DoctorInput
+    returns: CheckResult[]
+    pure: true
+    afferent:
+      - from: entrypoint.cli.scaffoldCommands#runDoctor
+        via: direct-call
+    efferent: []
+
+  - signal: worstStatus
+    intent: Answers the worst status across a set of check results - fail if any failed, else warn if any warned, else pass.
+    accepts: "readonly CheckResult[]"
+    returns: CheckStatus
+    pure: true
+    afferent:
+      - from: entrypoint.cli.scaffoldCommands#runDoctor
+        via: direct-call
+    efferent: []
+
+revision: 2026-08-30

@@ -1,0 +1,88 @@
+cns: "1.0"
+neuron: standardsResolver
+kind: function
+region: standards
+layer: reader
+unit: src/standards/standards-resolver.ts
+
+responsibility: >
+  Loads the house engineering-standards documents that apply to a PR's areas through an
+  injected StandardsReader port, concatenating and budgeting each area's documents so a large
+  checklist cannot crowd the diff out of the reviewer prompt.
+
+owns:
+  - The StandardsReader port both the local-filesystem default and HouseStandardsReader implement
+invariants:
+  - A configured document that is not found is reported in `missing`, never silently dropped
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: standardsIdFor
+    intent: Names the reference id findings cite for one area's standards, e.g. frontend.standards.
+    accepts: Area
+    returns: string
+    pure: true
+    afferent:
+      - from: standards.reader.standardsResolver#resolveStandards
+        via: direct-call
+    efferent: []
+
+  - signal: truncateAtSection
+    intent: Truncates text to a budget on a `## ` section boundary where possible, so a dropped tail never leaves a rule half-included.
+    accepts: "text, maxChars"
+    returns: "{ text, truncated }"
+    pure: true
+    afferent:
+      - from: standards.reader.standardsResolver#resolveStandards
+        via: direct-call
+    efferent: []
+
+  - signal: resolveStandards
+    intent: >
+      Loads and concatenates each matched area's configured standards documents through the
+      given (or default local-filesystem) reader, budgeting per area and reporting anything
+      configured but not found.
+    accepts: "readonly Area[], StandardsConfig, workspaceRoot, reader?"
+    returns: Promise<StandardsResolution>
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+      - from: entrypoint.cli.scaffoldCommands#runDoctor
+        via: direct-call
+    efferent:
+      - to: standards.reader.standardsResolver#standardsIdFor
+        via: direct-call
+        because: names the reference id for each area that resolved at least one document
+      - to: standards.reader.standardsResolver#truncateAtSection
+        via: direct-call
+        because: enforces the per-area character budget on the concatenated text before returning it
+      - to: standards.reader.HouseStandardsReader#exists
+        via: di
+        because: when govern-command supplies a HouseStandardsReader, existence checks reach house-api instead of the local filesystem
+      - to: standards.reader.HouseStandardsReader#read
+        via: di
+        because: when govern-command supplies a HouseStandardsReader, document content is read from house-api instead of the local filesystem
+
+  - signal: standardsIds
+    intent: Names the reference ids the reviewer may cite, for the grounding check.
+    accepts: "readonly ResolvedStandard[]"
+    returns: string[]
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
+  - signal: formatStandardsForPrompt
+    intent: Renders the resolved standards into the block injected into the reviewer prompt, naming each document's citation id.
+    accepts: "readonly ResolvedStandard[]"
+    returns: string
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
+revision: 2026-08-30

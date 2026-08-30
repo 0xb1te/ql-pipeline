@@ -1,0 +1,32 @@
+cns: "1.0"
+ganglion: review.reviewer
+region: review
+layer: reviewer
+path: src/reviewer
+
+role: >
+  Runs the AI reviewer against a PR's diff, verifies the checkout it ran against was actually
+  left untouched, parses its strict-JSON verdict, and grounds every finding against the real
+  diff and the references actually loaded before trusting it.
+
+upstream:
+  - entrypoint.cli
+  - fix.fixer
+downstream:
+  - shared.core
+
+neurons:
+  - id: review.reviewer.reviewer
+    file: reviewer.yml
+    unit: ../reviewer.ts
+  - id: review.reviewer.cursorRunner
+    file: cursorRunner.yml
+    unit: ../cursor-runner.ts
+  - id: review.reviewer.diffGrounding
+    file: diffGrounding.yml
+    unit: ../diff-grounding.ts
+  - id: review.reviewer.responseParser
+    file: responseParser.yml
+    unit: ../response-parser.ts
+
+revision: 2026-08-30

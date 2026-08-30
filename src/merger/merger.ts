@@ -1,7 +1,9 @@
+// @neuron merge.merger.merger
 import type { GithubClient, PullRequestInfo, ReviewComment } from '../shared/github-client.js';
 import type { Finding, MergeConfig } from '../shared/types.js';
 
 /** Renders a `should`-severity finding as an advisory PR review comment. */
+// @signal findingToReviewComment
 export function findingToReviewComment(finding: Finding): ReviewComment {
   const suggestion = finding.suggestedFix !== null ? `\n\nSuggested fix: ${finding.suggestedFix}` : '';
   return {
@@ -32,6 +34,7 @@ export const READY_TO_MERGE_LABEL = 'ready-to-merge';
  * target branch remains the outer enforcement layer — this only ever runs
  * once the verdict engine has already decided MERGE is warranted.
  */
+// @signal executeMergeDecision
 export async function executeMergeDecision(
   client: GithubClient,
   pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number' | 'headRef' | 'headSha'>,

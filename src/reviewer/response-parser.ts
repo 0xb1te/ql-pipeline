@@ -1,3 +1,4 @@
+// @neuron review.reviewer.responseParser
 import type { Finding, ReviewVerdict, Severity } from '../shared/types.js';
 
 export type ParseResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly reason: string };
@@ -6,6 +7,7 @@ export type ParseResult<T> = { readonly ok: true; readonly value: T } | { readon
  * `cursor-agent --output-format json` wraps the model's actual response in
  * an envelope; the text we care about lives in `.result`.
  */
+// @signal unwrapCursorAgentEnvelope
 export function unwrapCursorAgentEnvelope(rawStdout: string): ParseResult<string> {
   let envelope: unknown;
   try {
@@ -42,6 +44,7 @@ export function unwrapCursorAgentEnvelope(rawStdout: string): ParseResult<string
  * the text, so a `}` inside a string value (e.g. in `problem` prose) can't
  * truncate the match early.
  */
+// @signal extractJsonObject
 export function extractJsonObject(text: string): string | null {
   const defenced = text.replace(/```(?:json)?/gi, '');
   const start = defenced.indexOf('{');
@@ -86,6 +89,7 @@ export function extractJsonObject(text: string): string | null {
 const SEVERITIES: readonly Severity[] = ['must', 'should', 'security'];
 
 /** Parses and validates a cursor-agent reviewer invocation's raw stdout into a ReviewVerdict. */
+// @signal parseReviewVerdict
 export function parseReviewVerdict(rawStdout: string): ParseResult<ReviewVerdict> {
   const envelope = unwrapCursorAgentEnvelope(rawStdout);
   if (!envelope.ok) {

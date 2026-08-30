@@ -1,0 +1,82 @@
+cns: "1.0"
+neuron: plan
+kind: function
+region: scaffold
+layer: core
+unit: src/scaffold/plan.ts
+
+responsibility: >
+  Plans the create/update/skip/overwrite decision for every template file `init`/`upgrade`
+  scaffold, and computes the manifest to record afterward - a managed file the user edited is
+  never silently overwritten.
+
+invariants:
+  - init never touches a file that already exists, regardless of its mode
+  - upgrade only overwrites a managed file the manifest proves this pipeline wrote, unless --force was passed
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: planInit
+    intent: Plans init's create-if-missing, skip-otherwise decision for every template against what already exists in the repo.
+    accepts: "{ templates, existing }"
+    returns: ScaffoldAction[]
+    pure: true
+    afferent:
+      - from: entrypoint.cli.scaffoldCommands#runInit
+        via: direct-call
+    efferent: []
+
+  - signal: planUpgrade
+    intent: >
+      Plans upgrade's create/update/skip/overwrite decision for every template, proving
+      authorship of a changed managed file through the previous manifest before ever
+      overwriting it.
+    accepts: PlanInput
+    returns: ScaffoldAction[]
+    pure: true
+    afferent:
+      - from: entrypoint.cli.scaffoldCommands#runUpgrade
+        via: direct-call
+    efferent:
+      - to: scaffold.core.manifest#hashContent
+        via: direct-call
+        because: compares the existing file's hash against the template's and, when it changed, against the manifest's recorded hash to prove authorship
+
+  - signal: isWrite
+    intent: Narrows a ScaffoldAction to the create/update/overwrite-modified kinds that actually write a file.
+    accepts: ScaffoldAction
+    returns: boolean
+    pure: true
+    afferent:
+      - from: entrypoint.cli.scaffoldCommands#runInit
+        via: direct-call
+      - from: entrypoint.cli.scaffoldCommands#runUpgrade
+        via: direct-call
+      - from: scaffold.core.plan#nextManifest
+        via: direct-call
+    efferent: []
+
+  - signal: nextManifest
+    intent: >
+      Computes the manifest to record after applying a plan - every managed file now known,
+      including ones left unchanged, excluding any the user edited so recording their hash
+      would claim authorship not actually held.
+    accepts: "version, readonly TemplateFile[], readonly ScaffoldAction[]"
+    returns: ScaffoldManifest
+    pure: true
+    afferent:
+      - from: entrypoint.cli.scaffoldCommands#runInit
+        via: direct-call
+      - from: entrypoint.cli.scaffoldCommands#runUpgrade
+        via: direct-call
+    efferent:
+      - to: scaffold.core.plan#isWrite
+        via: direct-call
+        because: a managed file is recorded when it was written this run or already matched (unchanged), never when it was skipped as locally modified
+      - to: scaffold.core.manifest#hashContent
+        via: direct-call
+        because: records the template's hash for every managed file this run wrote or confirmed unchanged
+
+revision: 2026-08-30

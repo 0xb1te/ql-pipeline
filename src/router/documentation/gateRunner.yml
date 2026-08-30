@@ -1,0 +1,46 @@
+cns: "1.0"
+neuron: gateRunner
+kind: function
+region: routing
+layer: router
+unit: src/router/gate-runner.ts
+
+responsibility: >
+  Executes every build/test command a route's gates name, one at a time rather than
+  concurrently, since gates commonly share a working directory.
+
+excludes:
+  - Deciding which gates apply to a PR - that is routing's decision; this only runs the commands it is handed
+
+receptors: []
+
+effectors:
+  - kind: filesystem
+    target: the configured build/test command, run through a shell in the consumer repo's working directory
+    signal: runGates
+    effect: runs each area's configured build/test command and captures its stdout/stderr and success
+
+signals:
+  - signal: runGates
+    intent: >
+      Runs every build/test command a RouteDecision's gates name, sequentially, and returns each
+      one's outcome regardless of whether it passed.
+    accepts: "readonly AreaGate[], RunGatesOptions"
+    returns: Promise<GateOutcome[]>
+    afferent:
+      - from: entrypoint.cli.gateCommand#runGateStage
+        via: direct-call
+    efferent:
+      - to: shared.core.exec#defaultCommandExecutor
+        via: di
+        because: the executor is whatever RunGatesOptions.exec was given, defaulting to the real shell-backed implementation
+
+  - signal: allGatesPassed
+    intent: Answers whether every gate outcome in a list passed.
+    accepts: "readonly GateOutcome[]"
+    returns: boolean
+    pure: true
+    afferent: []
+    efferent: []
+
+revision: 2026-08-30

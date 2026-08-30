@@ -1,0 +1,53 @@
+cns: "1.0"
+neuron: githubClient
+kind: function
+region: shared
+layer: core
+unit: src/shared/github-client.ts
+
+responsibility: >
+  Extracts the triggering PR from the Actions event payload (fork detection included), and
+  wraps Octokit into the narrow GithubClient surface every later GitHub call in this pipeline
+  goes through.
+
+excludes:
+  - Deciding what to do with the PR info or GithubClient once built - purely a builder for both
+
+receptors: []
+
+effectors:
+  - kind: http-out
+    target: the GitHub REST API, via Octokit
+    signal: createGithubClient
+    effect: every GithubClient method (listCommitMessages, listChangedFiles, getPullRequestDetails, addLabels, postComment, approveWithComments, requestChangesWithComments, mergePullRequest, getHeadSha, deleteBranch) is a thin wrapper over one Octokit call
+
+signals:
+  - signal: readPullRequestContext
+    intent: Extracts the triggering PR's identity, refs, and fork status from the Actions event payload.
+    accepts: ActionsEventContext
+    returns: PullRequestInfo
+    pure: true
+    afferent:
+      - from: entrypoint.cli.bootstrap#createPipelineContext
+        via: direct-call
+    efferent: []
+    raises:
+      - code: Error
+        when: the event payload has no pull_request (the workflow was not triggered by a pull_request event)
+
+  - signal: createGithubClient
+    intent: Builds the Octokit-backed GithubClient every later GitHub call in this pipeline goes through, from a token.
+    accepts: token
+    returns: GithubClient
+    afferent:
+      - from: entrypoint.cli.bootstrap#createPipelineContext
+        via: direct-call
+      - from: entrypoint.cli.bootstrap#resolveRouting
+        via: di
+      - from: entrypoint.cli.governCommand#runGovern
+        via: di
+      - from: merge.merger.merger#executeMergeDecision
+        via: di
+    efferent: []
+
+revision: 2026-08-30

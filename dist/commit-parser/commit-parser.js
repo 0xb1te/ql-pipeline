@@ -1,3 +1,4 @@
+// @neuron routing.parser.commitParser
 import { AREAS, COMMIT_TYPES } from '../shared/types.js';
 const HEADER_PATTERN = new RegExp(`^(?<type>${COMMIT_TYPES.join('|')})\\((?<area>${AREAS.join('|')})\\): (?<description>.+)$`);
 /**
@@ -6,6 +7,7 @@ const HEADER_PATTERN = new RegExp(`^(?<type>${COMMIT_TYPES.join('|')})\\((?<area
  * body/footer content does not affect parsing. Returns null for anything
  * that doesn't match — callers decide what an unparseable header means.
  */
+// @signal parseCommitHeader
 export function parseCommitHeader(message) {
     // `.split('\n', 1)` on any string always yields at least one element.
     const firstLine = message.split('\n', 1)[0];
@@ -30,6 +32,7 @@ export function parseCommitHeader(message) {
  * discarded — routing policy (fallback to the PR title, etc.) decides what
  * to do with them, this module only parses.
  */
+// @signal parseCommits
 export function parseCommits(messages) {
     const parsed = [];
     const unparsed = [];

@@ -1,0 +1,38 @@
+cns: "1.0"
+neuron: requiredChecks
+kind: function
+region: verdict
+layer: decision
+unit: src/verdict/required-checks.ts
+
+responsibility: >
+  Answers whether the AI review stage should run at all, and turns failed gates into findings so
+  a build break flows through the same verdict path as a review finding.
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: isReviewRequired
+    intent: Answers whether ai-review is a required check, so a review whose findings can't block is never run.
+    accepts: "readonly RequiredCheck[]"
+    returns: boolean
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
+  - signal: gateFindings
+    intent: >
+      Turns each failed gate outcome into a Finding, `must` when that stage is a required check
+      and `should` (still auto-fixable) otherwise.
+    accepts: "readonly GateOutcome[], readonly RequiredCheck[]"
+    returns: Finding[]
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
+revision: 2026-08-30

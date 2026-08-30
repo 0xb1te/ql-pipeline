@@ -1,0 +1,42 @@
+cns: "1.0"
+neuron: diffGrounding
+kind: function
+region: review
+layer: reviewer
+unit: src/reviewer/diff-grounding.ts
+
+responsibility: >
+  Indexes which (file, line) pairs actually exist in the new side of a unified diff, and
+  discards any reviewer finding that cites a file/line not in that index or a reference not
+  actually loaded for this PR - the hallucination guard on the reviewer.
+
+owns:
+  - "The SPECIFICATION.md grounding rule: a finding must cite a real diff location and a reference that was actually loaded"
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: buildDiffLineIndex
+    intent: Indexes every (file, line) pair that exists in the new side of a unified diff, from context and added lines only.
+    accepts: diff
+    returns: DiffLineIndex
+    pure: true
+    afferent:
+      - from: review.reviewer.reviewer#runReview
+        via: direct-call
+    efferent: []
+
+  - signal: groundFindings
+    intent: >
+      Discards any finding whose file/line does not appear in the diff index, or whose cited
+      rule does not reference a rule file or standards document actually loaded for this PR.
+    accepts: "readonly Finding[], DiffLineIndex, readonly string[]"
+    returns: GroundingResult
+    pure: true
+    afferent:
+      - from: review.reviewer.reviewer#runReview
+        via: direct-call
+    efferent: []
+
+revision: 2026-08-30

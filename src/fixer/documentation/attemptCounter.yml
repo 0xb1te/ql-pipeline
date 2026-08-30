@@ -1,0 +1,26 @@
+cns: "1.0"
+neuron: attemptCounter
+kind: function
+region: fix
+layer: fixer
+unit: src/fixer/attempt-counter.ts
+
+responsibility: >
+  Counts prior fix attempts by counting `[bot]`-suffixed commits already on the PR (RULES.md
+  R2.3), rather than tracking a separate counter.
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: countFixAttempts
+    intent: Counts how many of a PR's commit messages carry the [bot] suffix this pipeline's own fix commits use.
+    accepts: "readonly string[]"
+    returns: number
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
+revision: 2026-08-30

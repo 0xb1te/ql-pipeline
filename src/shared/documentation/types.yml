@@ -1,0 +1,32 @@
+cns: "1.0"
+neuron: types
+kind: types
+region: shared
+layer: core
+unit: src/shared/types.ts
+
+responsibility: >
+  Pure shapes and enumerated constants - Area, CommitType, PipelineConfig and its sub-shapes,
+  RouteDecision/RouteResult, GateOutcome, Finding, ReviewVerdict - with no behaviour of its own,
+  documented as one umbrella signal per the convention ql-sprint's packages/client's
+  WireTypes.yml uses for the identical kind of type-only module.
+
+# No receptor: every unit in this surface imports these types at compile time, not through a
+# traceable runtime signal, so there is no tract-worthy stimulus to describe. ql-sprint's
+# domain Types.yml and packages/client's WireTypes.yml - the same type-only-module pattern,
+# though Types.yml documents two concrete named signals rather than one umbrella one - carry
+# the identical empty receptors list and accept the resulting ORPHAN finding rather than
+# fabricate a receptor whose stimulus no tract could genuinely describe.
+receptors: []
+effectors: []
+
+signals:
+  - signal: Types
+    intent: The type and constant vocabulary (Area/AREAS, CommitType/COMMIT_TYPES, PipelineConfig and its sub-shapes, RouteDecision/RouteResult, GateOutcome, Finding, ReviewVerdict) every other region imports.
+    accepts: "n/a - types and constants, not a callable"
+    returns: "n/a"
+    pure: true
+    afferent: []
+    efferent: []
+
+revision: 2026-08-30

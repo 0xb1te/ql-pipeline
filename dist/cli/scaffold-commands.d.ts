@@ -6,4 +6,4 @@ export declare function ensureStandardsIgnored(root: string): 'added' | 'already
 export declare function runInit(root: string): void;
 export declare function runUpgrade(root: string, force: boolean): void;
 /** Returns true when nothing failed, so the caller can set the exit code. */
-export declare function runDoctor(root: string): boolean;
+export declare function runDoctor(root: string): Promise<boolean>;

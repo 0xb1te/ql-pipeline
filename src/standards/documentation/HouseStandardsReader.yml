@@ -1,0 +1,52 @@
+cns: "1.0"
+neuron: HouseStandardsReader
+kind: class
+region: standards
+layer: reader
+unit: src/standards/house-standards-reader.ts
+
+responsibility: >
+  Reads engineering-standards documents from house-api's stateful session-graph API instead of a
+  local ql-docs checkout, implementing the same StandardsReader port the local-filesystem reader
+  does so resolveStandards never knows which one it is talking to.
+
+owns:
+  - Recovering the doc path resolveStandards needs from the absolute path it was called with, and the per-instance cache of what that path resolved to
+invariants:
+  - A session walk is bounded to MAX_HOPS so a graph cycle in house-api's next[] chain can never hang a review
+
+receptors: []
+
+effectors:
+  - kind: http-out
+    target: "{HOUSE_API_URL}/v1/sessions and its expand/advance/house_read follow-ups"
+    signal: exists
+    effect: opens a session on the doc's stage route and walks it looking for the doc, for the sole purpose of answering whether it was found
+  - kind: http-out
+    target: "{HOUSE_API_URL}/v1/sessions and its expand/advance/house_read follow-ups"
+    signal: read
+    effect: opens a session on the doc's stage route, walks it, and returns the found document's body
+
+signals:
+  - signal: exists
+    intent: Answers whether a standards document is readable from house-api, by attempting to load it.
+    accepts: absolutePath
+    returns: Promise<boolean>
+    afferent:
+      - from: standards.reader.standardsResolver#resolveStandards
+        via: di
+    efferent: []
+
+  - signal: read
+    intent: Reads a standards document's body from house-api, throwing if it cannot be found within the session graph.
+    accepts: absolutePath
+    returns: Promise<string>
+    afferent:
+      - from: standards.reader.standardsResolver#resolveStandards
+        via: di
+    efferent: []
+    raises:
+      - code: Error
+        when: the document's doc path does not resolve to a house-api stage route, or is not found within MAX_HOPS of the session's entry node
+
+revision: 2026-08-30

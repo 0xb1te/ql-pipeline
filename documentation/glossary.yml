@@ -1,0 +1,93 @@
+cns: "1.0"
+terms:
+  - term: Area
+    means: >
+      One of the seven fixed values (frontend, backend, mobile, ios, android, infrastructure,
+      docs) a PR routes to - the second grammar element of `<type>(<area>): <description>`.
+    not: >
+      An arbitrary label. The exact set is enumerated in AREAS, and an unrecognized value fails
+      the config or the commit parse closed rather than being accepted.
+    neurons:
+      - shared.core.types
+
+  - term: Finding
+    means: >
+      One reviewer- or gate-sourced complaint about a PR, carrying a severity, a cited rule, a
+      file/line, and whether it is auto-fixable.
+    not: >
+      A raw text comment. Findings are the atomic unit the verdict, the grounding check, and the
+      fixer's complaint are all computed over.
+    neurons:
+      - shared.core.types
+      - review.reviewer.diffGrounding
+      - verdict.decision.verdict
+
+  - term: Severity
+    means: >
+      must/security findings can block a PR; should findings are advisory only and never factor
+      into the verdict, riding along as comments on an otherwise-clean MERGE.
+    not: >
+      A priority ranking for a human to triage manually - it is read mechanically by
+      verdict.decision.verdict, not interpreted.
+    neurons:
+      - shared.core.types
+      - verdict.decision.verdict
+
+  - term: PipelineDecision
+    means: >
+      The one outcome (MERGE, FIX, or BLOCK) verdict.decision.verdict#decidePipelineOutcome
+      computes per run, from every finding gathered so far.
+    not: >
+      A GitHub check conclusion. It is this pipeline's own vocabulary, carried out afterward by
+      merge.merger (MERGE) or fix.fixer (FIX).
+    neurons:
+      - verdict.decision.verdict
+
+  - term: StandardsReader
+    means: >
+      The port both the local-filesystem default reader and HouseStandardsReader implement -
+      async exists/read over an absolute path - so resolveStandards never knows which one it is
+      talking to.
+    not: >
+      A house-api-specific type. `govern` injects a HouseStandardsReader; `doctor` always uses
+      the local-filesystem default, independent of whatever `govern` reads in CI.
+    neurons:
+      - standards.reader.standardsResolver
+      - standards.reader.HouseStandardsReader
+
+  - term: Managed file / owned file
+    means: >
+      A template's FileMode: `managed` files are ql-pipeline's to maintain, regenerated on every
+      `upgrade`; `owned` files belong to the consumer, scaffolded once by `init` and never
+      touched again.
+    not: >
+      A filesystem permission. Both live in the same repo; "ql-pipeline will silently overwrite
+      this on upgrade" is the only distinction `managed` carries that `owned` does not.
+    neurons:
+      - scaffold.core.plan
+
+  - term: Protected path
+    means: >
+      A pipeline-governance path (a caller workflow file, pipeline.config.yml, the rules
+      directory) that is never auto-merged or auto-fixed, regardless of what a PR or the fixer
+      agent touches (RULES.md R4).
+    not: >
+      A .gitignore entry or a build exclude. It is enforced twice, independently: in routing
+      (touchesProtectedPaths, before the AI is ever consulted) and in the fixer
+      (revertProtectedPaths, after the agent runs, regardless of what it did).
+    neurons:
+      - routing.router.selfProtection
+      - fix.fixer.protectedPaths
+
+  - term: RequiredCheck
+    means: >
+      Which of build/test/ai-review a repo's config declares as blocking; anything left out of
+      `required_checks` still runs, but its failures are advisory rather than blocking.
+    not: >
+      A GitHub branch-protection required-status-check. This pipeline's own `required_checks`
+      list decides what feeds `verdict.decision`, not what GitHub itself enforces at merge time.
+    neurons:
+      - shared.core.types
+      - verdict.decision.requiredChecks
+
+revision: 2026-08-30

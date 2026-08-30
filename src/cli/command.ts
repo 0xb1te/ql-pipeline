@@ -1,3 +1,4 @@
+// @neuron entrypoint.cli.command
 import type { GateStage } from './gate-command.js';
 
 export type Command =
@@ -38,6 +39,7 @@ function readFlag(argv: readonly string[], flag: string): string | undefined {
  * Kept apart from `main.ts` so that importing the parser (in tests, or
  * anywhere else) can never execute the CLI as a side effect.
  */
+// @signal parseCommand
 export function parseCommand(argv: readonly string[]): CommandParse {
   const [subcommand] = argv;
 

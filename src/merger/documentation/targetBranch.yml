@@ -1,0 +1,54 @@
+cns: "1.0"
+neuron: targetBranch
+kind: function
+region: merge
+layer: merger
+unit: src/merger/target-branch.ts
+
+responsibility: >
+  Resolves which single branch a PR's matched areas target, honouring per-area overrides, and
+  answers whether this pipeline governs a PR at all - cheaply, before spending an API call or a
+  token of AI review on one it doesn't.
+
+invariants:
+  - Areas that resolve to more than one configured target branch fail closed rather than guessing which one wins
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: resolveTargetBranch
+    intent: >
+      Resolves which branch a PR's matched areas target, or a reason it cannot when they
+      disagree on more than one configured target.
+    accepts: "readonly Area[], MergeConfig"
+    returns: TargetBranchResolution
+    pure: true
+    afferent:
+      - from: entrypoint.cli.bootstrap#resolveRouting
+        via: direct-call
+    efferent: []
+
+  - signal: governsPullRequest
+    intent: Answers whether this pipeline run governs a PR at all - whether its actual base branch is the one its areas resolved to.
+    accepts: "prBaseRef, targetBranch"
+    returns: boolean
+    pure: true
+    afferent:
+      - from: entrypoint.cli.bootstrap#resolveRouting
+        via: direct-call
+    efferent: []
+
+  - signal: couldGovernPullRequest
+    intent: >
+      A cheap pre-check answering whether a PR could possibly be governed, from its base branch
+      alone, before its commits (and thus its areas) are even fetched.
+    accepts: "prBaseRef, MergeConfig"
+    returns: boolean
+    pure: true
+    afferent:
+      - from: entrypoint.cli.bootstrap#resolveRouting
+        via: direct-call
+    efferent: []
+
+revision: 2026-08-30

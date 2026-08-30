@@ -1,3 +1,4 @@
+// @neuron scaffold.core.doctor
 export type CheckStatus = 'pass' | 'warn' | 'fail';
 
 export interface CheckResult {
@@ -27,11 +28,14 @@ export interface DoctorInput {
 /**
  * Everything `doctor` can determine without network access or secrets.
  *
- * It deliberately cannot verify that `CURSOR_API_KEY` or `STANDARDS_TOKEN`
- * are set — those live in GitHub Actions secrets, which a local CLI has no
- * business reading. It says so rather than implying a clean bill of health
- * it cannot give.
+ * It deliberately cannot verify that `CURSOR_API_KEY`, `HOUSE_API_URL`,
+ * `QL_AUTH_URL`, `QL_AUTH_CLIENT_ID`, or `QL_AUTH_CLIENT_SECRET` are set —
+ * those live in GitHub Actions secrets, which a local CLI has no business
+ * reading. It says so rather than implying a clean bill of health it
+ * cannot give. It also never reaches house-api itself: `govern` is the only
+ * thing that does, in CI, where those secrets actually live.
  */
+// @signal runDoctorChecks
 export function runDoctorChecks(input: DoctorInput): CheckResult[] {
   const results: CheckResult[] = [];
 
@@ -122,7 +126,7 @@ function standardsChecks(input: DoctorInput): CheckResult[] {
     results.push({
       name: 'standards',
       status: 'warn',
-      detail: 'not checked out locally (CI clones them itself, so this only affects your editor)',
+      detail: 'not checked out locally (govern reads house-api instead, so this only affects your editor)',
       fix: 'git clone git@github.com:0xb1te/ql-docs.git .standards',
     });
     return results;
@@ -163,6 +167,7 @@ function cursorRulesCheck(input: DoctorInput): CheckResult {
   return { name: 'cursor rules', status: 'pass', detail: `${input.cursorRuleCount} rule(s) installed` };
 }
 
+// @signal worstStatus
 export function worstStatus(results: readonly CheckResult[]): CheckStatus {
   if (results.some((result) => result.status === 'fail')) {
     return 'fail';

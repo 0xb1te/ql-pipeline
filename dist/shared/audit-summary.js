@@ -4,6 +4,7 @@
  * comments/check outputs — the full decision trail is reconstructible from
  * the PR alone"), this is what makes that true in practice.
  */
+// @signal formatAuditSummary
 export function formatAuditSummary(input) {
     const lines = [
         '### ql-pipeline summary',

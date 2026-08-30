@@ -1,3 +1,4 @@
+// @neuron shared.core.logger
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export interface Logger {
@@ -20,6 +21,7 @@ interface ConsoleSink {
   error(message: string): void;
 }
 
+// @signal createLogger
 export function createLogger(minLevel: LogLevel = 'info', sink: ConsoleSink = console): Logger {
   const write = (level: LogLevel, message: string, context?: Record<string, unknown>): void => {
     if (LEVEL_ORDER[level] < LEVEL_ORDER[minLevel]) {

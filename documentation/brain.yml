@@ -1,0 +1,122 @@
+cns: "1.0"
+brain: ql-pipeline
+surface: backend
+layout: colocated
+source_roots:
+  - src
+purpose: >
+  Governs a PR against conventional-commit routing, engineering standards, and an AI review:
+  parses which areas and gates a PR touches, runs its build/test gates, reviews it against
+  house rules and house-api-backed engineering standards, decides MERGE/FIX/BLOCK, and either
+  merges it, pushes an automated fix commit, or escalates to a human - plus the scaffolding
+  commands (init/upgrade/doctor) and the stdio MCP server that exposes them to an agent.
+
+unit_definition: >
+  One unit is one ES module (.ts) file under src/. Its exported top-level functions - and, for
+  HouseStandardsReader, its class's public methods - are documented as signals; a private,
+  non-exported helper is not a signal, however many other exported functions in the same file
+  call it, and its calls are attributed to whichever exported signal invokes it. A factory that
+  returns a bag of callables bound to one dependency (createGithubClient's GithubClient,
+  createLogger's Logger) is documented as a single signal covering every method it returns,
+  exactly as `defaultCommandExecutor` and `runCursorAgent` are - callers that reach the returned
+  methods through an injected parameter link back to that one signal via `di`, mirroring how a
+  bound JwtVerifier closure is documented in ql-agents. A same-file exported error class
+  (ConfigError) is documented via `raises` on the signal that throws it, not as a neuron of its
+  own. shared/types.ts, being pure shapes and enumerated constants with no behaviour, is
+  documented as one umbrella signal per the same convention ql-agents' WireTypes uses.
+
+regions:
+  - region: entrypoint
+    purpose: >
+      Parses argv into one of five commands and wires each into the config, PR, and GitHub
+      client every job needs before it can act.
+    ganglia:
+      - id: entrypoint.main
+        file: src/documentation/_ganglion.yml
+      - id: entrypoint.cli
+        file: src/cli/documentation/_ganglion.yml
+
+  - region: routing
+    purpose: >
+      Parses conventional-commit headers and decides which areas, rule files, and gate commands
+      a PR routes to, including areas implied by the paths it actually touches.
+    ganglia:
+      - id: routing.parser
+        file: src/commit-parser/documentation/_ganglion.yml
+      - id: routing.router
+        file: src/router/documentation/_ganglion.yml
+
+  - region: rules
+    purpose: >
+      Resolves which `.rules` files - shipped defaults or a consumer's own overrides - apply to
+      a PR's matched areas.
+    ganglia:
+      - id: rules.resolver
+        file: src/rules/documentation/_ganglion.yml
+
+  - region: standards
+    purpose: >
+      Loads the house engineering-standards documents for a PR's areas, from house-api (or a
+      local ql-docs checkout for `doctor`), budgeted per area for the reviewer prompt.
+    ganglia:
+      - id: standards.reader
+        file: src/standards/documentation/_ganglion.yml
+
+  - region: review
+    purpose: >
+      Runs the AI reviewer against a PR's diff, verifies it left the checkout untouched, and
+      grounds its findings against the real diff and the references actually loaded.
+    ganglia:
+      - id: review.reviewer
+        file: src/reviewer/documentation/_ganglion.yml
+
+  - region: verdict
+    purpose: >
+      Turns gate outcomes and review findings into one MERGE/FIX/BLOCK decision.
+    ganglia:
+      - id: verdict.decision
+        file: src/verdict/documentation/_ganglion.yml
+
+  - region: fix
+    purpose: >
+      Runs one automated fix attempt against blocking findings, reverts any edit to a protected
+      path, and commits and pushes whatever real change is left.
+    ganglia:
+      - id: fix.fixer
+        file: src/fixer/documentation/_ganglion.yml
+
+  - region: merge
+    purpose: >
+      Resolves which branch a PR's areas target and, once cleared to merge, carries that verdict
+      out against GitHub.
+    ganglia:
+      - id: merge.merger
+        file: src/merger/documentation/_ganglion.yml
+
+  - region: scaffold
+    purpose: >
+      Plans and diffs the files `init`/`upgrade` write into a consumer repo without clobbering
+      local edits, and runs the checks `doctor` reports on.
+    ganglia:
+      - id: scaffold.core
+        file: src/scaffold/documentation/_ganglion.yml
+
+  - region: mcp
+    purpose: >
+      Exposes `doctor`/`init`/`upgrade` to an AI agent over stdio JSON-RPC by spawning the
+      already-built CLI as a child process.
+    ganglia:
+      - id: mcp.server
+        file: src/mcp/documentation/_ganglion.yml
+
+  - region: shared
+    purpose: >
+      The config, type, logging, process-exec, GitHub API, gate-report, and audit-summary
+      vocabulary every other region imports.
+    ganglia:
+      - id: shared.core
+        file: src/shared/documentation/_ganglion.yml
+
+excluded: []
+
+revision: 2026-08-30

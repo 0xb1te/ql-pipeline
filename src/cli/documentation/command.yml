@@ -1,0 +1,31 @@
+cns: "1.0"
+neuron: command
+kind: function
+region: entrypoint
+layer: cli
+unit: src/cli/command.ts
+
+responsibility: >
+  Parses argv into exactly one of the five commands every GitHub check or local invocation
+  maps to, kept apart from main.ts so importing the parser never runs the CLI as a side effect.
+
+excludes:
+  - Running any command - only recognizing which one was asked for and with which flags
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: parseCommand
+    intent: >
+      Maps argv to a Command (gate/govern/init/upgrade/doctor) with its flags, or a reason string
+      naming what argv failed to match.
+    accepts: "readonly string[]"
+    returns: CommandParse
+    pure: true
+    afferent:
+      - from: entrypoint.main.main#main
+        via: direct-call
+    efferent: []
+
+revision: 2026-08-30

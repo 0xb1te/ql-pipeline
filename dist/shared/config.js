@@ -1,3 +1,4 @@
+// @neuron shared.core.config
 import { readFileSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
 import { AREAS, REQUIRED_CHECKS, } from './types.js';
@@ -75,11 +76,12 @@ const DEFAULT_STANDARDS = {
         android: ['workflow/rules/stage-5-frontend/checklist.md'],
         infrastructure: ['workflow/rules/stage-8-deployment/checklist.md'],
     },
-    // Sized so no area truncates: frontend is the largest at ~124k
+    // Sized so no area truncates: frontend is the largest at ~128k
     // characters (stage 2 + stage 5). Lower it to cut review cost, at the
     // price of dropping trailing checklist sections.
     maxCharsPerArea: 140_000,
 };
+// @signal loadConfig
 export function loadConfig(path) {
     let raw;
     try {
@@ -90,6 +92,7 @@ export function loadConfig(path) {
     }
     return parseConfig(raw, path);
 }
+// @signal parseConfig
 export function parseConfig(raw, sourceLabel = '<config>') {
     let data;
     try {

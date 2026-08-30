@@ -23,6 +23,7 @@ function readFlag(argv, flag) {
  * Kept apart from `main.ts` so that importing the parser (in tests, or
  * anywhere else) can never execute the CLI as a side effect.
  */
+// @signal parseCommand
 export function parseCommand(argv) {
     const [subcommand] = argv;
     if (subcommand === 'gate') {

@@ -1,3 +1,4 @@
+// @neuron review.reviewer.cursorRunner
 import { spawn } from 'node:child_process';
 import { worktreeChanged } from '../shared/worktree.js';
 /**
@@ -12,6 +13,7 @@ import { worktreeChanged } from '../shared/worktree.js';
  * prompt (used for fixing, Phase 4). `--trust` avoids a workspace-trust
  * prompt on a checkout `cursor-agent` has never seen before.
  */
+// @signal runCursorAgent
 export const runCursorAgent = (prompt, options) => {
     return new Promise((resolve, reject) => {
         const args = ['--print', '--output-format', 'json', '--trust', '--workspace', options.cwd];
@@ -45,6 +47,7 @@ export const runCursorAgent = (prompt, options) => {
  * missing) counts as "modified": if read-only behaviour cannot be verified,
  * it is never assumed.
  */
+// @signal reviewerMutatedCheckout
 export function reviewerMutatedCheckout(before, after) {
     if (before === null || after === null) {
         return true;

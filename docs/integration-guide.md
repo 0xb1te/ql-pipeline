@@ -22,9 +22,13 @@ jobs:
     uses: 0xb1te/ql-pipeline/.github/workflows/pr-pipeline.yml@main
     secrets:
       CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-      # Read access to the engineering-standards repo. Required: it is
-      # private, and the default GITHUB_TOKEN is scoped to this repo only.
-      STANDARDS_TOKEN: ${{ secrets.STANDARDS_TOKEN }}
+      # The engineering standards the reviewer applies are read from
+      # house-api, not a checkout of ql-docs. Omit these four only if you
+      # set standards.enabled: false in your pipeline config.
+      HOUSE_API_URL: ${{ secrets.HOUSE_API_URL }}
+      QL_AUTH_URL: ${{ secrets.QL_AUTH_URL }}
+      QL_AUTH_CLIENT_ID: ${{ secrets.QL_AUTH_CLIENT_ID }}
+      QL_AUTH_CLIENT_SECRET: ${{ secrets.QL_AUTH_CLIENT_SECRET }}
 ```
 
 This adds **three checks** to every PR, which run in order:
@@ -42,7 +46,8 @@ The `checks /` prefix is your calling job's id — rename the job and the prefix
 - **Pin `@main` to a tag or SHA in production** once ql-pipeline has releases — `@main` tracks the latest commit, which is fine for trying it out but not for a repo whose merges depend on it staying stable.
 - **The `concurrency` block is your responsibility, not ql-pipeline's.** A new commit pushed to a PR should cancel the in-flight run for the old one (including a stale fix-loop attempt) — the reusable workflow doesn't declare this for you since it's a property of *your* workflow, not the called one.
 - **Required secret:** `CURSOR_API_KEY`, used by both the reviewer and the fixer. The workflow installs the Cursor CLI on the runner itself; you don't need to.
-- **Required secret:** `STANDARDS_TOKEN` — a PAT or GitHub App token with **read** access to `0xb1te/ql-docs`. The engineering standards live there, it's a private repo, and a workflow's default `GITHUB_TOKEN` can only read the repo it runs in. Without it the `ql-pipeline` check fails with an explicit message rather than quietly reviewing against no standards. (Set `standards.enabled: false` in your config if you genuinely want to run without them.)
+- **Required secrets (unless `standards.enabled: false`):** `HOUSE_API_URL`, `QL_AUTH_URL`, `QL_AUTH_CLIENT_ID`, `QL_AUTH_CLIENT_SECRET` — a `github_agent` client-credentials client registered in `ql-auth`, used to read the engineering standards from `house-api` for this review. Without them the `ql-pipeline` check fails with an explicit message rather than quietly reviewing against no standards.
+  **Grant this client `stage:1` through `stage:9` — not the `review:frontend`/`review:backend`/`review:infrastructure` routes `ql-auth`'s own README lists as "recommended" for `github_agent`.** `HouseStandardsReader` opens every `house-api` session with `route: "stage:${N}"` (`N` taken from the `workflow/rules/stage-N-*` folder each configured `standards.docs` path lives under — see `src/standards/house-standards-reader.ts`'s `stageRouteForNode`), because that is the route family `house-api`'s session graph actually gates engineering-standards checklists by; it never requests a `review:*` route. A client provisioned with only the `review:*` routes gets a `403` on its very first `govern` call. `stage:1`–`stage:9` covers every stage this or a future `standards.docs` config could reference; grant a narrower set only if you have confirmed exactly which stage numbers your own `pipeline.config.yml` uses.
 - **Optional secret:** `GH_TOKEN`. Omit it and the workflow falls back to the default `GITHUB_TOKEN` — but note the consequence: **commits pushed with the default token do not trigger new workflow runs**, so an auto-fix commit will not re-run the pipeline on its own. For the fix loop to close automatically (fix → re-review → merge), supply a PAT or GitHub App token as `GH_TOKEN`. With the default token the fix still lands on the PR; it just waits for the next push or a manual re-run to be re-reviewed.
 
 ### Fork pull requests
@@ -144,7 +149,7 @@ Globs support `*` (within a path segment), `**` (across segments), and `?` (one 
 
 ## 4c. Engineering standards
 
-The reviewer judges your code against the organisation's own workflow documentation, not just the generic rule sets. The standards repository is checked out at review time — never vendored — so reviews always reflect the current standards.
+The reviewer judges your code against the organisation's own workflow documentation, not just the generic rule sets. Standards documents are read live from `house-api` at review time — never vendored, never checked out — so reviews always reflect the current standards.
 
 Defaults — these mappings **are** the area rules; `rules/*.rules` deliberately does not restate them:
 
@@ -165,7 +170,8 @@ The reviewer cites standards findings as `backend.standards#09-controllers`, and
 ```yaml
 standards:
   enabled: true            # false = review with rules only
-  root: .standards         # where the workflow checks the standards repo out
+  root: .standards         # a local checkout path, read only by `doctor` for your editor —
+                            # `govern` never reads this path; it always goes to house-api
   max_chars_per_area: 120000
   docs:
     frontend: ["workflow/rules/stage-5-frontend/checklist.md"]
@@ -175,13 +181,7 @@ standards:
       - workflow/rules/stage-6-tests/backend/checklist.md
 ```
 
-Point at a different standards repo or pin a ref from the caller workflow:
-
-```yaml
-    with:
-      standards-repo: your-org/your-standards
-      standards-ref: v2.1.0
-```
+Each `docs` path is the same `nodeId` house-api serves that document under — see `house-api`'s own docs for how a path maps onto a route. There is no per-caller way to point at a different standards source or pin a ref; `house-api` always serves the current `ql-docs` content its own operators configured it with.
 
 **Cost — read this before enabling on a busy repo.** The checklists are large. A frontend PR sends ~31k tokens of standards, a backend PR ~24k, and a PR touching **both sends ~54k tokens** on top of the diff. That is the price of reviewing against your actual documented architecture rather than a generic rule list.
 
@@ -191,7 +191,7 @@ Ways to trim, in order of how much you lose:
 2. Lower `max_chars_per_area` — trailing sections are dropped whole, never mid-rule, and the truncation is stated in both the prompt and the run log.
 3. Remove `ai-review` from `merge.required_checks` on low-risk repos, which skips the review entirely.
 
-**Fail-closed.** If `enabled` is true and a configured document can't be loaded — usually a missing or under-scoped `STANDARDS_TOKEN` — the `ql-pipeline` check fails and says exactly which documents were missing. It will not review against a subset and report success.
+**Fail-closed.** If `enabled` is true and a configured document can't be loaded — a wrong path, a route the `github_agent` client doesn't carry, or `house-api`/`ql-auth` being unreachable — the `ql-pipeline` check fails and says exactly what went wrong. It will not review against a subset and report success.
 
 ## 5. Overriding rules per area
 

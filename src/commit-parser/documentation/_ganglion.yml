@@ -1,0 +1,20 @@
+cns: "1.0"
+ganglion: routing.parser
+region: routing
+layer: parser
+path: src/commit-parser
+
+role: >
+  Parses a conventional-commit header line against the `<type>(<area>): <description>` grammar,
+  one message or a whole batch at a time.
+
+upstream:
+  - routing.router
+downstream: []
+
+neurons:
+  - id: routing.parser.commitParser
+    file: commitParser.yml
+    unit: ../commit-parser.ts
+
+revision: 2026-08-30

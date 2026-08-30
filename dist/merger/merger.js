@@ -1,4 +1,5 @@
 /** Renders a `should`-severity finding as an advisory PR review comment. */
+// @signal findingToReviewComment
 export function findingToReviewComment(finding) {
     const suggestion = finding.suggestedFix !== null ? `\n\nSuggested fix: ${finding.suggestedFix}` : '';
     return {
@@ -22,6 +23,7 @@ export const READY_TO_MERGE_LABEL = 'ready-to-merge';
  * target branch remains the outer enforcement layer — this only ever runs
  * once the verdict engine has already decided MERGE is warranted.
  */
+// @signal executeMergeDecision
 export async function executeMergeDecision(client, pr, advisoryFindings, mergeConfig) {
     const currentSha = await client.getHeadSha(pr);
     if (currentSha !== pr.headSha) {

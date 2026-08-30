@@ -1,3 +1,4 @@
+// @neuron verdict.decision.requiredChecks
 import type { Finding, GateOutcome, RequiredCheck } from '../shared/types.js';
 
 /**
@@ -5,6 +6,7 @@ import type { Finding, GateOutcome, RequiredCheck } from '../shared/types.js';
  * required check, the review is skipped outright rather than run and
  * ignored — a review whose findings can't block is pure cost.
  */
+// @signal isReviewRequired
 export function isReviewRequired(requiredChecks: readonly RequiredCheck[]): boolean {
   return requiredChecks.includes('ai-review');
 }
@@ -16,6 +18,7 @@ export function isReviewRequired(requiredChecks: readonly RequiredCheck[]): bool
  * its failures are advisory (`should`) instead of blocking — that's the
  * whole point of making the stage optional.
  */
+// @signal gateFindings
 export function gateFindings(
   outcomes: readonly GateOutcome[],
   requiredChecks: readonly RequiredCheck[],

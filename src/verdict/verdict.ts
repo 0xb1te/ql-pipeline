@@ -1,3 +1,4 @@
+// @neuron verdict.decision.verdict
 import type { Finding } from '../shared/types.js';
 
 export interface VerdictInput {
@@ -22,6 +23,7 @@ export type PipelineDecision =
  * never factor into the decision — they ride along on MERGE as advisory
  * comments (plan.md §4.5).
  */
+// @signal decidePipelineOutcome
 export function decidePipelineOutcome(input: VerdictInput): PipelineDecision {
   const blocking = input.findings.filter((finding) => finding.severity === 'must' || finding.severity === 'security');
 

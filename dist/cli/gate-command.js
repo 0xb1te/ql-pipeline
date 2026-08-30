@@ -1,3 +1,4 @@
+// @neuron entrypoint.cli.gateCommand
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import * as core from '@actions/core';
@@ -9,11 +10,13 @@ import { createPipelineContext, resolveRouting } from './bootstrap.js';
  * test commands and the `build` job only build commands. Areas with
  * nothing configured for this stage drop out entirely.
  */
+// @signal gatesForStage
 export function gatesForStage(decision, stage) {
     return decision.gates
         .filter((gate) => gate[stage] !== undefined)
         .map((gate) => ({ area: gate.area, [stage]: gate[stage] }));
 }
+// @signal writeGateReport
 export function writeGateReport(path, report) {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, serializeGateReport(report), 'utf-8');
@@ -25,6 +28,7 @@ export function writeGateReport(path, report) {
  * it to turn a broken build into a finding the fix agent can repair, which
  * is the whole reason this job does not simply halt the chain on failure.
  */
+// @signal runGateStage
 export async function runGateStage(stage, reportPath) {
     const { config, pr, client, logger, consumerRoot } = createPipelineContext();
     const routing = await resolveRouting(client, pr, config);

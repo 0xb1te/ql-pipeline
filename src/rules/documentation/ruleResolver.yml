@@ -1,0 +1,56 @@
+cns: "1.0"
+neuron: ruleResolver
+kind: function
+region: rules
+layer: resolver
+unit: src/rules/rule-resolver.ts
+
+responsibility: >
+  Resolves the `.rules` files that apply to a PR's matched areas - `_common.rules` always from
+  ql-pipeline's own checkout, each area preferring a consumer override over the shipped default
+  - and renders them into the reviewer prompt.
+
+owns:
+  - The full-replace-never-merge rule for a consumer's per-area override
+
+receptors: []
+
+effectors:
+  - kind: filesystem
+    target: ql-pipeline's own rules/ and the consumer repo's .github/pipeline-rules/
+    signal: resolveRuleFiles
+    effect: reads _common.rules plus each matched area's consumer override or shipped default
+
+signals:
+  - signal: resolveRuleFiles
+    intent: >
+      Resolves _common.rules plus each matched area's rule file, preferring a consumer's own
+      override over the shipped default when one is present.
+    accepts: "readonly Area[], RuleResolutionPaths, reader?"
+    returns: ResolvedRuleFile[]
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
+  - signal: ruleFileIds
+    intent: Names the rule-file ids the reviewer may cite, for the grounding check.
+    accepts: "readonly ResolvedRuleFile[]"
+    returns: string[]
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
+  - signal: formatRulesForPrompt
+    intent: Concatenates the resolved rules into the block injected into the reviewer prompt.
+    accepts: "readonly ResolvedRuleFile[]"
+    returns: string
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
+revision: 2026-08-30

@@ -1,0 +1,41 @@
+cns: "1.0"
+ganglion: entrypoint.cli
+region: entrypoint
+layer: cli
+path: src/cli
+
+role: >
+  Parses each command's own flags, assembles the config/PR/GitHub-client context every job
+  shares, and orchestrates the gate and govern jobs end to end.
+
+upstream:
+  - entrypoint.main
+downstream:
+  - shared.core
+  - merge.merger
+  - routing.router
+  - verdict.decision
+  - rules.resolver
+  - standards.reader
+  - review.reviewer
+  - fix.fixer
+  - scaffold.core
+
+neurons:
+  - id: entrypoint.cli.command
+    file: command.yml
+    unit: ../command.ts
+  - id: entrypoint.cli.bootstrap
+    file: bootstrap.yml
+    unit: ../bootstrap.ts
+  - id: entrypoint.cli.gateCommand
+    file: gateCommand.yml
+    unit: ../gate-command.ts
+  - id: entrypoint.cli.governCommand
+    file: governCommand.yml
+    unit: ../govern-command.ts
+  - id: entrypoint.cli.scaffoldCommands
+    file: scaffoldCommands.yml
+    unit: ../scaffold-commands.ts
+
+revision: 2026-08-30

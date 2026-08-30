@@ -23,9 +23,13 @@ jobs:
     uses: 0xb1te/ql-pipeline/.github/workflows/pr-pipeline.yml@main
     secrets:
       CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-      # Read access to the private engineering-standards repo. Required:
-      # the default GITHUB_TOKEN is scoped to this repo alone.
-      STANDARDS_TOKEN: ${{ secrets.STANDARDS_TOKEN }}
+      # The engineering standards the reviewer applies come from house-api,
+      # not a checkout — a github_agent client-credentials client. Only
+      # needed while standards.enabled is true in pipeline.config.yml.
+      HOUSE_API_URL: ${{ secrets.HOUSE_API_URL }}
+      QL_AUTH_URL: ${{ secrets.QL_AUTH_URL }}
+      QL_AUTH_CLIENT_ID: ${{ secrets.QL_AUTH_CLIENT_ID }}
+      QL_AUTH_CLIENT_SECRET: ${{ secrets.QL_AUTH_CLIENT_SECRET }}
       # Optional. Supply a PAT/App token so fix commits re-trigger the
       # pipeline; with the default token they land but are not re-reviewed.
       # GH_TOKEN: ${{ secrets.GH_TOKEN }}

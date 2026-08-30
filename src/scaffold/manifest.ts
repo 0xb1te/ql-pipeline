@@ -1,3 +1,4 @@
+// @neuron scaffold.core.manifest
 import { createHash } from 'node:crypto';
 
 /** Where the record of what ql-pipeline wrote lives in a consumer repo. */
@@ -16,10 +17,12 @@ export interface ScaffoldManifest {
  * Windows routinely rewrite LF to CRLF, and a file is not *edited* just
  * because it arrived with different line endings.
  */
+// @signal hashContent
 export function hashContent(content: string): string {
   return createHash('sha256').update(content.replace(/\r\n/g, '\n')).digest('hex').slice(0, 16);
 }
 
+// @signal serializeManifest
 export function serializeManifest(manifest: ScaffoldManifest): string {
   const files = Object.fromEntries(Object.entries(manifest.files).sort(([a], [b]) => a.localeCompare(b)));
   return `${JSON.stringify({ version: manifest.version, files }, null, 2)}\n`;
@@ -34,6 +37,7 @@ export type ManifestParse =
  * fatal — callers fall back to treating every file as "unknown origin",
  * which is the conservative reading (nothing gets overwritten silently).
  */
+// @signal parseManifest
 export function parseManifest(raw: string): ManifestParse {
   let data: unknown;
   try {

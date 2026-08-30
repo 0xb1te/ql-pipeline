@@ -1,3 +1,4 @@
+// @neuron routing.router.gateRunner
 import { defaultCommandExecutor, type CommandExecutor } from '../shared/exec.js';
 import type { Area, AreaGate, GateOutcome } from '../shared/types.js';
 
@@ -18,6 +19,7 @@ export interface RunGatesOptions {
  * against; that rule is about never splicing PR-derived text into a shell
  * string, which nothing here does.
  */
+// @signal runGates
 export async function runGates(gates: readonly AreaGate[], options: RunGatesOptions): Promise<GateOutcome[]> {
   const exec = options.exec ?? defaultCommandExecutor;
   const outcomes: GateOutcome[] = [];
@@ -58,6 +60,7 @@ function isExecError(value: unknown): value is { stdout: string; stderr: string 
   return typeof candidate.stdout === 'string' && typeof candidate.stderr === 'string';
 }
 
+// @signal allGatesPassed
 export function allGatesPassed(outcomes: readonly GateOutcome[]): boolean {
   return outcomes.every((outcome) => outcome.passed);
 }

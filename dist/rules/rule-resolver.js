@@ -1,3 +1,4 @@
+// @neuron rules.resolver.ruleResolver
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 /** Where a consumer repo may place per-area rule overrides (docs/integration-guide.md §5). */
@@ -18,6 +19,7 @@ const defaultReader = {
  * merging into them — a partial merge would leave it ambiguous which
  * definition of a rule ID won, and the reviewer cites rule IDs as evidence.
  */
+// @signal resolveRuleFiles
 export function resolveRuleFiles(areas, paths, reader = defaultReader) {
     const resolved = [
         {
@@ -47,10 +49,12 @@ export function resolveRuleFiles(areas, paths, reader = defaultReader) {
     return resolved;
 }
 /** The rule-file IDs the reviewer is allowed to cite, for the grounding check. */
+// @signal ruleFileIds
 export function ruleFileIds(files) {
     return files.map((file) => file.id);
 }
 /** Concatenates the resolved rules into the block injected into the reviewer prompt. */
+// @signal formatRulesForPrompt
 export function formatRulesForPrompt(files) {
     return files.map((file) => `----- ${file.id} (${file.source}) -----\n${file.text}`).join('\n\n');
 }

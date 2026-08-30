@@ -1,3 +1,4 @@
+// @neuron entrypoint.cli.scaffoldCommands
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, posix, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +29,7 @@ function toPosix(path) {
     return path.split(sep).join(posix.sep);
 }
 /** The full set of files ql-pipeline scaffolds, discovered from the shipped templates. */
+// @signal loadTemplates
 export function loadTemplates() {
     const templates = [
         {
@@ -88,6 +90,7 @@ function applyActions(root, actions) {
     }
 }
 /** Appends `.standards/` to .gitignore if absent. Never rewrites the file. */
+// @signal ensureStandardsIgnored
 export function ensureStandardsIgnored(root) {
     const absolute = join(root, '.gitignore');
     const current = existsSync(absolute) ? readFileSync(absolute, 'utf-8') : '';
@@ -114,6 +117,7 @@ function describe(action) {
             return `  MODIFIED  ${action.dest} (edited locally — left alone)`;
     }
 }
+// @signal runInit
 export function runInit(root) {
     const templates = loadTemplates();
     const actions = planInit({ templates, existing: readExisting(root, templates) });
@@ -128,14 +132,18 @@ export function runInit(root) {
     const created = actions.filter((action) => action.kind === 'create').length;
     console.log(`\n${created} file(s) written.\n`);
     console.log('Next steps — none of these can be done for you:');
-    console.log('  1. Add repository secrets CURSOR_API_KEY and STANDARDS_TOKEN');
-    console.log('     (STANDARDS_TOKEN needs read access to 0xb1te/ql-docs)');
+    console.log('  1. Add repository secrets:');
+    console.log('     CURSOR_API_KEY');
+    console.log('     HOUSE_API_URL, QL_AUTH_URL, QL_AUTH_CLIENT_ID, QL_AUTH_CLIENT_SECRET');
+    console.log('     (the govern job reads engineering standards from house-api with these;');
+    console.log('      skip them only if you set standards.enabled: false)');
     console.log(`  2. Edit ${CONFIG_PATH} — set your real build and test commands`);
-    console.log('  3. Clone the standards for your editor:');
+    console.log('  3. Optional — clone the standards for your editor:');
     console.log('     git clone git@github.com:0xb1te/ql-docs.git .standards');
     console.log('  4. Open one PR and watch it through before requiring the checks');
     console.log('\nThen run `ql-pipeline doctor` to verify the setup.');
 }
+// @signal runUpgrade
 export function runUpgrade(root, force) {
     const templates = loadTemplates();
     const actions = planUpgrade({
@@ -159,7 +167,7 @@ export function runUpgrade(root, force) {
             ' to discard them.');
     }
 }
-function collectDoctorInput(root) {
+async function collectDoctorInput(root) {
     const workflowsDir = join(root, '.github', 'workflows');
     let callerWorkflowPresent = false;
     let callerWorkflowReferencesPipeline = false;
@@ -195,7 +203,10 @@ function collectDoctorInput(root) {
             standardsRoot = config.standards.root;
             if (standardsEnabled && existsSync(join(root, standardsRoot))) {
                 const areas = Object.keys(config.standards.docs);
-                missingStandardsDocs = resolveStandards(areas, config.standards, root).missing;
+                // doctor always checks the local checkout, never house-api — its
+                // whole job is verifying that checkout for a human at a terminal,
+                // independent of whatever `govern` reads in CI.
+                missingStandardsDocs = (await resolveStandards(areas, config.standards, root)).missing;
             }
         }
         catch (cause) {
@@ -220,8 +231,9 @@ function collectDoctorInput(root) {
 }
 const SYMBOL = { pass: '  ok  ', warn: ' warn ', fail: ' FAIL ' };
 /** Returns true when nothing failed, so the caller can set the exit code. */
-export function runDoctor(root) {
-    const results = runDoctorChecks(collectDoctorInput(root));
+// @signal runDoctor
+export async function runDoctor(root) {
+    const results = runDoctorChecks(await collectDoctorInput(root));
     console.log(`ql-pipeline doctor — ${toPosix(relative(process.cwd(), root) || '.')}\n`);
     for (const result of results) {
         console.log(`[${SYMBOL[result.status]}] ${result.name}: ${result.detail}`);
@@ -230,8 +242,8 @@ export function runDoctor(root) {
         }
     }
     const worst = worstStatus(results);
-    console.log('\nNot checkable from here: whether CURSOR_API_KEY and STANDARDS_TOKEN are set as repository secrets.' +
-        ' Verify those in GitHub settings.');
+    console.log('\nNot checkable from here: whether CURSOR_API_KEY, HOUSE_API_URL, QL_AUTH_URL, QL_AUTH_CLIENT_ID, and' +
+        ' QL_AUTH_CLIENT_SECRET are set as repository secrets. Verify those in GitHub settings.');
     if (worst === 'fail') {
         console.log('\nSetup is incomplete — see the FAIL lines above.');
         return false;

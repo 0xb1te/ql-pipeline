@@ -1,3 +1,4 @@
+// @neuron routing.router.areaPaths
 import { AREAS } from '../shared/types.js';
 /**
  * Compiles a path glob to a regex. Supports the three forms the monorepo
@@ -9,6 +10,7 @@ import { AREAS } from '../shared/types.js';
  * `/**` is treated as an optional suffix, so `apps/*backend*` "and
  * everything under it" also matches the directory entry itself.
  */
+// @signal globToRegExp
 export function globToRegExp(glob) {
     let pattern = '';
     for (let i = 0; i < glob.length; i += 1) {
@@ -36,6 +38,7 @@ export function globToRegExp(glob) {
     }
     return new RegExp(`^${pattern}$`);
 }
+// @signal matchesGlob
 export function matchesGlob(path, glob) {
     return globToRegExp(glob).test(path);
 }
@@ -48,6 +51,7 @@ export function matchesGlob(path, glob) {
  * that also edits `apps/api-backend/` cannot thereby dodge the backend
  * rules.
  */
+// @signal areasFromPaths
 export function areasFromPaths(changedFiles, areaPaths) {
     const matched = new Set();
     for (const file of changedFiles) {

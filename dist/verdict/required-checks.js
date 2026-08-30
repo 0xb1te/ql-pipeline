@@ -3,6 +3,7 @@
  * required check, the review is skipped outright rather than run and
  * ignored — a review whose findings can't block is pure cost.
  */
+// @signal isReviewRequired
 export function isReviewRequired(requiredChecks) {
     return requiredChecks.includes('ai-review');
 }
@@ -13,6 +14,7 @@ export function isReviewRequired(requiredChecks) {
  * its failures are advisory (`should`) instead of blocking — that's the
  * whole point of making the stage optional.
  */
+// @signal gateFindings
 export function gateFindings(outcomes, requiredChecks) {
     return outcomes
         .filter((outcome) => !outcome.passed)

@@ -1,4 +1,6 @@
+// @neuron shared.core.githubClient
 import { getOctokit } from '@actions/github';
+// @signal readPullRequestContext
 export function readPullRequestContext(context) {
     const pr = context.payload.pull_request;
     if (pr === undefined) {
@@ -19,6 +21,7 @@ export function readPullRequestContext(context) {
     };
 }
 /** Thin Octokit wrapper for the two calls this pipeline needs so far. */
+// @signal createGithubClient
 export function createGithubClient(token) {
     const octokit = getOctokit(token);
     return {

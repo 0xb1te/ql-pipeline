@@ -1,0 +1,53 @@
+cns: "1.0"
+neuron: manifest
+kind: function
+region: scaffold
+layer: core
+unit: src/scaffold/manifest.ts
+
+responsibility: >
+  Hashes scaffolded file content (line-ending-normalised) to tell "unchanged since we wrote it"
+  from "the user edited this", and serializes/parses the manifest that record lives in.
+
+invariants:
+  - A corrupt manifest is read as "unknown origin" for every file, never as license to overwrite
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: hashContent
+    intent: Hashes content (CRLF normalised to LF first) so a checkout's line-ending rewrite is never mistaken for a user edit.
+    accepts: content
+    returns: string
+    pure: true
+    afferent:
+      - from: scaffold.core.plan#planUpgrade
+        via: direct-call
+      - from: scaffold.core.plan#nextManifest
+        via: direct-call
+    efferent: []
+
+  - signal: serializeManifest
+    intent: Serializes a ScaffoldManifest to the JSON text written to .ql-pipeline/manifest.json, with its file entries sorted for a stable diff.
+    accepts: ScaffoldManifest
+    returns: string
+    pure: true
+    afferent:
+      - from: entrypoint.cli.scaffoldCommands#runInit
+        via: direct-call
+      - from: entrypoint.cli.scaffoldCommands#runUpgrade
+        via: direct-call
+    efferent: []
+
+  - signal: parseManifest
+    intent: Parses a manifest written by a previous run, or a reason it is corrupt - a corrupt manifest falls back to "unknown origin" for every file rather than failing the caller.
+    accepts: raw
+    returns: ManifestParse
+    pure: true
+    afferent:
+      - from: entrypoint.cli.scaffoldCommands#runUpgrade
+        via: direct-call
+    efferent: []
+
+revision: 2026-08-30

@@ -4,6 +4,7 @@ const LEVEL_ORDER = {
     warn: 30,
     error: 40,
 };
+// @signal createLogger
 export function createLogger(minLevel = 'info', sink = console) {
     const write = (level, message, context) => {
         if (LEVEL_ORDER[level] < LEVEL_ORDER[minLevel]) {

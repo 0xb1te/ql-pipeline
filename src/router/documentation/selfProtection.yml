@@ -1,0 +1,29 @@
+cns: "1.0"
+neuron: selfProtection
+kind: guard
+region: routing
+layer: router
+unit: src/router/self-protection.ts
+
+responsibility: >
+  RULES.md R4 / AGENT.md invariant #5: answers whether a PR touches any of this pipeline's own
+  protected governance paths, so it can never be auto-merged or auto-fixed.
+
+invariants:
+  - A protected path ending in "/" matches as a directory prefix; anything else matches only exactly
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: touchesProtectedPaths
+    intent: Answers whether any changed file matches a configured protected path, exactly or as a directory prefix.
+    accepts: "readonly string[], readonly string[]"
+    returns: boolean
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
+revision: 2026-08-30

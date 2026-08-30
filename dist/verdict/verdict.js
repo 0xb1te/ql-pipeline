@@ -3,6 +3,7 @@
  * never factor into the decision — they ride along on MERGE as advisory
  * comments (plan.md §4.5).
  */
+// @signal decidePipelineOutcome
 export function decidePipelineOutcome(input) {
     const blocking = input.findings.filter((finding) => finding.severity === 'must' || finding.severity === 'security');
     if (blocking.length === 0) {

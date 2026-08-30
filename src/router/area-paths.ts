@@ -1,3 +1,4 @@
+// @neuron routing.router.areaPaths
 import { AREAS, type Area, type AreaPathsConfig } from '../shared/types.js';
 
 /**
@@ -10,6 +11,7 @@ import { AREAS, type Area, type AreaPathsConfig } from '../shared/types.js';
  * `/**` is treated as an optional suffix, so `apps/*backend*` "and
  * everything under it" also matches the directory entry itself.
  */
+// @signal globToRegExp
 export function globToRegExp(glob: string): RegExp {
   let pattern = '';
 
@@ -40,6 +42,7 @@ export function globToRegExp(glob: string): RegExp {
   return new RegExp(`^${pattern}$`);
 }
 
+// @signal matchesGlob
 export function matchesGlob(path: string, glob: string): boolean {
   return globToRegExp(glob).test(path);
 }
@@ -53,6 +56,7 @@ export function matchesGlob(path: string, glob: string): boolean {
  * that also edits `apps/api-backend/` cannot thereby dodge the backend
  * rules.
  */
+// @signal areasFromPaths
 export function areasFromPaths(changedFiles: readonly string[], areaPaths: AreaPathsConfig): Area[] {
   const matched = new Set<Area>();
 

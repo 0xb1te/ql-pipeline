@@ -1,0 +1,56 @@
+cns: "1.0"
+neuron: responseParser
+kind: function
+region: review
+layer: reviewer
+unit: src/reviewer/response-parser.ts
+
+responsibility: >
+  Parses and validates a cursor-agent reviewer invocation's raw stdout into a strict
+  ReviewVerdict, tolerating the envelope and conversational wrapping real invocations have been
+  observed to add around the JSON.
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: unwrapCursorAgentEnvelope
+    intent: Unwraps cursor-agent's `--output-format json` envelope, returning its `.result` text or a reason the envelope was unusable.
+    accepts: rawStdout
+    returns: "ParseResult<string>"
+    pure: true
+    afferent:
+      - from: review.reviewer.responseParser#parseReviewVerdict
+        via: direct-call
+    efferent: []
+
+  - signal: extractJsonObject
+    intent: >
+      Finds the first balanced `{...}` object in free-form text, tolerating markdown fences and
+      conversational text around it, by scanning for the matching closing brace rather than the
+      last one in the text.
+    accepts: text
+    returns: "string | null"
+    pure: true
+    afferent:
+      - from: review.reviewer.responseParser#parseReviewVerdict
+        via: direct-call
+    efferent: []
+
+  - signal: parseReviewVerdict
+    intent: Parses and validates a cursor-agent reviewer invocation's raw stdout into a strict ReviewVerdict, or a reason it could not be parsed.
+    accepts: rawStdout
+    returns: "ParseResult<ReviewVerdict>"
+    pure: true
+    afferent:
+      - from: review.reviewer.reviewer#runReview
+        via: direct-call
+    efferent:
+      - to: review.reviewer.responseParser#unwrapCursorAgentEnvelope
+        via: direct-call
+        because: the reviewer's actual response text lives inside cursor-agent's output envelope
+      - to: review.reviewer.responseParser#extractJsonObject
+        via: direct-call
+        because: the model's response text often wraps the verdict JSON in markdown fences or prose
+
+revision: 2026-08-30

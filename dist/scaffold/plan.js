@@ -1,3 +1,4 @@
+// @neuron scaffold.core.plan
 import { hashContent } from './manifest.js';
 /**
  * `init` — scaffold into a repo, never clobbering anything already there.
@@ -5,6 +6,7 @@ import { hashContent } from './manifest.js';
  * init twice is safe and running it on a partly-configured repo fills in
  * only what is missing.
  */
+// @signal planInit
 export function planInit(input) {
     return input.templates.map((template) => input.existing.has(template.dest)
         ? { kind: template.mode === 'owned' ? 'skip-owned' : 'skip-modified', dest: template.dest }
@@ -18,6 +20,7 @@ export function planInit(input) {
  * hash differs from the one recorded when we wrote it. Without a manifest
  * entry we cannot prove we wrote it, so we assume we did not.
  */
+// @signal planUpgrade
 export function planUpgrade(input) {
     const actions = [];
     for (const template of input.templates) {
@@ -52,6 +55,7 @@ export function planUpgrade(input) {
     return actions;
 }
 /** Actions that write to disk. */
+// @signal isWrite
 export function isWrite(action) {
     return action.kind === 'create' || action.kind === 'update' || action.kind === 'overwrite-modified';
 }
@@ -62,6 +66,7 @@ export function isWrite(action) {
  * upgrade. Files skipped because the user edited them are deliberately
  * left out: recording their hash would claim authorship we do not have.
  */
+// @signal nextManifest
 export function nextManifest(version, templates, actions) {
     const byDest = new Map(templates.map((template) => [template.dest, template]));
     const files = {};

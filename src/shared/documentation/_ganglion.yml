@@ -1,0 +1,45 @@
+cns: "1.0"
+ganglion: shared.core
+region: shared
+layer: core
+path: src/shared
+
+role: >
+  The config, type, logging, process-exec, GitHub API, gate-report, worktree, and audit-summary
+  vocabulary every other region imports - the pipeline's own standard library.
+
+upstream:
+  - entrypoint.cli
+  - routing.router
+  - review.reviewer
+  - fix.fixer
+  - merge.merger
+downstream: []
+
+neurons:
+  - id: shared.core.types
+    file: types.yml
+    unit: ../types.ts
+  - id: shared.core.config
+    file: config.yml
+    unit: ../config.ts
+  - id: shared.core.exec
+    file: exec.yml
+    unit: ../exec.ts
+  - id: shared.core.logger
+    file: logger.yml
+    unit: ../logger.ts
+  - id: shared.core.githubClient
+    file: githubClient.yml
+    unit: ../github-client.ts
+  - id: shared.core.gateReport
+    file: gateReport.yml
+    unit: ../gate-report.ts
+  - id: shared.core.worktree
+    file: worktree.yml
+    unit: ../worktree.ts
+  - id: shared.core.auditSummary
+    file: auditSummary.yml
+    unit: ../audit-summary.ts
+
+revision: 2026-08-30

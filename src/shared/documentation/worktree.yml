@@ -1,0 +1,72 @@
+cns: "1.0"
+neuron: worktree
+kind: function
+region: shared
+layer: core
+unit: src/shared/worktree.ts
+
+responsibility: >
+  Snapshots and diffs `git status --porcelain` output, so the reviewer's read-only guard and the
+  fixer's stage-only-what-the-agent-touched behaviour both rest on the same before/after
+  comparison rather than each parsing git output themselves.
+
+invariants:
+  - An unreadable worktree state (not a git repo, git missing) is null, treated as "unknown" and never as "unchanged"
+
+receptors: []
+
+effectors:
+  - kind: filesystem
+    target: "git status --porcelain, in the given working directory"
+    signal: captureWorktreeState
+    effect: snapshots which paths git currently considers dirty and how
+
+signals:
+  - signal: parsePorcelain
+    intent: Parses `git status --porcelain` output into a path → status-code map, resolving rename entries to their destination path.
+    accepts: output
+    returns: WorktreeState
+    pure: true
+    afferent:
+      - from: shared.core.worktree#captureWorktreeState
+        via: direct-call
+    efferent: []
+
+  - signal: captureWorktreeState
+    intent: Snapshots what git currently considers dirty, or null when the state can't be determined at all.
+    accepts: "cwd, CommandExecutor"
+    returns: Promise<WorktreeState | null>
+    afferent:
+      - from: review.reviewer.reviewer#runReview
+        via: direct-call
+      - from: fix.fixer.fixer#runFix
+        via: direct-call
+    efferent:
+      - to: shared.core.worktree#parsePorcelain
+        via: direct-call
+        because: turns the raw git status output into the WorktreeState map this signal returns
+      - to: shared.core.exec#defaultCommandExecutor
+        via: di
+        because: the executor is whatever the caller threaded through, defaulting to the real shell-backed implementation
+
+  - signal: changedPaths
+    intent: Finds which paths appeared or changed status between two snapshots, ignoring anything present and unchanged in both (e.g. build artifacts already dirty before either snapshot).
+    accepts: "WorktreeState, WorktreeState"
+    returns: string[]
+    pure: true
+    afferent:
+      - from: fix.fixer.fixer#runFix
+        via: direct-call
+    efferent: []
+
+  - signal: worktreeChanged
+    intent: Answers whether anything changed between two snapshots.
+    accepts: "WorktreeState, WorktreeState"
+    returns: boolean
+    pure: true
+    afferent:
+      - from: review.reviewer.cursorRunner#reviewerMutatedCheckout
+        via: direct-call
+    efferent: []
+
+revision: 2026-08-30

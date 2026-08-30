@@ -86,7 +86,7 @@ docs/                      SPECIFICATION.md, setup-guide.md, cli.md, integration
 ## Development
 
 ```bash
-npm ci && npm run typecheck && npm run lint && npm run build && npm test
+pnpm install && pnpm run typecheck && pnpm run lint && pnpm run build && pnpm test
 ```
 
-Node 20+. `npm run test:coverage` reports branch coverage.
+Node 20+, pnpm 9+. `pnpm run test:coverage` reports branch coverage.

@@ -1,0 +1,66 @@
+cns: "1.0"
+neuron: server
+kind: function
+region: mcp
+layer: server
+unit: src/mcp/server.ts
+
+responsibility: >
+  A hand-rolled, newline-delimited JSON-RPC server on stdio implementing initialize/tools/list/
+  tools/call - the same shape ql-docs's house-mcp.mjs uses - so an agent can drive doctor/init/
+  upgrade without any HTTP service to forward to.
+
+excludes:
+  - Any framing besides one JSON object per line - no Content-Length headers, no batching
+
+receptors:
+  - kind: cli
+    stimulus: process start (this file run directly as the MCP server entrypoint)
+    signal: main
+
+effectors:
+  - kind: log
+    target: stdout, one JSON-RPC response line per request
+    signal: handleLine
+    effect: writes the dispatched result, or an error object, as one newline-terminated JSON-RPC response
+
+signals:
+  - signal: dispatch
+    intent: >
+      Handles one JSON-RPC method: initialize's capabilities handshake, tools/list's static
+      descriptor list, or tools/call's actual tool invocation; anything else gets an empty
+      result rather than an error, so a client probing an unfamiliar method can't crash the
+      connection.
+    accepts: "method, params"
+    returns: Promise<unknown>
+    afferent:
+      - from: mcp.server.server#handleLine
+        via: direct-call
+    efferent:
+      - to: mcp.server.tools#runTool
+        via: direct-call
+        because: tools/call's actual work - running the named tool's CLI command
+
+  - signal: handleLine
+    intent: Parses one newline-delimited line as a JSON-RPC request, dispatches it, and writes back its result or error as one JSON-RPC response line.
+    accepts: "line, stdout"
+    returns: "Promise<void>"
+    afferent:
+      - from: mcp.server.server#main
+        via: direct-call
+    efferent:
+      - to: mcp.server.server#dispatch
+        via: direct-call
+        because: the actual method handling for this parsed request
+
+  - signal: main
+    intent: Buffers stdin and, for every complete newline-terminated line, dispatches it as a JSON-RPC request.
+    accepts: "stdin?, stdout?"
+    returns: "void"
+    afferent: []
+    efferent:
+      - to: mcp.server.server#handleLine
+        via: direct-call
+        because: hands off each complete line as soon as it's buffered
+
+revision: 2026-08-30

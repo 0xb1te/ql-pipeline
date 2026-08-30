@@ -1,3 +1,4 @@
+// @neuron entrypoint.cli.bootstrap
 import { context } from '@actions/github';
 import { couldGovernPullRequest, governsPullRequest, resolveTargetBranch } from '../merger/target-branch.js';
 import { determineRoute } from '../router/router.js';
@@ -28,6 +29,7 @@ export interface PipelineContext {
  * config, and the PR it is acting on. Shared by the gate jobs and the
  * pipeline job so the three checks cannot drift apart on setup.
  */
+// @signal createPipelineContext
 export function createPipelineContext(): PipelineContext {
   const token = process.env['GITHUB_TOKEN'];
   if (token === undefined || token.length === 0) {
@@ -65,6 +67,7 @@ export type RoutingOutcome =
  * Callers decide how loudly to react — a gate job that can't route just
  * fails; the pipeline job additionally comments and labels.
  */
+// @signal resolveRouting
 export async function resolveRouting(
   client: Pick<GithubClient, 'listCommitMessages'>,
   pr: PullRequestInfo,

@@ -31,7 +31,7 @@ You are working on **ql-pipeline**: a versioned DevOps pipeline that governs pul
 
 - **Branch**: `task/NNN-short-slug`. Never push to `main`.
 - **Commits**: `<type>(<area>): description`. Pipeline work is `infrastructure`; documentation is `docs`.
-- **Verify before PR**: `npm run typecheck && npm run lint && npm run build && npm test` must be green. If you changed runtime behaviour, exercise it — `main.ts` can be driven against a fake webhook payload via `GITHUB_EVENT_PATH`, which is how the governance guard was verified.
+- **Verify before PR**: `pnpm run typecheck && pnpm run lint && pnpm run build && pnpm test` must be green. If you changed runtime behaviour, exercise it — `main.ts` can be driven against a fake webhook payload via `GITHUB_EVENT_PATH`, which is how the governance guard was verified.
 - **PR description**: link the task folder, state what changed and how you verified it. Say so prominently if you touched R4-protected paths.
 
 ## Architecture invariants (do not break)
@@ -61,7 +61,7 @@ Learned the hard way; see [docs/007-spec-conformance/plan.md](docs/007-spec-conf
 - **Only `checklist.md` files are loaded as standards.** The `PROMPT.md` / `CREATE-*.md` files in the same `ql-docs` trees are code-*generation* instructions; loading them would tell the reviewer how to write code rather than how to judge it. See [docs/009-house-standards/plan.md](docs/009-house-standards/plan.md).
 - **Standards are big.** Frontend ~14k tokens, backend ~24k. Anything that adds to the review prompt shares a budget with the diff — measure before adding more.
 - **Path-based area detection is additive, never a substitute** for the conventional-commit header. It must not make an unroutable PR routable; commit hygiene stays mandatory (RULES.md R2).
-- **`dist/` is committed, not gitignored.** Consumers install straight from git (`pnpm add -D github:0xb1te/ql-pipeline`), and pnpm 10+ blocks git-hosted packages from running lifecycle scripts by default — an install-time build would just fail (`ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`). Run `npm run build` before every commit that touches `src/`; `self-check.yml` fails the build if committed `dist/` drifts from source. See [docs/011-committed-dist/plan.md](docs/011-committed-dist/plan.md).
+- **`dist/` is committed, not gitignored.** Consumers install straight from git (`pnpm add -D github:0xb1te/ql-pipeline`), and pnpm 10+ blocks git-hosted packages from running lifecycle scripts by default — an install-time build would just fail (`ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`). Run `pnpm run build` before every commit that touches `src/`; `self-check.yml` fails the build if committed `dist/` drifts from source. See [docs/011-committed-dist/plan.md](docs/011-committed-dist/plan.md).
 
 ## Behavioural expectations
 

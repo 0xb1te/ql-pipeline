@@ -1,0 +1,61 @@
+cns: "1.0"
+neuron: fixer
+kind: function
+region: fix
+layer: fixer
+unit: src/fixer/fixer.ts
+
+responsibility: >
+  Runs one fix attempt: invokes cursor-agent in its write-capable mode, hard-reverts any edit to
+  a protected path regardless of what the agent did, and - only if real changes are left -
+  commits and pushes with pipeline-authored commit hygiene.
+
+owns:
+  - The pathspec-file indirection that keeps agent-created file paths out of any shell string
+invariants:
+  - The agent never commits or pushes itself; it only produces a working-tree diff for the pipeline to act on
+
+receptors: []
+
+effectors:
+  - kind: filesystem
+    target: a temp pathspec file, deleted after use
+    signal: runFix
+    effect: hands git the touched paths through a pathspec file rather than a shell string, since they are untrusted agent-created content
+  - kind: filesystem
+    target: "git add / git commit / git push, in the consumer repo's working directory"
+    signal: runFix
+    effect: commits and pushes the agent's changes once protected-path reverts are applied, with a pipeline-authored [bot] commit message
+
+signals:
+  - signal: runFix
+    intent: >
+      Runs one fix attempt against a set of findings, reverting any protected-path edit and
+      committing/pushing only the real changes left behind - or reporting no-changes or an
+      agent error instead.
+    accepts: "readonly Finding[], promptTemplate, Area, RunFixOptions"
+    returns: Promise<FixOutcome>
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent:
+      - to: fix.fixer.complaint#buildFixerPrompt
+        via: direct-call
+        because: renders the prompt cursor-agent is invoked with
+      - to: review.reviewer.cursorRunner#runCursorAgent
+        via: di
+        because: the agent runner is whatever RunFixOptions.agentRunner was given, defaulting to the real cursor-agent-spawning implementation
+      - to: shared.core.worktree#captureWorktreeState
+        via: direct-call
+        because: snapshots the tree before and after the agent runs, so only what it actually touched gets staged
+      - to: fix.fixer.protectedPaths#revertProtectedPaths
+        via: direct-call
+        because: RULES.md R4 - hard-reverts any edit to a protected path regardless of what the agent did, before committing anything
+      - to: shared.core.worktree#changedPaths
+        via: direct-call
+        because: finds exactly which paths changed between the two snapshots, after protected-path reverts
+      - to: shared.core.exec#defaultCommandExecutor
+        via: di
+        because: the executor is whatever RunFixOptions.commandExecutor was given, defaulting to the real shell-backed implementation, used directly here for git add/commit/push
+
+revision: 2026-08-30

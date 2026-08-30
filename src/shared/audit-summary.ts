@@ -1,3 +1,4 @@
+// @neuron shared.core.auditSummary
 import type { PipelineDecision } from '../verdict/verdict.js';
 import type { Area, GateOutcome } from './types.js';
 
@@ -19,6 +20,7 @@ export interface AuditSummaryInput {
  * comments/check outputs — the full decision trail is reconstructible from
  * the PR alone"), this is what makes that true in practice.
  */
+// @signal formatAuditSummary
 export function formatAuditSummary(input: AuditSummaryInput): string {
   const lines: string[] = [
     '### ql-pipeline summary',

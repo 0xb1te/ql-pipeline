@@ -4,6 +4,7 @@
  * the tree afterwards. Paths containing spaces or special characters are
  * quoted by git; the quotes are stripped so the values match real paths.
  */
+// @signal parsePorcelain
 export function parsePorcelain(output) {
     const state = new Map();
     for (const rawLine of output.split('\n')) {
@@ -27,6 +28,7 @@ function unquote(path) {
  * that as "unknown", never as "unchanged", so an unverifiable check always
  * fails closed.
  */
+// @signal captureWorktreeState
 export async function captureWorktreeState(cwd, exec) {
     try {
         const { stdout } = await exec('git status --porcelain', { cwd });
@@ -45,6 +47,7 @@ export async function captureWorktreeState(cwd, exec) {
  * caches and the like. Those are present in both snapshots, so they are
  * correctly ignored, while anything the agent itself touched shows up.
  */
+// @signal changedPaths
 export function changedPaths(before, after) {
     const changed = [];
     for (const [path, status] of after) {
@@ -55,6 +58,7 @@ export function changedPaths(before, after) {
     return changed.sort();
 }
 /** Whether anything changed between two snapshots. */
+// @signal worktreeChanged
 export function worktreeChanged(before, after) {
     return changedPaths(before, after).length > 0;
 }

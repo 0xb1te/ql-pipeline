@@ -1,3 +1,4 @@
+// @neuron shared.core.githubClient
 import { getOctokit } from '@actions/github';
 import type { MergeMethod } from './types.js';
 
@@ -44,6 +45,7 @@ export interface ActionsEventContext {
   };
 }
 
+// @signal readPullRequestContext
 export function readPullRequestContext(context: ActionsEventContext): PullRequestInfo {
   const pr = context.payload.pull_request;
   if (pr === undefined) {
@@ -112,6 +114,7 @@ export interface GithubClient {
 }
 
 /** Thin Octokit wrapper for the two calls this pipeline needs so far. */
+// @signal createGithubClient
 export function createGithubClient(token: string): GithubClient {
   const octokit = getOctokit(token);
 

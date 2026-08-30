@@ -1,3 +1,5 @@
+// @neuron shared.core.types
+// @signal Types
 /**
  * Areas are the second grammar element of the conventional-commit header
  * this pipeline understands: `<type>(<area>): <description>`.

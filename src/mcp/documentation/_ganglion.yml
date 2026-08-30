@@ -1,0 +1,23 @@
+cns: "1.0"
+ganglion: mcp.server
+region: mcp
+layer: server
+path: src/mcp
+
+role: >
+  Exposes `doctor`/`init`/`upgrade` to an AI agent over newline-delimited JSON-RPC on stdio,
+  spawning the already-built CLI as a child process for each call rather than running any of
+  its logic in-process.
+
+upstream: []
+downstream: []
+
+neurons:
+  - id: mcp.server.tools
+    file: tools.yml
+    unit: ../tools.ts
+  - id: mcp.server.server
+    file: server.yml
+    unit: ../server.ts
+
+revision: 2026-08-30

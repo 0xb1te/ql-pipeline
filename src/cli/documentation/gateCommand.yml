@@ -1,0 +1,79 @@
+cns: "1.0"
+neuron: gateCommand
+kind: function
+region: entrypoint
+layer: cli
+unit: src/cli/gate-command.ts
+
+responsibility: >
+  Runs one gate stage (build or test) as its own GitHub check, always writing a report even on
+  failure so the pipeline job can turn a broken build into a fixable finding.
+
+excludes:
+  - Deciding whether a failed gate blocks the PR - that is the pipeline job's verdict to make
+
+receptors:
+  - kind: cli
+    stimulus: process start (node dist/main.js gate --stage test|build)
+    signal: runGateStage
+
+effectors:
+  - kind: log
+    target: stdout/stderr, and a GitHub Actions setFailed annotation on failure
+    signal: runGateStage
+    effect: logs each gate's pass/fail and command, and fails the check when a required gate failed or routing itself failed
+  - kind: filesystem
+    target: the configured gate-report path
+    signal: writeGateReport
+    effect: writes this stage's outcomes as JSON for the pipeline job to read later
+
+signals:
+  - signal: gatesForStage
+    intent: Narrows a RouteDecision's gates to the commands configured for one stage, dropping areas with nothing configured for it.
+    accepts: "RouteDecision, GateStage"
+    returns: AreaGate[]
+    pure: true
+    afferent:
+      - from: entrypoint.cli.gateCommand#runGateStage
+        via: direct-call
+    efferent: []
+
+  - signal: writeGateReport
+    intent: Serializes a GateReport to disk at the given path, creating its parent directory first.
+    accepts: "path, GateReport"
+    returns: "void"
+    afferent:
+      - from: entrypoint.cli.gateCommand#runGateStage
+        via: direct-call
+    efferent:
+      - to: shared.core.gateReport#serializeGateReport
+        via: direct-call
+        because: turns the report into the JSON text actually written to disk
+
+  - signal: runGateStage
+    intent: >
+      Routes the PR, narrows its gates to this stage, runs them, writes the report, and fails
+      the check if routing failed or a required gate did - but always writes a report first.
+    accepts: "GateStage, reportPath"
+    returns: "Promise<void>"
+    afferent:
+      - from: entrypoint.main.main#main
+        via: direct-call
+    efferent:
+      - to: entrypoint.cli.bootstrap#createPipelineContext
+        via: direct-call
+        because: needs the config, PR, and GitHub client before it can route anything
+      - to: entrypoint.cli.bootstrap#resolveRouting
+        via: direct-call
+        because: decides whether this PR is in scope and what it routes to, independently of the pipeline job
+      - to: entrypoint.cli.gateCommand#gatesForStage
+        via: direct-call
+        because: narrows the route's gates to this stage's commands
+      - to: entrypoint.cli.gateCommand#writeGateReport
+        via: direct-call
+        because: persists this stage's outcomes across the job boundary, even when routing failed or nothing was configured
+      - to: routing.router.gateRunner#runGates
+        via: direct-call
+        because: actually executes this stage's build/test commands
+
+revision: 2026-08-30

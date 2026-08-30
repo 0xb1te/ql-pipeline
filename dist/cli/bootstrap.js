@@ -1,3 +1,4 @@
+// @neuron entrypoint.cli.bootstrap
 import { context } from '@actions/github';
 import { couldGovernPullRequest, governsPullRequest, resolveTargetBranch } from '../merger/target-branch.js';
 import { determineRoute } from '../router/router.js';
@@ -10,6 +11,7 @@ const DEFAULT_CONFIG_PATH = '.github/pipeline.config.yml';
  * config, and the PR it is acting on. Shared by the gate jobs and the
  * pipeline job so the three checks cannot drift apart on setup.
  */
+// @signal createPipelineContext
 export function createPipelineContext() {
     const token = process.env['GITHUB_TOKEN'];
     if (token === undefined || token.length === 0) {
@@ -38,6 +40,7 @@ export function createPipelineContext() {
  * Callers decide how loudly to react — a gate job that can't route just
  * fails; the pipeline job additionally comments and labels.
  */
+// @signal resolveRouting
 export async function resolveRouting(client, pr, config) {
     // Cheapest possible exit for a PR this pipeline has no authority over:
     // no API calls at all, let alone gates or AI spend.

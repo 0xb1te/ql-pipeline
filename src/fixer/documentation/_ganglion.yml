@@ -1,0 +1,31 @@
+cns: "1.0"
+ganglion: fix.fixer
+region: fix
+layer: fixer
+path: src/fixer
+
+role: >
+  Runs one automated fix attempt against blocking findings, hard-reverts any edit to a protected
+  path regardless of what the agent did, and commits and pushes whatever real change is left.
+
+upstream:
+  - entrypoint.cli
+downstream:
+  - review.reviewer
+  - shared.core
+
+neurons:
+  - id: fix.fixer.fixer
+    file: fixer.yml
+    unit: ../fixer.ts
+  - id: fix.fixer.attemptCounter
+    file: attemptCounter.yml
+    unit: ../attempt-counter.ts
+  - id: fix.fixer.complaint
+    file: complaint.yml
+    unit: ../complaint.ts
+  - id: fix.fixer.protectedPaths
+    file: protectedPaths.yml
+    unit: ../protected-paths.ts
+
+revision: 2026-08-30

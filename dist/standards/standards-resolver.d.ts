@@ -13,9 +13,21 @@ export interface StandardsResolution {
     /** Docs the config named that were not present — surfaced, never silently ignored. */
     readonly missing: readonly string[];
 }
+/**
+ * A source of standards documents, keyed by the same absolute path
+ * `resolveStandards` joins from `workspaceRoot` + `config.root` + a
+ * configured doc path. HTTP-backed implementations (`HouseStandardsReader`)
+ * reverse that join internally to recover the doc path they actually need —
+ * this interface's shape stays the local-filesystem one so neither side has
+ * to change when a new transport is added.
+ *
+ * Both methods are `Promise`-returning because a reader backed by a network
+ * call is inherently async; the local-filesystem reader below just resolves
+ * immediately.
+ */
 export interface StandardsReader {
-    exists: (path: string) => boolean;
-    read: (path: string) => string;
+    exists: (path: string) => Promise<boolean>;
+    read: (path: string) => Promise<string>;
 }
 export declare function standardsIdFor(area: Area): string;
 /**
@@ -36,7 +48,7 @@ export declare function truncateAtSection(text: string, maxChars: number): {
  * reviewer can cite, budgeted per area so a large checklist cannot crowd
  * the diff out of the prompt.
  */
-export declare function resolveStandards(areas: readonly Area[], config: StandardsConfig, workspaceRoot: string, reader?: StandardsReader): StandardsResolution;
+export declare function resolveStandards(areas: readonly Area[], config: StandardsConfig, workspaceRoot: string, reader?: StandardsReader): Promise<StandardsResolution>;
 /** The reference ids the reviewer may cite for these standards. */
 export declare function standardsIds(standards: readonly ResolvedStandard[]): string[];
 /** Renders the standards block injected into the reviewer prompt. */

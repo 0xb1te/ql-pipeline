@@ -1,0 +1,26 @@
+cns: "1.0"
+ganglion: scaffold.core
+region: scaffold
+layer: core
+path: src/scaffold
+
+role: >
+  Decides which of `doctor`'s checks pass, and plans the create/update/skip decisions
+  `init`/`upgrade` apply to a consumer repo without ever silently overwriting a local edit.
+
+upstream:
+  - entrypoint.cli
+downstream: []
+
+neurons:
+  - id: scaffold.core.doctor
+    file: doctor.yml
+    unit: ../doctor.ts
+  - id: scaffold.core.manifest
+    file: manifest.yml
+    unit: ../manifest.ts
+  - id: scaffold.core.plan
+    file: plan.yml
+    unit: ../plan.ts
+
+revision: 2026-08-30

@@ -1,0 +1,82 @@
+cns: "1.0"
+neuron: bootstrap
+kind: function
+region: entrypoint
+layer: cli
+unit: src/cli/bootstrap.ts
+
+responsibility: >
+  Assembles the config/PR/GitHub-client context every job needs before it can act, and decides
+  independently, per job, whether a PR is in this pipeline's scope and what it routes to.
+
+owns:
+  - The PipelineContext shape every job (gate, govern) is built from
+invariants:
+  - Every job resolves routing for itself rather than trusting a verdict handed down from another job
+
+receptors: []
+
+effectors:
+  - kind: log
+    target: stderr, via GITHUB_TOKEN and pipeline-config read failures
+    signal: createPipelineContext
+    effect: throws with a specific message when GITHUB_TOKEN is unset or the pipeline config fails to load
+
+signals:
+  - signal: createPipelineContext
+    intent: >
+      Reads GITHUB_TOKEN, loads the pipeline config, reads the triggering PR from the Actions
+      event context, and wires a GitHub client and logger - everything a job needs, in one call.
+    accepts: "none (reads process.env and @actions/github's context)"
+    returns: PipelineContext
+    afferent:
+      - from: entrypoint.cli.gateCommand#runGateStage
+        via: direct-call
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent:
+      - to: shared.core.config#loadConfig
+        via: direct-call
+        because: every other step needs a validated PipelineConfig first
+      - to: shared.core.githubClient#readPullRequestContext
+        via: direct-call
+        because: extracts the PR this run is acting on from the Actions event payload
+      - to: shared.core.githubClient#createGithubClient
+        via: direct-call
+        because: builds the Octokit-backed client every later GitHub call goes through
+      - to: shared.core.logger#createLogger
+        via: direct-call
+        because: builds the logger this run's job writes progress and errors to
+    raises:
+      - code: Error
+        when: GITHUB_TOKEN is unset or empty, the pipeline config cannot be read or parsed, or the event payload has no pull_request
+
+  - signal: resolveRouting
+    intent: >
+      Decides, independently of any other job, whether this PR is in scope and what it routes to
+      - cheapest-exit first so an out-of-scope PR costs no gate or AI spend.
+    accepts: "GithubClient (listCommitMessages only), PullRequestInfo, PipelineConfig"
+    returns: Promise<RoutingOutcome>
+    afferent:
+      - from: entrypoint.cli.gateCommand#runGateStage
+        via: direct-call
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent:
+      - to: merge.merger.targetBranch#couldGovernPullRequest
+        via: direct-call
+        because: the cheapest possible exit - no area combination could route this PR's base branch anywhere this pipeline governs
+      - to: shared.core.githubClient#createGithubClient
+        via: di
+        because: listCommitMessages is whatever createGithubClient's Octokit-backed implementation returns
+      - to: routing.router.router#determineRoute
+        via: direct-call
+        because: turns this PR's commits (or title, as a fallback) into its areas, types, rule files, and gates
+      - to: merge.merger.targetBranch#resolveTargetBranch
+        via: direct-call
+        because: resolves which single branch this PR's matched areas target
+      - to: merge.merger.targetBranch#governsPullRequest
+        via: direct-call
+        because: confirms the PR's actual base branch is the one its areas resolved to
+
+revision: 2026-08-30

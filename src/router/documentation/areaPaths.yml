@@ -1,0 +1,55 @@
+cns: "1.0"
+neuron: areaPaths
+kind: function
+region: routing
+layer: router
+unit: src/router/area-paths.ts
+
+responsibility: >
+  Compiles the monorepo's path-glob convention to regexes and uses them to find which areas a
+  PR's changed files imply, additive to the conventional-commit header rather than a substitute
+  for it.
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: globToRegExp
+    intent: Compiles one path glob (supporting *, **, and ?) to the regex that matches it.
+    accepts: glob
+    returns: RegExp
+    pure: true
+    afferent:
+      - from: routing.router.areaPaths#matchesGlob
+        via: direct-call
+    efferent: []
+
+  - signal: matchesGlob
+    intent: Tests whether one path matches one compiled glob.
+    accepts: "path, glob"
+    returns: boolean
+    pure: true
+    afferent:
+      - from: routing.router.areaPaths#areasFromPaths
+        via: direct-call
+    efferent:
+      - to: routing.router.areaPaths#globToRegExp
+        via: direct-call
+        because: compiles the glob before testing the path against it
+
+  - signal: areasFromPaths
+    intent: >
+      Finds every area implied by the files a PR actually touches, in canonical order, so a
+      mislabelled commit cannot dodge an area's rules by not touching a matching path glob.
+    accepts: "readonly string[], AreaPathsConfig"
+    returns: Area[]
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent:
+      - to: routing.router.areaPaths#matchesGlob
+        via: direct-call
+        because: tests each changed file against every configured area's path globs
+
+revision: 2026-08-30

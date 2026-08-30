@@ -24,4 +24,7 @@ jobs:
       config-path: pipeline.config.yml
     secrets:
       CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-      STANDARDS_TOKEN: ${{ secrets.STANDARDS_TOKEN }}
+      HOUSE_API_URL: ${{ secrets.HOUSE_API_URL }}
+      QL_AUTH_URL: ${{ secrets.QL_AUTH_URL }}
+      QL_AUTH_CLIENT_ID: ${{ secrets.QL_AUTH_CLIENT_ID }}
+      QL_AUTH_CLIENT_SECRET: ${{ secrets.QL_AUTH_CLIENT_SECRET }}

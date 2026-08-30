@@ -1,3 +1,4 @@
+// @neuron shared.core.exec
 import { exec as nodeExec } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -11,4 +12,5 @@ const execAsync = promisify(nodeExec);
  */
 export type CommandExecutor = (command: string, options: { cwd: string }) => Promise<{ stdout: string; stderr: string }>;
 
+// @signal defaultCommandExecutor
 export const defaultCommandExecutor: CommandExecutor = async (command, options) => execAsync(command, options);

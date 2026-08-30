@@ -1,3 +1,4 @@
+// @neuron routing.router.router
 import { parseCommitHeader, parseCommits } from '../commit-parser/commit-parser.js';
 import { AREAS, COMMIT_TYPES, } from '../shared/types.js';
 /**
@@ -9,6 +10,7 @@ import { AREAS, COMMIT_TYPES, } from '../shared/types.js';
  * fall back to the PR title — and only when that also fails to parse is the
  * PR unroutable.
  */
+// @signal determineRoute
 export function determineRoute(input, config) {
     const { parsed } = parseCommits(input.commitMessages);
     if (parsed.length > 0) {

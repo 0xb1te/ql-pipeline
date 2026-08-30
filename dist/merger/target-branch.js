@@ -6,6 +6,7 @@
  * merging into either branch would silently drop half the change from the
  * other, so it fails closed and asks for a human.
  */
+// @signal resolveTargetBranch
 export function resolveTargetBranch(areas, merge) {
     const targets = new Map();
     for (const area of areas) {
@@ -36,6 +37,7 @@ export function resolveTargetBranch(areas, merge) {
  * outside its authority, and is left untouched rather than blocked (a
  * failing check on an unrelated PR would be noise, not safety).
  */
+// @signal governsPullRequest
 export function governsPullRequest(prBaseRef, targetBranch) {
     return prBaseRef === targetBranch;
 }
@@ -47,6 +49,7 @@ export function governsPullRequest(prBaseRef, targetBranch) {
  * it — so an unrelated PR can be dropped before spending a single API call
  * or a token of AI review on it.
  */
+// @signal couldGovernPullRequest
 export function couldGovernPullRequest(prBaseRef, merge) {
     return prBaseRef === merge.targetBranch || Object.values(merge.targetBranchByArea).includes(prBaseRef);
 }

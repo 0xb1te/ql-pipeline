@@ -1,4 +1,5 @@
 /** Renders findings as numbered plain-text entries for the fixer prompt. */
+// @signal formatFindingsForPrompt
 export function formatFindingsForPrompt(findings) {
     return findings
         .map((finding, index) => {
@@ -11,6 +12,7 @@ export function formatFindingsForPrompt(findings) {
         .join('\n\n');
 }
 /** Substitutes the placeholders documented in prompts/fixer.md. */
+// @signal buildFixerPrompt
 export function buildFixerPrompt(template, findings, attemptNumber, maxAttempts) {
     return template
         .replaceAll('{{ATTEMPT_NUMBER}}', String(attemptNumber))
@@ -18,6 +20,7 @@ export function buildFixerPrompt(template, findings, attemptNumber, maxAttempts)
         .replaceAll('{{COMPLAINT}}', formatFindingsForPrompt(findings));
 }
 /** The top-level body of the request-changes review posted alongside per-finding comments. */
+// @signal formatComplaintSummary
 export function formatComplaintSummary(findings, attemptNumber, maxAttempts) {
     const attemptsLeft = attemptNumber < maxAttempts;
     const nextStep = attemptsLeft

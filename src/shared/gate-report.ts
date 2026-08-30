@@ -1,3 +1,4 @@
+// @neuron shared.core.gateReport
 import type { Area, GateOutcome, RequiredCheck } from './types.js';
 
 /**
@@ -17,6 +18,7 @@ export interface GateReport {
  */
 export const MAX_OUTPUT_CHARS = 4000;
 
+// @signal truncateOutput
 export function truncateOutput(output: string, max: number = MAX_OUTPUT_CHARS): string {
   if (output.length <= max) {
     return output;
@@ -24,6 +26,7 @@ export function truncateOutput(output: string, max: number = MAX_OUTPUT_CHARS): 
   return `[... ${output.length - max} characters truncated ...]\n${output.slice(-max)}`;
 }
 
+// @signal serializeGateReport
 export function serializeGateReport(report: GateReport): string {
   const trimmed: GateReport = {
     stage: report.stage,
@@ -41,6 +44,7 @@ export type GateReportParse =
  * trusted: a malformed report means the pipeline cannot tell whether the
  * gates passed, which has to fail closed like any other unknown.
  */
+// @signal parseGateReport
 export function parseGateReport(raw: string): GateReportParse {
   let data: unknown;
   try {
@@ -108,6 +112,7 @@ function parseOutcome(value: unknown, index: number, stage: 'build' | 'test'): O
 }
 
 /** Merges several stage reports into one outcome list, in stage order. */
+// @signal mergeGateReports
 export function mergeGateReports(reports: readonly GateReport[]): GateOutcome[] {
   const order: readonly GateReport['stage'][] = ['test', 'build'];
   return order.flatMap((stage) => reports.filter((report) => report.stage === stage).flatMap((r) => r.outcomes));

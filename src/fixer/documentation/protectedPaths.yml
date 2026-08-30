@@ -1,0 +1,36 @@
+cns: "1.0"
+neuron: protectedPaths
+kind: guard
+region: fix
+layer: fixer
+unit: src/fixer/protected-paths.ts
+
+responsibility: >
+  Defense-in-depth for RULES.md R4: hard-reverts any fixer edit to the pipeline's own protected
+  paths structurally, one path at a time, rather than trusting the prompt.
+
+invariants:
+  - A path with nothing tracked at it in this repo is nothing to protect, not a failure - its revert error is swallowed
+
+receptors: []
+
+effectors:
+  - kind: filesystem
+    target: "git checkout --, in the consumer repo's working directory"
+    signal: revertProtectedPaths
+    effect: hard-reverts any change to each configured protected path
+
+signals:
+  - signal: revertProtectedPaths
+    intent: Hard-reverts any fixer edit to each configured protected path, one at a time, swallowing a per-path failure rather than the whole revert.
+    accepts: "cwd, readonly string[], CommandExecutor"
+    returns: "Promise<void>"
+    afferent:
+      - from: fix.fixer.fixer#runFix
+        via: direct-call
+    efferent:
+      - to: shared.core.exec#defaultCommandExecutor
+        via: di
+        because: the executor this signal calls directly is whatever runFix threaded through, defaulting to the real shell-backed implementation
+
+revision: 2026-08-30

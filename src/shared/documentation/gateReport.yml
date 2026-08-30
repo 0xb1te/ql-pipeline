@@ -1,0 +1,63 @@
+cns: "1.0"
+neuron: gateReport
+kind: function
+region: shared
+layer: core
+unit: src/shared/gate-report.ts
+
+responsibility: >
+  Serializes and validates the GateReport JSON that carries one gate stage's outcomes across the
+  job boundary between the gate check and the pipeline check, truncating oversized command
+  output before it ever reaches the reviewer prompt.
+
+invariants:
+  - A gate report that is present but fails to parse is fatal to the caller, never silently skipped
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: truncateOutput
+    intent: Truncates command output to its tail (where compilers and test runners put the actual errors), noting how many characters were dropped.
+    accepts: "output, max?"
+    returns: string
+    pure: true
+    afferent:
+      - from: shared.core.gateReport#serializeGateReport
+        via: direct-call
+    efferent: []
+
+  - signal: serializeGateReport
+    intent: Serializes a GateReport to the JSON text written to disk, truncating each outcome's output first.
+    accepts: GateReport
+    returns: string
+    pure: true
+    afferent:
+      - from: entrypoint.cli.gateCommand#writeGateReport
+        via: direct-call
+    efferent:
+      - to: shared.core.gateReport#truncateOutput
+        via: direct-call
+        because: bounds each outcome's output before it is written and later injected into the reviewer prompt
+
+  - signal: parseGateReport
+    intent: Parses and validates a gate report written by another job, or a reason it is malformed.
+    accepts: raw
+    returns: GateReportParse
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#readGateReports
+        via: direct-call
+    efferent: []
+
+  - signal: mergeGateReports
+    intent: Merges several stage reports' outcomes into one list, in stage order (test before build).
+    accepts: "readonly GateReport[]"
+    returns: GateOutcome[]
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#readGateReports
+        via: direct-call
+    efferent: []
+
+revision: 2026-08-30

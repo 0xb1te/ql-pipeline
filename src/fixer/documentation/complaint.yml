@@ -1,0 +1,49 @@
+cns: "1.0"
+neuron: complaint
+kind: function
+region: fix
+layer: fixer
+unit: src/fixer/complaint.ts
+
+responsibility: >
+  Renders a set of findings as the fixer prompt's complaint text and as the top-level summary of
+  the request-changes review posted alongside per-finding comments.
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: formatFindingsForPrompt
+    intent: Renders findings as numbered plain-text entries for the fixer prompt.
+    accepts: "readonly Finding[]"
+    returns: string
+    pure: true
+    afferent:
+      - from: fix.fixer.complaint#buildFixerPrompt
+        via: direct-call
+    efferent: []
+
+  - signal: buildFixerPrompt
+    intent: Substitutes the ATTEMPT_NUMBER/MAX_ATTEMPTS/COMPLAINT placeholders documented in prompts/fixer.md.
+    accepts: "template, readonly Finding[], attemptNumber, maxAttempts"
+    returns: string
+    pure: true
+    afferent:
+      - from: fix.fixer.fixer#runFix
+        via: direct-call
+    efferent:
+      - to: fix.fixer.complaint#formatFindingsForPrompt
+        via: direct-call
+        because: renders the COMPLAINT block the rest of the template is substituted around
+
+  - signal: formatComplaintSummary
+    intent: Renders the top-level body of the request-changes review, naming how many issues were found and whether another fix attempt will follow.
+    accepts: "readonly Finding[], attemptNumber, maxAttempts"
+    returns: string
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
+revision: 2026-08-30

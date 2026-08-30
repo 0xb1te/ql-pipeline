@@ -1,3 +1,4 @@
+// @neuron routing.router.gateRunner
 import { defaultCommandExecutor } from '../shared/exec.js';
 /**
  * Executes every build/test command a RouteDecision's gates name, one at a
@@ -9,6 +10,7 @@ import { defaultCommandExecutor } from '../shared/exec.js';
  * against; that rule is about never splicing PR-derived text into a shell
  * string, which nothing here does.
  */
+// @signal runGates
 export async function runGates(gates, options) {
     const exec = options.exec ?? defaultCommandExecutor;
     const outcomes = [];
@@ -39,6 +41,7 @@ function isExecError(value) {
     const candidate = value;
     return typeof candidate.stdout === 'string' && typeof candidate.stderr === 'string';
 }
+// @signal allGatesPassed
 export function allGatesPassed(outcomes) {
     return outcomes.every((outcome) => outcome.passed);
 }

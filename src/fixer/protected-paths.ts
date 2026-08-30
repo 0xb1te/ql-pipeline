@@ -1,3 +1,4 @@
+// @neuron fix.fixer.protectedPaths
 import type { CommandExecutor } from '../shared/exec.js';
 
 /**
@@ -8,6 +9,7 @@ import type { CommandExecutor } from '../shared/exec.js';
  * overrides), and `git checkout --` errors on a pathspec that doesn't exist
  * in the repo at all. A missing path is nothing to protect, not a failure.
  */
+// @signal revertProtectedPaths
 export async function revertProtectedPaths(
   cwd: string,
   protectedPaths: readonly string[],

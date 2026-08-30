@@ -1,3 +1,4 @@
+// @neuron shared.core.config
 import { readFileSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
 import { AREAS, REQUIRED_CHECKS, } from './types.js';
@@ -47,32 +48,40 @@ const DEFAULT_AREA_PATHS = {
  *
  * `mobile`/`ios`/`android` map to the frontend standard because in this
  * architecture mobile apps are the frontend packaged with Capacitor
- * (see `workflow/stage-7-deployment/07-capacitor-apps/`); there is no
+ * (see `workflow/rules/stage-8-deployment/07-capacitor-apps/`); there is no
  * separate native codebase and no dedicated mobile checklist upstream.
  *
  * `docs` is absent deliberately: the workflow has no documentation
  * checklist, so `rules/docs.rules` covers that area on its own.
+ *
+ * Every path here is nested under `workflow/rules/` (not `workflow/` —
+ * that is the playbook's own reference material, not the checklists a
+ * reviewer judges code against), the backend test checklist lives under
+ * `stage-6-tests/backend/`, not `stage-4-backend/tests/` (there is no such
+ * directory), and deployment is stage 8, not stage 7 (stage 7 is
+ * integration) — verified against the real ql-docs tree.
  */
 const DEFAULT_STANDARDS = {
     enabled: true,
     root: '.standards',
     docs: {
-        frontend: ['workflow/stage-2-mockup/checklist.md', 'workflow/stage-5-frontend/checklist.md'],
+        frontend: ['workflow/rules/stage-2-mockup/checklist.md', 'workflow/rules/stage-5-frontend/checklist.md'],
         backend: [
-            'workflow/stage-4-backend/backend/checklist.md',
-            'workflow/stage-4-backend/sql/checklist.md',
-            'workflow/stage-4-backend/tests/checklist.md',
+            'workflow/rules/stage-4-backend/backend/checklist.md',
+            'workflow/rules/stage-4-backend/sql/checklist.md',
+            'workflow/rules/stage-6-tests/backend/checklist.md',
         ],
-        mobile: ['workflow/stage-5-frontend/checklist.md'],
-        ios: ['workflow/stage-5-frontend/checklist.md'],
-        android: ['workflow/stage-5-frontend/checklist.md'],
-        infrastructure: ['workflow/stage-7-deployment/checklist.md'],
+        mobile: ['workflow/rules/stage-5-frontend/checklist.md'],
+        ios: ['workflow/rules/stage-5-frontend/checklist.md'],
+        android: ['workflow/rules/stage-5-frontend/checklist.md'],
+        infrastructure: ['workflow/rules/stage-8-deployment/checklist.md'],
     },
-    // Sized so no area truncates: frontend is the largest at ~124k
+    // Sized so no area truncates: frontend is the largest at ~128k
     // characters (stage 2 + stage 5). Lower it to cut review cost, at the
     // price of dropping trailing checklist sections.
     maxCharsPerArea: 140_000,
 };
+// @signal loadConfig
 export function loadConfig(path) {
     let raw;
     try {
@@ -83,6 +92,7 @@ export function loadConfig(path) {
     }
     return parseConfig(raw, path);
 }
+// @signal parseConfig
 export function parseConfig(raw, sourceLabel = '<config>') {
     let data;
     try {

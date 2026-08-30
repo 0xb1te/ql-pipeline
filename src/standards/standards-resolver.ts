@@ -1,3 +1,4 @@
+// @neuron standards.reader.standardsResolver
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Area, StandardsConfig } from '../shared/types.js';
@@ -18,16 +19,29 @@ export interface StandardsResolution {
   readonly missing: readonly string[];
 }
 
+/**
+ * A source of standards documents, keyed by the same absolute path
+ * `resolveStandards` joins from `workspaceRoot` + `config.root` + a
+ * configured doc path. HTTP-backed implementations (`HouseStandardsReader`)
+ * reverse that join internally to recover the doc path they actually need —
+ * this interface's shape stays the local-filesystem one so neither side has
+ * to change when a new transport is added.
+ *
+ * Both methods are `Promise`-returning because a reader backed by a network
+ * call is inherently async; the local-filesystem reader below just resolves
+ * immediately.
+ */
 export interface StandardsReader {
-  exists: (path: string) => boolean;
-  read: (path: string) => string;
+  exists: (path: string) => Promise<boolean>;
+  read: (path: string) => Promise<string>;
 }
 
 const defaultReader: StandardsReader = {
-  exists: (path) => existsSync(path),
-  read: (path) => readFileSync(path, 'utf-8'),
+  exists: (path) => Promise.resolve(existsSync(path)),
+  read: (path) => Promise.resolve(readFileSync(path, 'utf-8')),
 };
 
+// @signal standardsIdFor
 export function standardsIdFor(area: Area): string {
   return `${area}.standards`;
 }
@@ -38,6 +52,7 @@ export function standardsIdFor(area: Area): string {
  * the reviewer half a rule; dropping whole trailing sections at least
  * leaves every included rule intact and says what was dropped.
  */
+// @signal truncateAtSection
 export function truncateAtSection(text: string, maxChars: number): { text: string; truncated: boolean } {
   if (text.length <= maxChars) {
     return { text, truncated: false };
@@ -61,12 +76,13 @@ export function truncateAtSection(text: string, maxChars: number): { text: strin
  * reviewer can cite, budgeted per area so a large checklist cannot crowd
  * the diff out of the prompt.
  */
-export function resolveStandards(
+// @signal resolveStandards
+export async function resolveStandards(
   areas: readonly Area[],
   config: StandardsConfig,
   workspaceRoot: string,
   reader: StandardsReader = defaultReader,
-): StandardsResolution {
+): Promise<StandardsResolution> {
   if (!config.enabled) {
     return { standards: [], missing: [] };
   }
@@ -85,11 +101,11 @@ export function resolveStandards(
 
     for (const docPath of docPaths) {
       const absolute = join(workspaceRoot, config.root, docPath);
-      if (!reader.exists(absolute)) {
+      if (!(await reader.exists(absolute))) {
         missing.push(docPath);
         continue;
       }
-      parts.push(`===== ${docPath} =====\n\n${reader.read(absolute)}`);
+      parts.push(`===== ${docPath} =====\n\n${await reader.read(absolute)}`);
       included.push(docPath);
     }
 
@@ -111,11 +127,13 @@ export function resolveStandards(
 }
 
 /** The reference ids the reviewer may cite for these standards. */
+// @signal standardsIds
 export function standardsIds(standards: readonly ResolvedStandard[]): string[] {
   return standards.map((standard) => standard.id);
 }
 
 /** Renders the standards block injected into the reviewer prompt. */
+// @signal formatStandardsForPrompt
 export function formatStandardsForPrompt(standards: readonly ResolvedStandard[]): string {
   if (standards.length === 0) {
     return '(no engineering standards are configured for the areas this PR touches)';

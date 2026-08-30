@@ -1,3 +1,4 @@
+// @neuron fix.fixer.fixer
 import { randomUUID } from 'node:crypto';
 import { unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -33,6 +34,7 @@ export interface RunFixOptions {
  * hygiene. The agent never commits or pushes itself; it only produces a
  * working-tree diff for the pipeline to act on.
  */
+// @signal runFix
 export async function runFix(
   findings: readonly Finding[],
   promptTemplate: string,

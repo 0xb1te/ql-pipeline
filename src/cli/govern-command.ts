@@ -1,3 +1,4 @@
+// @neuron entrypoint.cli.governCommand
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,10 +11,12 @@ import { runReview } from '../reviewer/reviewer.js';
 import { formatRulesForPrompt, resolveRuleFiles, ruleFileIds } from '../rules/rule-resolver.js';
 import { areasFromPaths } from '../router/area-paths.js';
 import { touchesProtectedPaths } from '../router/self-protection.js';
+import { createHouseStandardsReader, readHouseCredentialsFromEnv } from '../standards/house-credentials.js';
 import {
   formatStandardsForPrompt,
   resolveStandards,
   standardsIds,
+  type StandardsResolution,
 } from '../standards/standards-resolver.js';
 import { formatAuditSummary } from '../shared/audit-summary.js';
 import { mergeGateReports, parseGateReport, type GateReport } from '../shared/gate-report.js';
@@ -38,6 +41,7 @@ function loadPromptTemplate(fileName: string): string {
  * but unreadable is fatal: the pipeline would otherwise merge a PR while
  * genuinely not knowing whether its tests passed.
  */
+// @signal readGateReports
 export function readGateReports(
   reportsDir: string,
   reader: { exists: (p: string) => boolean; list: (p: string) => string[]; read: (p: string) => string } = {
@@ -80,6 +84,7 @@ async function escalateToHuman(
  * job failed, because a broken build is a finding the fix agent can repair
  * — halting the chain on a red gate would throw that away.
  */
+// @signal runGovern
 export async function runGovern(reportsDir: string): Promise<void> {
   const { config, pr, client, logger, consumerRoot } = createPipelineContext();
   const routing = await resolveRouting(client, pr, config);
@@ -170,7 +175,39 @@ export async function runGovern(reportsDir: string): Promise<void> {
       logger.info(`rules: ${rule.id} (${rule.source})`);
     }
 
-    const { standards, missing } = resolveStandards(reviewAreas, config.standards, consumerRoot);
+    // Standards are read from house-api, not a local ql-docs checkout — see
+    // docs/013-house-backed-standards/plan.md. Credentials are read (and
+    // the reader only constructed) here, not in
+    // createPipelineContext/bootstrap.ts, so `gate` and the scaffolding
+    // commands never have to know house-api exists, and a repo with
+    // `standards.enabled: false` never needs the four HOUSE_*/QL_AUTH_*
+    // secrets set at all.
+    let standardsResolution: StandardsResolution;
+    if (config.standards.enabled) {
+      try {
+        const houseReader = await createHouseStandardsReader(
+          readHouseCredentialsFromEnv(),
+          consumerRoot,
+          config.standards.root,
+        );
+        standardsResolution = await resolveStandards(reviewAreas, config.standards, consumerRoot, houseReader);
+      } catch (cause) {
+        await escalateToHuman(
+          client,
+          pr,
+          logger,
+          `could not reach house-api for engineering standards: ${String(cause)}`,
+          '**The engineering standards for this PR could not be loaded** — house-api or ql-auth could not be ' +
+            `reached, so this PR was not reviewed against them and will not be merged:\n\n> ${String(cause)}\n\n` +
+            'Check `HOUSE_API_URL`, `QL_AUTH_URL`, `QL_AUTH_CLIENT_ID`, and `QL_AUTH_CLIENT_SECRET`, or set ' +
+            '`standards.enabled: false` in the pipeline config to review without them.',
+        );
+        return;
+      }
+    } else {
+      standardsResolution = { standards: [], missing: [] };
+    }
+    const { standards, missing } = standardsResolution;
     for (const standard of standards) {
       logger.info(`standards: ${standard.id} (${standard.docPath})${standard.truncated ? ' [truncated]' : ''}`);
     }
@@ -179,7 +216,8 @@ export async function runGovern(reportsDir: string): Promise<void> {
     // would silently be weaker than the repo believes it is — the same
     // "documentation promises what the code doesn't do" failure RULES.md
     // R6.0 exists to prevent. Fail loudly instead: it is trivially fixed
-    // by granting the checkout token access, or by turning standards off.
+    // by correcting the configured path, granting the token the missing
+    // route, or turning standards off.
     if (missing.length > 0) {
       await escalateToHuman(
         client,
@@ -187,9 +225,10 @@ export async function runGovern(reportsDir: string): Promise<void> {
         logger,
         `engineering standards could not be loaded: ${missing.join(', ')}`,
         '**The engineering standards for this PR could not be loaded**, so it was not reviewed against them ' +
-          `and will not be merged. Missing from \`${config.standards.root}\`:\n\n` +
+          'and will not be merged. Missing from house-api:\n\n' +
           missing.map((path) => `- \`${path}\``).join('\n') +
-          '\n\nCheck that the standards repository is checked out and that the workflow token can read it, ' +
+          '\n\nCheck that `standards.docs` names paths that actually exist under `workflow/rules/` in ' +
+          'ql-docs, and that the `github_agent` token carries the route for each one, ' +
           'or set `standards.enabled: false` in the pipeline config to review without them.',
       );
       return;

@@ -1,0 +1,20 @@
+cns: "1.0"
+ganglion: entrypoint.main
+region: entrypoint
+layer: main
+path: src
+
+role: >
+  The single process entrypoint: parses argv into one command and dispatches to it, reporting
+  an uncaught failure as a GitHub Actions annotation in CI or a plain stderr message locally.
+
+upstream: []
+downstream:
+  - entrypoint.cli
+
+neurons:
+  - id: entrypoint.main.main
+    file: main.yml
+    unit: ../main.ts
+
+revision: 2026-08-30

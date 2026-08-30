@@ -1,0 +1,32 @@
+cns: "1.0"
+ganglion: routing.router
+region: routing
+layer: router
+path: src/router
+
+role: >
+  Decides which areas, rule files, and gate commands a PR routes to; which paths a PR's changed
+  files imply on top of its commit headers; whether it touches a protected path; and actually
+  runs the resolved build/test gates.
+
+upstream:
+  - entrypoint.cli
+downstream:
+  - routing.parser
+  - shared.core
+
+neurons:
+  - id: routing.router.router
+    file: router.yml
+    unit: ../router.ts
+  - id: routing.router.areaPaths
+    file: areaPaths.yml
+    unit: ../area-paths.ts
+  - id: routing.router.selfProtection
+    file: selfProtection.yml
+    unit: ../self-protection.ts
+  - id: routing.router.gateRunner
+    file: gateRunner.yml
+    unit: ../gate-runner.ts
+
+revision: 2026-08-30

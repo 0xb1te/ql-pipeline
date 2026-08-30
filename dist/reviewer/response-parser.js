@@ -2,6 +2,7 @@
  * `cursor-agent --output-format json` wraps the model's actual response in
  * an envelope; the text we care about lives in `.result`.
  */
+// @signal unwrapCursorAgentEnvelope
 export function unwrapCursorAgentEnvelope(rawStdout) {
     let envelope;
     try {
@@ -34,6 +35,7 @@ export function unwrapCursorAgentEnvelope(rawStdout) {
  * the text, so a `}` inside a string value (e.g. in `problem` prose) can't
  * truncate the match early.
  */
+// @signal extractJsonObject
 export function extractJsonObject(text) {
     const defenced = text.replace(/```(?:json)?/gi, '');
     const start = defenced.indexOf('{');
@@ -75,6 +77,7 @@ export function extractJsonObject(text) {
 }
 const SEVERITIES = ['must', 'should', 'security'];
 /** Parses and validates a cursor-agent reviewer invocation's raw stdout into a ReviewVerdict. */
+// @signal parseReviewVerdict
 export function parseReviewVerdict(rawStdout) {
     const envelope = unwrapCursorAgentEnvelope(rawStdout);
     if (!envelope.ok) {

@@ -1,3 +1,4 @@
+// @neuron review.reviewer.reviewer
 import { defaultCommandExecutor, type CommandExecutor } from '../shared/exec.js';
 import type { Area, Finding, GateOutcome, ReviewVerdict } from '../shared/types.js';
 import { captureWorktreeState } from '../shared/worktree.js';
@@ -18,6 +19,7 @@ export interface ReviewContext {
 }
 
 /** Substitutes the placeholders documented in prompts/reviewer.md. */
+// @signal buildReviewPrompt
 export function buildReviewPrompt(template: string, context: ReviewContext): string {
   return template
     .replaceAll('{{AREAS}}', context.areas.join(', '))
@@ -62,6 +64,7 @@ export interface RunReviewOptions {
  * JSON in conversational text; a second attempt is worth it before giving
  * up), and applies the grounding requirement to the resulting findings.
  */
+// @signal runReview
 export async function runReview(context: ReviewContext, promptTemplate: string, options: RunReviewOptions): Promise<ReviewResult> {
   const agentRunner = options.agentRunner ?? runCursorAgent;
   const commandExecutor = options.commandExecutor ?? defaultCommandExecutor;

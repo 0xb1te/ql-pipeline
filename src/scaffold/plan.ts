@@ -1,3 +1,4 @@
+// @neuron scaffold.core.plan
 import { hashContent, type ScaffoldManifest } from './manifest.js';
 
 /**
@@ -42,6 +43,7 @@ export interface PlanInput {
  * init twice is safe and running it on a partly-configured repo fills in
  * only what is missing.
  */
+// @signal planInit
 export function planInit(input: Pick<PlanInput, 'templates' | 'existing'>): ScaffoldAction[] {
   return input.templates.map((template) =>
     input.existing.has(template.dest)
@@ -58,6 +60,7 @@ export function planInit(input: Pick<PlanInput, 'templates' | 'existing'>): Scaf
  * hash differs from the one recorded when we wrote it. Without a manifest
  * entry we cannot prove we wrote it, so we assume we did not.
  */
+// @signal planUpgrade
 export function planUpgrade(input: PlanInput): ScaffoldAction[] {
   const actions: ScaffoldAction[] = [];
 
@@ -98,6 +101,7 @@ export function planUpgrade(input: PlanInput): ScaffoldAction[] {
 }
 
 /** Actions that write to disk. */
+// @signal isWrite
 export function isWrite(
   action: ScaffoldAction,
 ): action is Extract<ScaffoldAction, { content: string }> {
@@ -111,6 +115,7 @@ export function isWrite(
  * upgrade. Files skipped because the user edited them are deliberately
  * left out: recording their hash would claim authorship we do not have.
  */
+// @signal nextManifest
 export function nextManifest(
   version: string,
   templates: readonly TemplateFile[],

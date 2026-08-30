@@ -14,7 +14,7 @@ pnpm ql-pipeline init                      # workflow + config + cursor rules + 
 pnpm ql-pipeline doctor                    # tells you exactly what is still missing
 ```
 
-Then do step 1 (the two secrets — nothing can do that for you), fill in your real build commands, and go to step 4b. Keep it current later with `pnpm update ql-pipeline && pnpm ql-pipeline upgrade` — see [cli.md](cli.md).
+Then do step 1 (the secrets — nothing can do that for you), fill in your real build commands, and go to step 4b. Keep it current later with `pnpm update ql-pipeline && pnpm ql-pipeline upgrade` — see [cli.md](cli.md).
 
 The manual steps below are the same thing done by hand, and explain what each file is for.
 
@@ -22,20 +22,25 @@ The manual steps below are the same thing done by hand, and explain what each fi
 
 
 
-## Step 1 — Create the two secrets
+## Step 1 — Create the secrets
 
 In the repository you want governed: **Settings → Secrets and variables → Actions → New repository secret**.
 
 
-| Secret            | Value                                                                     | Why                                                                                                                                                                        |
-| ----------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CURSOR_API_KEY`  | Your Cursor API key                                                       | Powers both the AI review and the auto-fix agent                                                                                                                           |
-| `STANDARDS_TOKEN` | A PAT (or GitHub App token) with **read** access to `0xb1te/ql-docs` | The engineering standards live in that private repo. A workflow's default token can only read the repo it runs in, so without this the pipeline cannot load your standards |
+| Secret                  | Value                                                          | Why                                                                                                          |
+| ----------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `CURSOR_API_KEY`        | Your Cursor API key                                              | Powers both the AI review and the auto-fix agent                                                              |
+| `HOUSE_API_URL`         | Origin `house-api` is reachable at (e.g. `https://house.example.com`) | Where the engineering standards the reviewer applies are read from                                            |
+| `QL_AUTH_URL`           | Origin `ql-auth` is reachable at (e.g. `https://auth.example.com`)    | Mints the token `house-api` requires                                                                          |
+| `QL_AUTH_CLIENT_ID`     | Client id of a `ql-auth` `github_agent` client-credentials client | Identifies this repo's pipeline to `ql-auth`                                                                  |
+| `QL_AUTH_CLIENT_SECRET` | Client secret for `QL_AUTH_CLIENT_ID`                            | Authenticates the token request                                                                               |
 
 
-> For an organisation, set both once as **organisation** secrets and share them with the relevant repos rather than repeating them per repository.
+> For an organisation, set these once as **organisation** secrets and share them with the relevant repos rather than repeating them per repository.
 
-**On** `STANDARDS_TOKEN` **scope:** a fine-grained PAT limited to `0xb1te/ql-docs` with *Contents: Read-only* is enough. Don't reuse a broad token here.
+The four `HOUSE_*`/`QL_AUTH_*` secrets are only needed while `standards.enabled` is `true` (the default) — set it to `false` in your pipeline config to review with rules only and skip creating them.
+
+**When you register the `QL_AUTH_CLIENT_ID` client in `ql-auth`, grant it routes `stage:1` through `stage:9`.** Do not follow `ql-auth`'s own README "recommended routes" table for `github_agent` (`review:frontend`, `review:backend`, `review:infrastructure`) — that table describes a different, unimplemented review-area route family. `house-api` gates every engineering-standards checklist `ql-pipeline` reads by `stage:N` (matching the `workflow/rules/stage-N-*` folder the document lives under), and a client with only `review:*` routes gets a `403` on the very first PR. See [integration-guide.md](integration-guide.md)'s secrets section for the full explanation.
 
 ## Step 2 — Add the caller workflow
 
@@ -57,7 +62,10 @@ jobs:
     uses: 0xb1te/ql-pipeline/.github/workflows/pr-pipeline.yml@main
     secrets:
       CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-      STANDARDS_TOKEN: ${{ secrets.STANDARDS_TOKEN }}
+      HOUSE_API_URL: ${{ secrets.HOUSE_API_URL }}
+      QL_AUTH_URL: ${{ secrets.QL_AUTH_URL }}
+      QL_AUTH_CLIENT_ID: ${{ secrets.QL_AUTH_CLIENT_ID }}
+      QL_AUTH_CLIENT_SECRET: ${{ secrets.QL_AUTH_CLIENT_SECRET }}
 ```
 
 
@@ -108,12 +116,14 @@ The pipeline is the review side. `[templates/cursor-rules/](../templates/cursor-
 ```bash
 cp -r /path/to/ql-pipeline/templates/cursor-rules/.cursor .
 
-# Clone the standards where Cursor can read them — the SAME path CI uses
+# Optional: clone the standards where Cursor (and `ql-pipeline doctor`) can
+# read them locally. CI never reads this path — `govern` reads house-api
+# directly — this is purely for your editor.
 git clone git@github.com:0xb1te/ql-docs.git .standards
 echo '.standards/' >> .gitignore
 ```
 
-Using `.standards/` locally is deliberate: it is exactly where the workflow checks `ql-docs` out during review, so every path reference in the rules resolves identically in your editor and in CI.
+The Cursor rules reference the same document paths `standards.docs` names, so cloning them to `.standards/` lets your editor resolve those references — but nothing in CI depends on this checkout existing.
 
 See [templates/cursor-rules/README.md](../templates/cursor-rules/README.md) for what each rule covers.
 
@@ -152,7 +162,7 @@ Once a real PR has been through the loop and you're happy with the findings: **S
 
 | Symptom                                                              | Cause                                                                    | Fix                                                                                                      |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| `ql-pipeline` fails with "engineering standards could not be loaded" | `STANDARDS_TOKEN` missing or can't read `0xb1te/ql-docs`            | Fix the token's scope, or set `standards.enabled: false` to run without standards                        |
+| `ql-pipeline` fails with "engineering standards could not be loaded" | `HOUSE_API_URL`/`QL_AUTH_*` missing, wrong, or `house-api`/`ql-auth` unreachable | Check the four secrets and that `house-api`/`ql-auth` are reachable from the runner, or set `standards.enabled: false` to run without standards |
 | "This PR could not be routed"                                        | No commit *and* not the PR title matches `<type>(<area>): <description>` | Reword a commit or the PR title                                                                          |
 | No checks appear at all                                              | The PR targets a branch other than `merge.target_branch`                 | Expected — the pipeline governs only its configured branch                                               |
 | Everything is red on a PR touching `.github/`                        | Self-protection: PRs touching pipeline governance always go to a human   | Expected. Review it yourself                                                                             |

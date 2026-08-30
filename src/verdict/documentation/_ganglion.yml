@@ -1,0 +1,24 @@
+cns: "1.0"
+ganglion: verdict.decision
+region: verdict
+layer: decision
+path: src/verdict
+
+role: >
+  Turns gate outcomes and review findings into one MERGE/FIX/BLOCK decision - `should`-severity
+  findings never block, and a `must`/`security` finding blocks unless every one is auto-fixable
+  and attempts remain.
+
+upstream:
+  - entrypoint.cli
+downstream: []
+
+neurons:
+  - id: verdict.decision.verdict
+    file: verdict.yml
+    unit: ../verdict.ts
+  - id: verdict.decision.requiredChecks
+    file: requiredChecks.yml
+    unit: ../required-checks.ts
+
+revision: 2026-08-30

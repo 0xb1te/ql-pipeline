@@ -1,9 +1,11 @@
+// @neuron review.reviewer.reviewer
 import { defaultCommandExecutor } from '../shared/exec.js';
 import { captureWorktreeState } from '../shared/worktree.js';
 import { runCursorAgent, reviewerMutatedCheckout } from './cursor-runner.js';
 import { buildDiffLineIndex, groundFindings } from './diff-grounding.js';
 import { parseReviewVerdict } from './response-parser.js';
 /** Substitutes the placeholders documented in prompts/reviewer.md. */
+// @signal buildReviewPrompt
 export function buildReviewPrompt(template, context) {
     return template
         .replaceAll('{{AREAS}}', context.areas.join(', '))
@@ -33,6 +35,7 @@ function formatGateResults(outcomes) {
  * JSON in conversational text; a second attempt is worth it before giving
  * up), and applies the grounding requirement to the resulting findings.
  */
+// @signal runReview
 export async function runReview(context, promptTemplate, options) {
     const agentRunner = options.agentRunner ?? runCursorAgent;
     const commandExecutor = options.commandExecutor ?? defaultCommandExecutor;

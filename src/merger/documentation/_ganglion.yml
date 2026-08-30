@@ -1,0 +1,25 @@
+cns: "1.0"
+ganglion: merge.merger
+region: merge
+layer: merger
+path: src/merger
+
+role: >
+  Resolves which single branch a PR's matched areas target, and carries out a MERGE verdict
+  against GitHub - re-checking the head commit is still the one reviewed, approving with any
+  advisory comments, merging, and deleting the branch if configured to.
+
+upstream:
+  - entrypoint.cli
+downstream:
+  - shared.core
+
+neurons:
+  - id: merge.merger.merger
+    file: merger.yml
+    unit: ../merger.ts
+  - id: merge.merger.targetBranch
+    file: targetBranch.yml
+    unit: ../target-branch.ts
+
+revision: 2026-08-30

@@ -1,3 +1,4 @@
+// @neuron review.reviewer.diffGrounding
 import type { Finding } from '../shared/types.js';
 
 // Matches every `+++ ...` header line, whether it names a file (`b/path`)
@@ -20,6 +21,7 @@ export interface DiffLineIndex {
  * line no longer exists in the new file, so a finding can't legitimately
  * point at one.
  */
+// @signal buildDiffLineIndex
 export function buildDiffLineIndex(diff: string): DiffLineIndex {
   const linesByFile = new Map<string, Set<number>>();
   let currentFile: string | null = null;
@@ -91,6 +93,7 @@ export interface GroundingResult {
  * or an engineering standards document (`backend.standards`). Both are
  * cited the same way, `<id>#<section>`.
  */
+// @signal groundFindings
 export function groundFindings(
   findings: readonly Finding[],
   diffIndex: DiffLineIndex,

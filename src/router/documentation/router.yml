@@ -1,0 +1,38 @@
+cns: "1.0"
+neuron: router
+kind: function
+region: routing
+layer: router
+unit: src/router/router.ts
+
+responsibility: >
+  Determines how a PR should be routed - which areas it touches, which rule files apply, and
+  which gate commands to run - preferring the union of areas across its commits and falling
+  back to the PR title only when zero commits parse.
+
+excludes:
+  - Areas implied by changed file paths - see routing.router.areaPaths, applied on top of this by the caller
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: determineRoute
+    intent: >
+      Turns a PR's commit messages (or, failing that, its title) into its matched areas, commit
+      types, rule files, and gate commands, or a reason string when nothing parses.
+    accepts: "RouteInput, PipelineConfig"
+    returns: RouteResult
+    pure: true
+    afferent:
+      - from: entrypoint.cli.bootstrap#resolveRouting
+        via: direct-call
+    efferent:
+      - to: routing.parser.commitParser#parseCommits
+        via: direct-call
+        because: parses every commit on the PR to find which areas and types they declare
+      - to: routing.parser.commitParser#parseCommitHeader
+        via: direct-call
+        because: falls back to parsing the PR title when zero commits parse
+
+revision: 2026-08-30

@@ -1,0 +1,60 @@
+cns: "1.0"
+neuron: main
+kind: function
+region: entrypoint
+layer: main
+unit: src/main.ts
+
+responsibility: >
+  Parses argv into one command and dispatches it to the gate, govern, or scaffolding module
+  that implements it, reporting an uncaught failure through the right channel for who is
+  watching.
+
+owns:
+  - The choice between a GitHub Actions annotation (core.setFailed) and a plain stderr message for an uncaught error
+excludes:
+  - Any command's own logic - each lives in the module it dispatches to
+
+receptors:
+  - kind: cli
+    stimulus: process start (node dist/main.js)
+    signal: main
+  - kind: cli
+    stimulus: process start (node dist/main.js), spawned as a child process by the MCP server's ql_pipeline_doctor/init/upgrade tools
+    signal: main
+
+effectors:
+  - kind: log
+    target: stderr, or a GitHub Actions setFailed annotation when GITHUB_ACTIONS=true
+    signal: main
+    effect: reports an uncaught error from any command through whichever channel the caller is watching
+
+signals:
+  - signal: main
+    intent: >
+      Parses argv into a Command and dispatches it to gate/govern/init/upgrade/doctor, setting a
+      non-zero exit code on doctor's own failure or on any command throwing.
+    accepts: "none (reads process.argv)"
+    returns: "Promise<void>"
+    afferent: []
+    efferent:
+      - to: entrypoint.cli.command#parseCommand
+        via: direct-call
+        because: turns argv into the one Command every other branch dispatches on
+      - to: entrypoint.cli.gateCommand#runGateStage
+        via: direct-call
+        because: the `gate` command's own implementation
+      - to: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+        because: the `govern` command's own implementation
+      - to: entrypoint.cli.scaffoldCommands#runInit
+        via: direct-call
+        because: the `init` command's own implementation
+      - to: entrypoint.cli.scaffoldCommands#runUpgrade
+        via: direct-call
+        because: the `upgrade` command's own implementation
+      - to: entrypoint.cli.scaffoldCommands#runDoctor
+        via: direct-call
+        because: the `doctor` command's own implementation, whose boolean result becomes the process exit code
+
+revision: 2026-08-30

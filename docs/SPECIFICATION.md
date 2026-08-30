@@ -46,14 +46,14 @@ Path detection is deliberately **additive, not a substitute**. Commit hygiene st
 
 ### Engineering standards
 
-Beyond `rules/*.rules`, the reviewer is given the organisation's own workflow documentation for the areas a PR touches — checked out from a standards repository at review time, never vendored, so it is always current.
+Beyond `rules/*.rules`, the reviewer is given the organisation's own workflow documentation for the areas a PR touches — read live from `house-api` at review time, never vendored or checked out, so it is always current.
 
 | Area | Documents | Why |
 |---|---|---|
-| `frontend` | `stage-2-mockup/checklist.md`, `stage-5-frontend/checklist.md` | Two stages own the frontend — stage 2 the visible surface, stage 5 the non-visual architecture — and a PR under `apps/*frontend*` can be either |
-| `backend` | `stage-4-backend/{backend,sql,tests}/checklist.md` | Layers, schema, and the six-path test strategy |
-| `mobile`, `ios`, `android` | `stage-5-frontend/checklist.md` | Mobile apps are the frontend packaged with Capacitor; no separate native codebase, no dedicated mobile checklist upstream |
-| `infrastructure` | `stage-7-deployment/checklist.md` | Provisioning, secrets, release promotion |
+| `frontend` | `workflow/rules/stage-2-mockup/checklist.md`, `stage-5-frontend/checklist.md` | Two stages own the frontend — stage 2 the visible surface, stage 5 the non-visual architecture — and a PR under `apps/*frontend*` can be either |
+| `backend` | `workflow/rules/stage-4-backend/{backend,sql}/checklist.md`, `stage-6-tests/backend/checklist.md` | Layers, schema, and the six-path test strategy |
+| `mobile`, `ios`, `android` | `workflow/rules/stage-5-frontend/checklist.md` | Mobile apps are the frontend packaged with Capacitor; no separate native codebase, no dedicated mobile checklist upstream |
+| `infrastructure` | `workflow/rules/stage-8-deployment/checklist.md` | Provisioning, secrets, release promotion |
 | `docs` | — | The workflow has no documentation checklist, so `rules/docs.rules` covers this area alone |
 
 Only the `checklist.md` files are loaded. The `PROMPT.md` and `CREATE-*.md` files in the same tree are **code-generation** instructions — feeding them to a reviewer would tell it how to write code rather than how to judge it.

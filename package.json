@@ -5,7 +5,8 @@
   "type": "module",
   "license": "MIT",
   "bin": {
-    "ql-pipeline": "dist/main.js"
+    "ql-pipeline": "dist/main.js",
+    "ql-pipeline-mcp": "dist/mcp/server.js"
   },
   "files": [
     "dist",
@@ -17,6 +18,7 @@
   "engines": {
     "node": ">=20"
   },
+  "packageManager": "pnpm@9.15.9",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
@@ -29,6 +31,8 @@
     "@actions/core": "^3.0.1",
     "@actions/github": "^9.1.1",
     "@octokit/rest": "^22.0.1",
+    "@0xb1te/house-client": "github:0xb1te/ql-docs#path:apps/house-api/packages/client",
+    "@0xb1te/ql-auth-client": "github:0xb1te/ql-auth#path:packages/client",
     "yaml": "^2.9.0"
   },
   "devDependencies": {

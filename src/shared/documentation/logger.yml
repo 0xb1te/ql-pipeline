@@ -1,0 +1,30 @@
+cns: "1.0"
+neuron: logger
+kind: function
+region: shared
+layer: core
+unit: src/shared/logger.ts
+
+responsibility: >
+  Builds a level-filtered Logger over a console-shaped sink, so every job's progress and errors
+  go through one consistently-formatted, level-gated surface.
+
+receptors: []
+
+effectors:
+  - kind: log
+    target: "console (or an injected sink), stdout for debug/info, stderr for warn/error"
+    signal: createLogger
+    effect: writes a level-prefixed, optionally JSON-context-suffixed line for any call at or above the configured minimum level
+
+signals:
+  - signal: createLogger
+    intent: Builds a Logger that writes debug/info/warn/error lines to the given sink (default console), dropping anything below minLevel.
+    accepts: "minLevel?, sink?"
+    returns: Logger
+    afferent:
+      - from: entrypoint.cli.bootstrap#createPipelineContext
+        via: direct-call
+    efferent: []
+
+revision: 2026-08-30

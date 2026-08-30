@@ -12,6 +12,7 @@ const HUNK_HEADER = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
  * line no longer exists in the new file, so a finding can't legitimately
  * point at one.
  */
+// @signal buildDiffLineIndex
 export function buildDiffLineIndex(diff) {
     const linesByFile = new Map();
     let currentFile = null;
@@ -74,6 +75,7 @@ export function buildDiffLineIndex(diff) {
  * or an engineering standards document (`backend.standards`). Both are
  * cited the same way, `<id>#<section>`.
  */
+// @signal groundFindings
 export function groundFindings(findings, diffIndex, loadedReferences) {
     const grounded = [];
     const discarded = [];

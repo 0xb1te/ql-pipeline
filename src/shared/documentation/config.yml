@@ -1,0 +1,56 @@
+cns: "1.0"
+neuron: config
+kind: function
+region: shared
+layer: core
+unit: src/shared/config.ts
+
+responsibility: >
+  Reads and validates pipeline.config.yml into a PipelineConfig, failing closed with a specific
+  ConfigError message on any unrecognized shape rather than silently defaulting it away, and
+  supplies this pipeline's own opinionated defaults (area paths, standards docs, protected
+  paths) for anything the consumer's config leaves unset.
+
+owns:
+  - Every DEFAULT_* constant - the opinionated defaults applied when a config omits a setting
+
+receptors: []
+
+effectors:
+  - kind: filesystem
+    target: the consumer repo's pipeline.config.yml (or ql-pipeline's own, when dogfooding)
+    signal: loadConfig
+    effect: reads and parses the pipeline config file
+
+signals:
+  - signal: loadConfig
+    intent: Reads a pipeline config file from disk and validates it, throwing ConfigError on anything unreadable or invalid.
+    accepts: path
+    returns: PipelineConfig
+    afferent:
+      - from: entrypoint.cli.bootstrap#createPipelineContext
+        via: direct-call
+    efferent:
+      - to: shared.core.config#parseConfig
+        via: direct-call
+        because: the actual YAML parse and validation, once the file is read
+    raises:
+      - code: ConfigError
+        when: the file cannot be read
+
+  - signal: parseConfig
+    intent: Parses a pipeline config's raw YAML text and validates its shape into a PipelineConfig, applying this pipeline's defaults for anything omitted.
+    accepts: "raw, sourceLabel?"
+    returns: PipelineConfig
+    pure: true
+    afferent:
+      - from: shared.core.config#loadConfig
+        via: direct-call
+      - from: entrypoint.cli.scaffoldCommands#runDoctor
+        via: direct-call
+    efferent: []
+    raises:
+      - code: ConfigError
+        when: the text is not valid YAML, or any field does not match the expected shape (wrong type, unrecognized area, unrecognized required-check name)
+
+revision: 2026-08-30

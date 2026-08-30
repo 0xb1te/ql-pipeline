@@ -1,0 +1,159 @@
+cns: "1.0"
+neuron: scaffoldCommands
+kind: function
+region: entrypoint
+layer: cli
+unit: src/cli/scaffold-commands.ts
+
+responsibility: >
+  The three commands a person (or the MCP bridge, on their behalf) runs locally: scaffold this
+  pipeline into a repo, refresh its managed files to the current version, and check the setup
+  without changing anything.
+
+owns:
+  - Discovering the shipped template set (caller workflow, config, Cursor rules) from ql-pipeline's own installed package root
+
+receptors:
+  - kind: cli
+    stimulus: process start (node dist/main.js init|upgrade|doctor)
+    signal: runInit
+  - kind: cli
+    stimulus: process start (node dist/main.js init|upgrade|doctor)
+    signal: runUpgrade
+  - kind: cli
+    stimulus: process start (node dist/main.js init|upgrade|doctor)
+    signal: runDoctor
+
+effectors:
+  - kind: filesystem
+    target: ql-pipeline's own installed package root (templates/) and the target repo
+    signal: loadTemplates
+    effect: reads the shipped caller workflow, config, and Cursor-rule templates
+  - kind: filesystem
+    target: the target repo's .gitignore
+    signal: ensureStandardsIgnored
+    effect: appends .standards/ if it isn't already ignored, never rewriting the file otherwise
+  - kind: filesystem
+    target: the target repo
+    signal: runInit
+    effect: writes every scaffolded file a create action names, plus the manifest and .gitignore entry
+  - kind: log
+    target: stdout
+    signal: runInit
+    effect: reports each file's action and the next manual setup steps
+  - kind: filesystem
+    target: the target repo
+    signal: runUpgrade
+    effect: writes every scaffolded file a create/update/overwrite action names, plus the refreshed manifest
+  - kind: log
+    target: stdout
+    signal: runUpgrade
+    effect: reports each file's action and which managed files were left untouched because they were edited locally
+  - kind: log
+    target: stdout
+    signal: runDoctor
+    effect: reports each check's pass/warn/fail status and, for anything short of a pass, a suggested fix
+
+signals:
+  - signal: loadTemplates
+    intent: Discovers the full set of files ql-pipeline scaffolds - the caller workflow, the config, and every shipped Cursor rule - from the installed package's templates/.
+    accepts: "none"
+    returns: TemplateFile[]
+    afferent:
+      - from: entrypoint.cli.scaffoldCommands#runInit
+        via: direct-call
+      - from: entrypoint.cli.scaffoldCommands#runUpgrade
+        via: direct-call
+    efferent: []
+
+  - signal: ensureStandardsIgnored
+    intent: Appends `.standards/` to the target repo's .gitignore if it isn't already listed there, never otherwise rewriting the file.
+    accepts: root
+    returns: "'added' | 'already-present'"
+    afferent:
+      - from: entrypoint.cli.scaffoldCommands#runInit
+        via: direct-call
+    efferent: []
+
+  - signal: runInit
+    intent: >
+      Scaffolds this pipeline into a repo for the first time, writing only what is missing - a
+      file that already exists is left exactly as-is regardless of mode.
+    accepts: root
+    returns: "void"
+    afferent:
+      - from: entrypoint.main.main#main
+        via: direct-call
+    efferent:
+      - to: entrypoint.cli.scaffoldCommands#loadTemplates
+        via: direct-call
+        because: needs the current template set before it can plan anything
+      - to: scaffold.core.plan#planInit
+        via: direct-call
+        because: decides create vs skip for every template against what already exists in the repo
+      - to: scaffold.core.plan#isWrite
+        via: direct-call
+        because: narrows the plan to the actions that actually write a file, before applying them
+      - to: scaffold.core.plan#nextManifest
+        via: direct-call
+        because: computes the manifest to record after this init actually wrote its files
+      - to: scaffold.core.manifest#serializeManifest
+        via: direct-call
+        because: turns the computed manifest into the JSON written to .ql-pipeline/manifest.json
+      - to: entrypoint.cli.scaffoldCommands#ensureStandardsIgnored
+        via: direct-call
+        because: keeps a locally-cloned standards checkout from being committed by accident
+
+  - signal: runUpgrade
+    intent: >
+      Refreshes this repo's managed files to the current version, never silently overwriting one
+      the user edited unless --force was passed.
+    accepts: "root, force"
+    returns: "void"
+    afferent:
+      - from: entrypoint.main.main#main
+        via: direct-call
+    efferent:
+      - to: entrypoint.cli.scaffoldCommands#loadTemplates
+        via: direct-call
+        because: needs the current template set before it can plan anything
+      - to: scaffold.core.manifest#parseManifest
+        via: direct-call
+        because: reads the manifest from the previous run, to tell "unchanged since we wrote it" from "the user edited this"
+      - to: scaffold.core.plan#planUpgrade
+        via: direct-call
+        because: decides create/update/skip/overwrite for every template against what exists and what the manifest proves ql-pipeline wrote
+      - to: scaffold.core.plan#isWrite
+        via: direct-call
+        because: narrows the plan to the actions that actually write a file, before applying them
+      - to: scaffold.core.plan#nextManifest
+        via: direct-call
+        because: computes the manifest to record after this upgrade actually wrote its files
+      - to: scaffold.core.manifest#serializeManifest
+        via: direct-call
+        because: turns the computed manifest into the JSON written to .ql-pipeline/manifest.json
+
+  - signal: runDoctor
+    intent: >
+      Checks whether a repo's pipeline setup is complete without changing anything, and returns
+      whether every check passed, so the caller can set a process exit code from it.
+    accepts: root
+    returns: Promise<boolean>
+    afferent:
+      - from: entrypoint.main.main#main
+        via: direct-call
+    efferent:
+      - to: shared.core.config#parseConfig
+        via: direct-call
+        because: reads the repo's own pipeline config the same way govern does, to check it is valid and see what it configures
+      - to: standards.reader.standardsResolver#resolveStandards
+        via: direct-call
+        because: checks a local .standards checkout - never house-api - for the doctor command's own reasons independent of what govern reads in CI
+      - to: scaffold.core.doctor#runDoctorChecks
+        via: direct-call
+        because: turns everything collected about the repo into the pass/warn/fail checks reported
+      - to: scaffold.core.doctor#worstStatus
+        via: direct-call
+        because: the worst status across every check decides this command's boolean result
+
+revision: 2026-08-30

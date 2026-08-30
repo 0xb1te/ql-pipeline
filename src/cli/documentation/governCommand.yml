@@ -1,0 +1,135 @@
+cns: "1.0"
+neuron: governCommand
+kind: function
+region: entrypoint
+layer: cli
+unit: src/cli/govern-command.ts
+
+responsibility: >
+  The pipeline check: routes the PR, loads rules and standards, runs the AI review, decides
+  MERGE/FIX/BLOCK from the combined gate and review findings, and carries that decision out -
+  merge, push a fix commit, or escalate to a human - posting an audit-trail comment either way.
+
+owns:
+  - The escalate-to-human path (needs-human label plus an explanatory PR comment) every failure mode short of a clean MERGE funnels through
+excludes:
+  - Any gate's own build/test execution - this runs even when a gate job failed, to turn a broken build into a fixable finding
+
+receptors:
+  - kind: cli
+    stimulus: process start (node dist/main.js govern)
+    signal: runGovern
+
+effectors:
+  - kind: log
+    target: stdout/stderr, and a GitHub Actions setFailed annotation on any non-merge outcome
+    signal: runGovern
+    effect: logs routing, rules, standards, and review progress, and fails the check for anything short of a clean merge
+  - kind: filesystem
+    target: prompts/reviewer.md and prompts/fixer.md under ql-pipeline's own installed package root
+    signal: runGovern
+    effect: reads the prompt templates injected into the reviewer and fixer invocations
+
+signals:
+  - signal: readGateReports
+    intent: >
+      Reads and merges every gate-stage report left in a directory; a report that is present but
+      unreadable is fatal, since the pipeline would otherwise merge a PR without knowing whether
+      its tests actually passed.
+    accepts: "reportsDir, reader?"
+    returns: "{ ok: true, outcomes } | { ok: false, reason }"
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent:
+      - to: shared.core.gateReport#parseGateReport
+        via: direct-call
+        because: validates each report file's shape rather than trusting it
+      - to: shared.core.gateReport#mergeGateReports
+        via: direct-call
+        because: combines every stage's reports into one outcome list, test before build
+
+  - signal: runGovern
+    intent: >
+      Runs the pipeline check end to end: routes the PR, checks for protected-path edits, reads
+      the gate reports, runs the AI review when required, decides the verdict, and carries it out.
+    accepts: reportsDir
+    returns: "Promise<void>"
+    afferent:
+      - from: entrypoint.main.main#main
+        via: direct-call
+    efferent:
+      - to: entrypoint.cli.bootstrap#createPipelineContext
+        via: direct-call
+        because: needs the config, PR, and GitHub client before it can do anything
+      - to: entrypoint.cli.bootstrap#resolveRouting
+        via: direct-call
+        because: decides whether this PR is in scope and what it routes to, independently of the gate jobs
+      - to: shared.core.githubClient#createGithubClient
+        via: di
+        because: every PR comment, label, changed-file list, commit list, and review call this signal makes is whatever createGithubClient's Octokit-backed implementation returns
+      - to: routing.router.areaPaths#areasFromPaths
+        via: direct-call
+        because: adds areas implied by the code the PR actually touches on top of what its commit headers declare
+      - to: routing.router.selfProtection#touchesProtectedPaths
+        via: direct-call
+        because: RULES.md R4 - a PR touching pipeline-governance paths always needs a human, checked before the AI is ever consulted
+      - to: entrypoint.cli.governCommand#readGateReports
+        via: direct-call
+        because: needs to know whether the PR's build and test gates passed before deciding anything
+      - to: verdict.decision.requiredChecks#gateFindings
+        via: direct-call
+        because: turns failed gates into findings so a build break flows through the same verdict path as a review finding
+      - to: verdict.decision.requiredChecks#isReviewRequired
+        via: direct-call
+        because: skips the AI review outright when ai-review isn't a required check - a review whose findings can't block is pure cost
+      - to: rules.resolver.ruleResolver#resolveRuleFiles
+        via: direct-call
+        because: resolves which .rules files apply to this PR's matched areas
+      - to: rules.resolver.ruleResolver#formatRulesForPrompt
+        via: direct-call
+        because: renders the resolved rules into the block injected into the reviewer prompt
+      - to: rules.resolver.ruleResolver#ruleFileIds
+        via: direct-call
+        because: names which rule files the reviewer may cite, for the grounding check
+      - to: standards.reader.houseCredentials#readHouseCredentialsFromEnv
+        via: direct-call
+        because: reads the four HOUSE_API_URL/QL_AUTH_* variables this run needs to reach house-api
+      - to: standards.reader.houseCredentials#createHouseStandardsReader
+        via: direct-call
+        because: mints this run's own house-api session credentials and builds the reader standards resolution will read through
+      - to: standards.reader.standardsResolver#resolveStandards
+        via: direct-call
+        because: loads the engineering-standards documents for this PR's areas, from house-api
+      - to: standards.reader.standardsResolver#formatStandardsForPrompt
+        via: direct-call
+        because: renders the resolved standards into the block injected into the reviewer prompt
+      - to: standards.reader.standardsResolver#standardsIds
+        via: direct-call
+        because: names which standards documents the reviewer may cite, for the grounding check
+      - to: review.reviewer.reviewer#runReview
+        via: direct-call
+        because: runs the AI reviewer against this PR's diff, rules, standards, and gate results
+      - to: fix.fixer.attemptCounter#countFixAttempts
+        via: direct-call
+        because: counts prior [bot] fix commits already on this PR, to know which attempt this is
+      - to: verdict.decision.verdict#decidePipelineOutcome
+        via: direct-call
+        because: the one place MERGE/FIX/BLOCK is actually decided, from every finding gathered so far
+      - to: shared.core.auditSummary#formatAuditSummary
+        via: direct-call
+        because: renders this run's audit-trail PR comment, posted regardless of the decision
+      - to: merge.merger.merger#executeMergeDecision
+        via: direct-call
+        because: carries out a MERGE verdict against GitHub
+      - to: merge.merger.merger#findingToReviewComment
+        via: direct-call
+        because: renders each blocking finding as a request-changes review comment
+      - to: fix.fixer.complaint#formatComplaintSummary
+        via: direct-call
+        because: renders the top-level body of the request-changes review posted for a FIX or BLOCK verdict
+      - to: fix.fixer.fixer#runFix
+        via: direct-call
+        because: runs the automated fix attempt for a FIX verdict on a non-fork PR
+
+revision: 2026-08-30

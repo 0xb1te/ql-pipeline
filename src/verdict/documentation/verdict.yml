@@ -1,0 +1,31 @@
+cns: "1.0"
+neuron: verdict
+kind: function
+region: verdict
+layer: decision
+unit: src/verdict/verdict.ts
+
+responsibility: >
+  The pure decision function: MERGE, FIX, or BLOCK, from every finding gathered so far -
+  `should`-severity findings never block, only ride along on MERGE as advisory comments.
+
+invariants:
+  - should-severity findings never factor into the decision itself
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: decidePipelineOutcome
+    intent: >
+      Decides MERGE (no blocking findings), FIX (every blocking finding is auto-fixable and
+      attempts remain), or BLOCK (a finding needs a human, or attempts are exhausted).
+    accepts: VerdictInput
+    returns: PipelineDecision
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
+revision: 2026-08-30

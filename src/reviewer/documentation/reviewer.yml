@@ -1,0 +1,63 @@
+cns: "1.0"
+neuron: reviewer
+kind: function
+region: review
+layer: reviewer
+unit: src/reviewer/reviewer.ts
+
+responsibility: >
+  Builds the reviewer prompt, invokes cursor-agent in read-only mode, verifies the checkout
+  wasn't mutated despite that, parses the strict JSON verdict (retrying once on a parse
+  failure), and applies the grounding requirement to the resulting findings.
+
+excludes:
+  - Deciding what a finding means for the PR's fate - that is verdict.decision's job, once findings reach it
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: buildReviewPrompt
+    intent: Substitutes the AREAS/RULES/STANDARDS/GATE_RESULTS/PR_DESCRIPTION/DIFF placeholders documented in prompts/reviewer.md.
+    accepts: "template, ReviewContext"
+    returns: string
+    pure: true
+    afferent:
+      - from: review.reviewer.reviewer#runReview
+        via: direct-call
+    efferent: []
+
+  - signal: runReview
+    intent: >
+      Runs the AI reviewer end to end against one PR: builds the prompt, invokes cursor-agent
+      read-only, verifies it left the checkout untouched, parses its verdict (one retry on
+      failure), and grounds the resulting findings against the diff and loaded references.
+    accepts: "ReviewContext, promptTemplate, RunReviewOptions"
+    returns: Promise<ReviewResult>
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent:
+      - to: review.reviewer.reviewer#buildReviewPrompt
+        via: direct-call
+        because: renders the prompt cursor-agent is invoked with
+      - to: review.reviewer.cursorRunner#runCursorAgent
+        via: di
+        because: the agent runner is whatever RunReviewOptions.agentRunner was given, defaulting to the real cursor-agent-spawning implementation
+      - to: shared.core.worktree#captureWorktreeState
+        via: direct-call
+        because: snapshots the tree before and after the read-only invocation, to verify it was actually left untouched
+      - to: review.reviewer.cursorRunner#reviewerMutatedCheckout
+        via: direct-call
+        because: compares the two snapshots to decide whether the read-only guard was honoured
+      - to: review.reviewer.responseParser#parseReviewVerdict
+        via: direct-call
+        because: parses cursor-agent's raw stdout into a strict ReviewVerdict, retried once on failure
+      - to: review.reviewer.diffGrounding#buildDiffLineIndex
+        via: direct-call
+        because: indexes which file/line pairs really exist in the diff, before trusting any finding's citation
+      - to: review.reviewer.diffGrounding#groundFindings
+        via: direct-call
+        because: discards any finding that cites a file/line not in the diff or a reference not actually loaded
+
+revision: 2026-08-30

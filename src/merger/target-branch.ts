@@ -1,3 +1,4 @@
+// @neuron merge.merger.targetBranch
 import type { Area, MergeConfig } from '../shared/types.js';
 
 export type TargetBranchResolution =
@@ -12,6 +13,7 @@ export type TargetBranchResolution =
  * merging into either branch would silently drop half the change from the
  * other, so it fails closed and asks for a human.
  */
+// @signal resolveTargetBranch
 export function resolveTargetBranch(areas: readonly Area[], merge: MergeConfig): TargetBranchResolution {
   const targets = new Map<string, Area[]>();
 
@@ -46,6 +48,7 @@ export function resolveTargetBranch(areas: readonly Area[], merge: MergeConfig):
  * outside its authority, and is left untouched rather than blocked (a
  * failing check on an unrelated PR would be noise, not safety).
  */
+// @signal governsPullRequest
 export function governsPullRequest(prBaseRef: string, targetBranch: string): boolean {
   return prBaseRef === targetBranch;
 }
@@ -58,6 +61,7 @@ export function governsPullRequest(prBaseRef: string, targetBranch: string): boo
  * it — so an unrelated PR can be dropped before spending a single API call
  * or a token of AI review on it.
  */
+// @signal couldGovernPullRequest
 export function couldGovernPullRequest(prBaseRef: string, merge: MergeConfig): boolean {
   return prBaseRef === merge.targetBranch || Object.values(merge.targetBranchByArea).includes(prBaseRef);
 }

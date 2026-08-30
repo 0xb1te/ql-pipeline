@@ -6,6 +6,7 @@
  * overrides), and `git checkout --` errors on a pathspec that doesn't exist
  * in the repo at all. A missing path is nothing to protect, not a failure.
  */
+// @signal revertProtectedPaths
 export async function revertProtectedPaths(cwd, protectedPaths, exec) {
     for (const path of protectedPaths) {
         try {

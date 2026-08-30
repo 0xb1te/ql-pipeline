@@ -1,0 +1,38 @@
+cns: "1.0"
+neuron: tools
+kind: function
+region: mcp
+layer: server
+unit: src/mcp/tools.ts
+
+responsibility: >
+  Declares the three tools this server exposes and runs one by spawning the already-built CLI
+  (`dist/main.js`) as a child process, exactly as a person at a terminal would - there is no
+  in-process code path for doctor/init/upgrade here.
+
+owns:
+  - TOOLS, the tool descriptors tools/list returns verbatim
+invariants:
+  - gate/govern are deliberately not exposed here - they are CI-triggered, not maintenance actions an agent should invoke ad hoc
+
+receptors: []
+
+effectors:
+  - kind: filesystem
+    target: "the already-built dist/main.js, spawned with node and no shell"
+    signal: runTool
+    effect: spawns `node dist/main.js doctor|init|upgrade` in the resolved root directory and captures its stdout, stderr, and exit code as the tool result
+
+signals:
+  - signal: runTool
+    intent: >
+      Resolves a tool call's args to the matching CLI invocation (doctor/init/upgrade,
+      forwarding root and, for upgrade, force) and runs it as a child process.
+    accepts: "name, args"
+    returns: Promise<ToolResult>
+    afferent:
+      - from: mcp.server.server#dispatch
+        via: direct-call
+    efferent: []
+
+revision: 2026-08-30

@@ -51,7 +51,7 @@ Writes:
 | `.cursor/rules/*.mdc` | managed |
 | `.ql-pipeline/manifest.json` | managed |
 
-It also appends `.standards/` to `.gitignore` if absent, and prints the steps it cannot do for you: adding the two repository secrets, filling in your real build commands, and cloning the standards for your editor.
+It also appends `.standards/` to `.gitignore` if absent, and prints the steps it cannot do for you: adding the repository secrets, filling in your real build commands, and optionally cloning the standards for your editor.
 
 ### `ql-pipeline upgrade`
 
@@ -88,16 +88,15 @@ pnpm ql-pipeline doctor
 ```
 [  ok  ] caller workflow: present and calling ql-pipeline
 [  ok  ] pipeline config: valid, target branch "main"
-[ warn ] gates: no area has build or test commands configured, so those checks will pass vacuously
-          → set gates.<area>.build / .test in the pipeline config
-[ warn ] standards: not checked out locally (CI clones them itself, so this only affects your editor)
+[  ok  ] gates: configured for frontend, backend
+[ warn ] standards: not checked out locally (govern reads house-api instead, so this only affects your editor)
           → git clone git@github.com:0xb1te/ql-docs.git .standards
 [  ok  ] cursor rules: 7 rule(s) installed
 ```
 
 `fail` exits 1; `warn` exits 0.
 
-**What it cannot check:** whether `CURSOR_API_KEY` and `STANDARDS_TOKEN` are set. Those are GitHub Actions secrets, which a local CLI has no business reading — it says so rather than implying a clean bill of health it cannot give.
+**What it cannot check:** whether `CURSOR_API_KEY`, `HOUSE_API_URL`, `QL_AUTH_URL`, `QL_AUTH_CLIENT_ID`, and `QL_AUTH_CLIENT_SECRET` are set. Those are GitHub Actions secrets, which a local CLI has no business reading — it says so rather than implying a clean bill of health it cannot give. `doctor` also never calls `house-api` itself — it only checks a local `.standards/` checkout, which is optional and used only by your editor.
 
 ## CI commands
 
@@ -115,7 +114,6 @@ ql-pipeline govern               # the "ql-pipeline" check
 # once, per repository
 pnpm add -D github:0xb1te/ql-pipeline
 pnpm ql-pipeline init
-git clone git@github.com:0xb1te/ql-docs.git .standards
 # …add secrets, edit gates, open one PR and watch it…
 pnpm ql-pipeline doctor
 
@@ -123,3 +121,21 @@ pnpm ql-pipeline doctor
 pnpm update ql-pipeline
 pnpm ql-pipeline upgrade
 ```
+
+## MCP: driving `doctor`/`init`/`upgrade` from an agent
+
+`ql-pipeline` ships a second bin, `ql-pipeline-mcp`, alongside the CLI: a stdio MCP server exposing these same three maintenance commands as tools an AI agent can call directly, instead of a person running them from a terminal.
+
+```bash
+pnpm exec ql-pipeline-mcp
+```
+
+It speaks newline-delimited JSON-RPC over stdio (`initialize`, `tools/list`, `tools/call`) — the same shape `house-api`'s own `apps/house-api/mcp/house-mcp.mjs` bridge uses. Point an MCP-capable agent at this command and it will see three tools:
+
+| Tool | Same as | Arguments |
+|---|---|---|
+| `ql_pipeline_doctor` | `ql-pipeline doctor` | `root` (absolute path, optional) |
+| `ql_pipeline_init` | `ql-pipeline init` | `root` (absolute path, optional) |
+| `ql_pipeline_upgrade` | `ql-pipeline upgrade` | `root` (absolute path, optional), `force` (boolean, optional) |
+
+Unlike the reusable workflow, which forwards to in-process code, this server spawns the already-built CLI (`dist/main.js`) as a child process per call — exactly what running the command from a terminal does — and returns its combined stdout/stderr and exit status as the tool result (`isError: true` on a non-zero exit). `gate` and `govern` are deliberately **not** exposed here: they are CI-triggered checks, not maintenance actions an agent should invoke ad hoc.

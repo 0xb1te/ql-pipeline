@@ -1,0 +1,27 @@
+cns: "1.0"
+ganglion: standards.reader
+region: standards
+layer: reader
+path: src/standards
+
+role: >
+  Loads the engineering-standards documents that apply to a PR's areas, budgeted per area, from
+  whichever StandardsReader is injected - house-api in CI, or a local ql-docs checkout for the
+  doctor command.
+
+upstream:
+  - entrypoint.cli
+downstream: []
+
+neurons:
+  - id: standards.reader.standardsResolver
+    file: standardsResolver.yml
+    unit: ../standards-resolver.ts
+  - id: standards.reader.HouseStandardsReader
+    file: HouseStandardsReader.yml
+    unit: ../house-standards-reader.ts
+  - id: standards.reader.houseCredentials
+    file: houseCredentials.yml
+    unit: ../house-credentials.ts
+
+revision: 2026-08-30

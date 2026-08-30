@@ -1,3 +1,4 @@
+// @neuron routing.router.router
 import { parseCommitHeader, parseCommits } from '../commit-parser/commit-parser.js';
 import {
   AREAS,
@@ -23,6 +24,7 @@ export interface RouteInput {
  * fall back to the PR title — and only when that also fails to parse is the
  * PR unroutable.
  */
+// @signal determineRoute
 export function determineRoute(input: RouteInput, config: PipelineConfig): RouteResult {
   const { parsed } = parseCommits(input.commitMessages);
 

@@ -1,0 +1,132 @@
+cns: "1.0"
+tracts:
+  - tract: parse-argv-into-a-command
+    stimulus: process start (node dist/main.js)
+    response: argv is parsed into exactly one of the five commands (gate/govern/init/upgrade/doctor)
+    path:
+      - entrypoint.main.main#main
+      - entrypoint.cli.command#parseCommand
+
+  - tract: run-a-gate-stage
+    stimulus: process start (node dist/main.js gate --stage test|build)
+    response: the stage's configured build/test commands run and their outcomes are written as a gate report
+    path:
+      - entrypoint.main.main#main
+      - entrypoint.cli.gateCommand#runGateStage
+      - routing.router.gateRunner#runGates
+      - shared.core.exec#defaultCommandExecutor
+    effectors:
+      - filesystem:the configured build/test command
+
+  - tract: govern-a-pull-request
+    stimulus: process start (node dist/main.js govern)
+    response: the PR is routed, checked, and either merged, fixed, or escalated to a human
+    path:
+      - entrypoint.main.main#main
+      - entrypoint.cli.governCommand#runGovern
+      - entrypoint.cli.bootstrap#createPipelineContext
+      - shared.core.githubClient#createGithubClient
+    effectors:
+      - http-out:GitHub REST API
+
+  - tract: load-house-backed-standards
+    stimulus: process start (node dist/main.js govern)
+    response: the PR's matched areas' engineering-standards documents are read from house-api instead of a local ql-docs checkout
+    path:
+      - entrypoint.cli.governCommand#runGovern
+      - standards.reader.standardsResolver#resolveStandards
+      - standards.reader.HouseStandardsReader#read
+    effectors:
+      - http-out:house-api sessions/expand/advance/house_read
+
+  - tract: run-the-ai-reviewer
+    stimulus: process start (node dist/main.js govern)
+    response: cursor-agent runs read-only against the PR's diff, rules, and standards, producing a grounded set of findings
+    path:
+      - entrypoint.cli.governCommand#runGovern
+      - review.reviewer.reviewer#runReview
+      - review.reviewer.cursorRunner#runCursorAgent
+    effectors:
+      - filesystem:the cursor-agent CLI binary
+
+  - tract: run-an-automated-fix-attempt
+    stimulus: process start (node dist/main.js govern)
+    response: cursor-agent runs against blocking findings, any protected-path edit is hard-reverted, and the real changes left are committed and pushed
+    path:
+      - entrypoint.cli.governCommand#runGovern
+      - fix.fixer.fixer#runFix
+      - fix.fixer.protectedPaths#revertProtectedPaths
+      - shared.core.exec#defaultCommandExecutor
+    effectors:
+      - filesystem:git checkout --
+
+  - tract: carry-out-a-merge-verdict
+    stimulus: process start (node dist/main.js govern)
+    response: the PR's head commit is re-checked against staleness, approved, and merged (or labelled ready-to-merge, in human-approval mode)
+    path:
+      - entrypoint.cli.governCommand#runGovern
+      - merge.merger.merger#executeMergeDecision
+      - shared.core.githubClient#createGithubClient
+    effectors:
+      - http-out:GitHub REST API
+
+  - tract: scaffold-a-repo
+    stimulus: process start (node dist/main.js init|upgrade|doctor)
+    response: the caller workflow, pipeline config, and Cursor rules are written into a repo for the first time
+    path:
+      - entrypoint.main.main#main
+      - entrypoint.cli.scaffoldCommands#runInit
+      - scaffold.core.plan#planInit
+    effectors:
+      - filesystem:the target repo's scaffolded files
+
+  - tract: refresh-a-repos-managed-files
+    stimulus: process start (node dist/main.js init|upgrade|doctor)
+    response: this repo's managed files are refreshed to the current version, skipping anything edited locally unless --force was passed
+    path:
+      - entrypoint.main.main#main
+      - entrypoint.cli.scaffoldCommands#runUpgrade
+      - scaffold.core.plan#planUpgrade
+      - scaffold.core.manifest#hashContent
+    effectors:
+      - filesystem:the target repo's managed files
+
+  - tract: check-a-repos-setup
+    stimulus: process start (node dist/main.js init|upgrade|doctor)
+    response: the repo's pipeline config, gates, standards checkout, and Cursor rules are checked without changing anything
+    path:
+      - entrypoint.main.main#main
+      - entrypoint.cli.scaffoldCommands#runDoctor
+      - shared.core.config#parseConfig
+    effectors:
+      - filesystem:the repo's pipeline.config.yml
+
+  - tract: doctor-checks-the-local-standards-checkout
+    stimulus: process start (node dist/main.js init|upgrade|doctor)
+    response: a local .standards checkout is checked for the configured documents - never house-api, which only govern reads
+    path:
+      - entrypoint.cli.scaffoldCommands#runDoctor
+      - standards.reader.standardsResolver#resolveStandards
+      - standards.reader.standardsResolver#standardsIdFor
+    effectors:
+      - filesystem:the local .standards checkout
+
+  - tract: spawn-the-cli-as-a-maintenance-tool
+    stimulus: process start (node dist/main.js), spawned as a child process by the MCP server's ql_pipeline_doctor/init/upgrade tools
+    response: the CLI runs exactly as it would from a terminal; the MCP server captures its stdout, stderr, and exit code as the tool result
+    path:
+      - entrypoint.main.main#main
+      - entrypoint.cli.command#parseCommand
+
+  - tract: dispatch-an-mcp-tool-call
+    stimulus: process start (this file run directly as the MCP server entrypoint)
+    response: an agent's tools/call request over stdio JSON-RPC is dispatched to the matching CLI-spawning tool implementation
+    path:
+      - mcp.server.server#main
+      - mcp.server.server#handleLine
+      - mcp.server.server#dispatch
+      - mcp.server.tools#runTool
+    effectors:
+      - filesystem:the already-built dist/main.js
+
+revision: 2026-08-30

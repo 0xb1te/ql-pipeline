@@ -1,0 +1,44 @@
+cns: "1.0"
+neuron: commitParser
+kind: function
+region: routing
+layer: parser
+unit: src/commit-parser/commit-parser.ts
+
+responsibility: >
+  Parses commit message headers against the `<type>(<area>): <description>` grammar, one line
+  or a whole batch at a time, without judging what an unparseable header means.
+
+excludes:
+  - Deciding what to do with an unparseable commit or a fallback to the PR title - that is routing policy, not parsing
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: parseCommitHeader
+    intent: Parses one commit message's first line against the header grammar, or returns null for anything that doesn't match.
+    accepts: message
+    returns: "ParsedCommit | null"
+    pure: true
+    afferent:
+      - from: routing.router.router#determineRoute
+        via: direct-call
+      - from: routing.parser.commitParser#parseCommits
+        via: direct-call
+    efferent: []
+
+  - signal: parseCommits
+    intent: Parses a batch of commit messages, collecting the ones that don't match the grammar separately rather than discarding them.
+    accepts: "readonly string[]"
+    returns: CommitParseResult
+    pure: true
+    afferent:
+      - from: routing.router.router#determineRoute
+        via: direct-call
+    efferent:
+      - to: routing.parser.commitParser#parseCommitHeader
+        via: direct-call
+        because: parses each message in the batch one at a time
+
+revision: 2026-08-30

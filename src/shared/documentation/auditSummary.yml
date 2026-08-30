@@ -1,0 +1,26 @@
+cns: "1.0"
+neuron: auditSummary
+kind: function
+region: shared
+layer: core
+unit: src/shared/audit-summary.ts
+
+responsibility: >
+  Renders the one audit-trail PR comment every pipeline run posts, regardless of its decision -
+  plan.md §6's guarantee that the full decision trail is reconstructible from the PR alone.
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: formatAuditSummary
+    intent: Renders one run's areas, target branch, gate outcomes, review status, finding count, and decision (with its BLOCK reason, if any) as a Markdown PR comment.
+    accepts: AuditSummaryInput
+    returns: string
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
+revision: 2026-08-30

@@ -1,3 +1,4 @@
+// @neuron shared.core.worktree
 import type { CommandExecutor } from './exec.js';
 
 /** Path → porcelain status code, as reported by `git status --porcelain`. */
@@ -9,6 +10,7 @@ export type WorktreeState = ReadonlyMap<string, string>;
  * the tree afterwards. Paths containing spaces or special characters are
  * quoted by git; the quotes are stripped so the values match real paths.
  */
+// @signal parsePorcelain
 export function parsePorcelain(output: string): WorktreeState {
   const state = new Map<string, string>();
 
@@ -36,6 +38,7 @@ function unquote(path: string): string {
  * that as "unknown", never as "unchanged", so an unverifiable check always
  * fails closed.
  */
+// @signal captureWorktreeState
 export async function captureWorktreeState(cwd: string, exec: CommandExecutor): Promise<WorktreeState | null> {
   try {
     const { stdout } = await exec('git status --porcelain', { cwd });
@@ -54,6 +57,7 @@ export async function captureWorktreeState(cwd: string, exec: CommandExecutor): 
  * caches and the like. Those are present in both snapshots, so they are
  * correctly ignored, while anything the agent itself touched shows up.
  */
+// @signal changedPaths
 export function changedPaths(before: WorktreeState, after: WorktreeState): string[] {
   const changed: string[] = [];
 
@@ -67,6 +71,7 @@ export function changedPaths(before: WorktreeState, after: WorktreeState): strin
 }
 
 /** Whether anything changed between two snapshots. */
+// @signal worktreeChanged
 export function worktreeChanged(before: WorktreeState, after: WorktreeState): boolean {
   return changedPaths(before, after).length > 0;
 }

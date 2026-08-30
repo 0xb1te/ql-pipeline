@@ -1,3 +1,4 @@
+// @neuron fix.fixer.attemptCounter
 const BOT_COMMIT_HEADER = /\[bot\]\s*$/;
 
 /**
@@ -6,6 +7,7 @@ const BOT_COMMIT_HEADER = /\[bot\]\s*$/;
  * label or comment) — the attempt count falls out of commit history the
  * pipeline already fetches for routing.
  */
+// @signal countFixAttempts
 export function countFixAttempts(commitMessages: readonly string[]): number {
   return commitMessages.filter((message) => {
     const headerLine = message.split('\n', 1)[0]!;

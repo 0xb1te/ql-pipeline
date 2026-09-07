@@ -31,7 +31,7 @@ tracts:
 
   - tract: load-house-backed-standards
     stimulus: process start (node dist/main.js govern)
-    response: the PR's matched areas' engineering-standards documents are read from house-api instead of a local ql-docs checkout
+    response: the PR's review pack (workflow/review/pr-*) is read from house-api instead of a local ql-docs checkout
     path:
       - entrypoint.cli.governCommand#runGovern
       - standards.reader.standardsResolver#resolveStandards
@@ -103,11 +103,11 @@ tracts:
 
   - tract: doctor-checks-the-local-standards-checkout
     stimulus: process start (node dist/main.js init|upgrade|doctor)
-    response: a local .standards checkout is checked for the configured documents - never house-api, which only govern reads
+    response: a local .standards checkout is checked for every workflow/review/pr-* pack file - never house-api, which only govern reads
     path:
       - entrypoint.cli.scaffoldCommands#runDoctor
       - standards.reader.standardsResolver#resolveStandards
-      - standards.reader.standardsResolver#standardsIdFor
+      - standards.reader.standardsResolver#reviewPackEntries
     effectors:
       - filesystem:the local .standards checkout
 

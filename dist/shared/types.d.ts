@@ -74,7 +74,7 @@ export interface StandardsConfig {
     readonly enabled: boolean;
     /** Where the standards repository is checked out, relative to the workspace. */
     readonly root: string;
-    /** Per-area document paths, relative to `root`. */
+    /** Accepted in YAML for older configs; ignored. Pack paths are a convention. */
     readonly docs: Readonly<Partial<Record<Area, readonly string[]>>>;
     /** Budget guard: standards are large, and they share the prompt with the diff. */
     readonly maxCharsPerArea: number;

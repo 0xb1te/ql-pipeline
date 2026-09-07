@@ -67,7 +67,7 @@ describe('runDoctorChecks', () => {
   });
 
   it('fails when a configured standards document is missing from a present checkout', () => {
-    const results = runDoctorChecks(input({ missingStandardsDocs: ['workflow/stage-5-frontend/checklist.md'] }));
+    const results = runDoctorChecks(input({ missingStandardsDocs: ['workflow/review/pr-feature/frontend.md'] }));
 
     expect(statusOf(results, 'standards')).toBe('fail');
   });

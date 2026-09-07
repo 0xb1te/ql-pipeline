@@ -1,0 +1,32 @@
+cns: "1.0"
+neuron: reviewKind
+kind: function
+region: standards
+layer: reader
+unit: src/standards/review-kind.ts
+
+responsibility: >
+  Names which ql-docs workflow/review/pr-* pack a PR loads. Branch prefix wins
+  (features / hotfixes / bugfixes); commit type is the fallback when the branch
+  is unnamed. Hotfix cannot be told from a fix( commit alone.
+
+owns:
+  - The REVIEW_KINDS list and the branch-segment matching that picks one
+invariants:
+  - A features/ branch is always pr-feature, even when the commits are typed fix
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: reviewKindFor
+    intent: Picks pr-feature, pr-fix, or pr-bugfix from the PR head ref and commit types.
+    accepts: "headRef, readonly CommitType[]"
+    returns: ReviewKind
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
+revision: 2026-09-07

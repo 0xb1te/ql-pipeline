@@ -137,7 +137,7 @@ function standardsChecks(input: DoctorInput): CheckResult[] {
       name: 'standards',
       status: 'fail',
       detail: `${input.missingStandardsDocs.length} configured document(s) missing: ${input.missingStandardsDocs.join(', ')}`,
-      fix: 'update the checkout (`git -C .standards pull`) or correct standards.docs',
+      fix: 'update the checkout (`git -C .standards pull`) so workflow/review/pr-* exists',
     });
   } else {
     results.push({ name: 'standards', status: 'pass', detail: 'all configured documents resolve' });

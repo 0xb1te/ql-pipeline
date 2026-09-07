@@ -92,6 +92,9 @@ signals:
       - to: rules.resolver.ruleResolver#ruleFileIds
         via: direct-call
         because: names which rule files the reviewer may cite, for the grounding check
+      - to: standards.reader.reviewKind#reviewKindFor
+        via: direct-call
+        because: picks which workflow/review/pr-* pack this PR's branch and commit types load
       - to: standards.reader.houseCredentials#readHouseCredentialsFromEnv
         via: direct-call
         because: reads the four HOUSE_API_URL/QL_AUTH_* variables this run needs to reach house-api
@@ -100,7 +103,7 @@ signals:
         because: mints this run's own house-api session credentials and builds the reader standards resolution will read through
       - to: standards.reader.standardsResolver#resolveStandards
         via: direct-call
-        because: loads the engineering-standards documents for this PR's areas, from house-api
+        because: loads the review pack for this PR's kind and areas, from house-api
       - to: standards.reader.standardsResolver#formatStandardsForPrompt
         via: direct-call
         because: renders the resolved standards into the block injected into the reviewer prompt
@@ -132,4 +135,4 @@ signals:
         via: direct-call
         because: runs the automated fix attempt for a FIX verdict on a non-fork PR
 
-revision: 2026-08-30
+revision: 2026-09-07

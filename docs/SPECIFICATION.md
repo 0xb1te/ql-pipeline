@@ -46,21 +46,17 @@ Path detection is deliberately **additive, not a substitute**. Commit hygiene st
 
 ### Engineering standards
 
-Beyond `rules/*.rules`, the reviewer is given the organisation's own workflow documentation for the areas a PR touches — read live from `house-api` at review time, never vendored or checked out, so it is always current.
+Beyond `rules/*.rules`, the reviewer is given one ql-docs `workflow/review/pr-*` pack — read live from `house-api` at review time, never vendored or checked out. Build-stage trees and flow process checklists are not loaded.
 
-| Area | Documents | Why |
+| PR | Pack | Files |
 |---|---|---|
-| `frontend` | `workflow/rules/stage-2-mockup/checklist.md`, `stage-5-frontend/checklist.md` | Two stages own the frontend — stage 2 the visible surface, stage 5 the non-visual architecture — and a PR under `apps/*frontend*` can be either |
-| `backend` | `workflow/rules/stage-4-backend/{backend,sql}/checklist.md`, `stage-6-tests/backend/checklist.md` | Layers, schema, and the six-path test strategy |
-| `mobile`, `ios`, `android` | `workflow/rules/stage-5-frontend/checklist.md` | Mobile apps are the frontend packaged with Capacitor; no separate native codebase, no dedicated mobile checklist upstream |
-| `infrastructure` | `workflow/rules/stage-8-deployment/checklist.md` | Provisioning, secrets, release promotion |
-| `docs` | — | The workflow has no documentation checklist, so `rules/docs.rules` covers this area alone |
+| `features/` branch, or a `feat` commit on an unnamed branch | `pr-feature` | `checklist.md` + one `${area}.md` per matched area |
+| `hotfixes/` branch | `pr-fix` | same shape |
+| `bugfixes/` branch, or a `fix` commit that is not a hotfix | `pr-bugfix` | same shape |
 
-Only the `checklist.md` files are loaded. The `PROMPT.md` and `CREATE-*.md` files in the same tree are **code-generation** instructions — feeding them to a reviewer would tell it how to write code rather than how to judge it.
+**The pack is the area rules.** `rules/*.rules` stays belt-and-suspenders for PR-level hygiene. `standards.docs` is not a path map.
 
-**These mappings are the area rules.** `rules/*.rules` deliberately contains only `_common.rules` (properties of the pull request itself — secrets, commit hygiene, suppressed checks) and `docs.rules` (the one uncovered area). Restating an architectural requirement in both places would create two definitions that can drift apart, and the reviewer would cite whichever it read first.
-
-Standards are cited like rules, as `<area>.standards#<section>`, and are subject to the same grounding requirement. Loading is fail-closed: if `standards.enabled` is true and a configured document is missing, the PR is escalated rather than reviewed without it — a review that silently ignores the standards is worse than no review, because the repo would believe it happened.
+Standards are cited as `review.standards#<section>` or `<area>.standards#<section>`, and are subject to the same grounding requirement. Loading is fail-closed: if `standards.enabled` is true and a pack document is missing, the PR is escalated rather than reviewed without it.
 
 ## 3. Locked design decisions
 

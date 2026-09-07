@@ -6,14 +6,17 @@ layer: reader
 unit: src/standards/standards-resolver.ts
 
 responsibility: >
-  Loads the house engineering-standards documents that apply to a PR's areas through an
-  injected StandardsReader port, concatenating and budgeting each area's documents so a large
-  checklist cannot crowd the diff out of the reviewer prompt.
+  Loads the ql-docs workflow/review/pr-* pack for a PR's kind and areas through an
+  injected StandardsReader port. Pack paths are a convention, not a config map.
+  Each document is budgeted so a large checklist cannot crowd the diff out of the
+  reviewer prompt.
 
 owns:
   - The StandardsReader port both the local-filesystem default and HouseStandardsReader implement
+  - The workflow/review/${kind}/checklist.md plus ${kind}/${area}.md path convention
 invariants:
-  - A configured document that is not found is reported in `missing`, never silently dropped
+  - A pack document that is not found is reported in `missing`, never silently dropped
+  - config.docs is never read
 
 receptors: []
 effectors: []
@@ -25,9 +28,37 @@ signals:
     returns: string
     pure: true
     afferent:
-      - from: standards.reader.standardsResolver#resolveStandards
+      - from: standards.reader.standardsResolver#reviewPackEntries
         via: direct-call
     efferent: []
+
+  - signal: reviewPackEntries
+    intent: Lists the type checklist plus one pack file per area for a review kind.
+    accepts: "ReviewKind, readonly Area[]"
+    returns: ReviewPackEntry[]
+    pure: true
+    afferent:
+      - from: standards.reader.standardsResolver#resolveStandards
+        via: direct-call
+      - from: standards.reader.standardsResolver#allReviewDocumentPaths
+        via: direct-call
+    efferent:
+      - to: standards.reader.standardsResolver#standardsIdFor
+        via: direct-call
+        because: names the citation id for each area file in the pack
+
+  - signal: allReviewDocumentPaths
+    intent: Lists every pack file a local .standards checkout must carry for doctor to pass.
+    accepts: "none"
+    returns: string[]
+    pure: true
+    afferent:
+      - from: entrypoint.cli.scaffoldCommands#runDoctor
+        via: direct-call
+    efferent:
+      - to: standards.reader.standardsResolver#reviewPackEntries
+        via: direct-call
+        because: the convention list is the three kinds times every area, plus each kind's checklist
 
   - signal: truncateAtSection
     intent: Truncates text to a budget on a `## ` section boundary where possible, so a dropped tail never leaves a rule half-included.
@@ -41,10 +72,10 @@ signals:
 
   - signal: resolveStandards
     intent: >
-      Loads and concatenates each matched area's configured standards documents through the
-      given (or default local-filesystem) reader, budgeting per area and reporting anything
-      configured but not found.
-    accepts: "readonly Area[], StandardsConfig, workspaceRoot, reader?"
+      Loads the review pack for this kind and the matched areas through the given
+      (or default local-filesystem) reader, budgeting each document and reporting
+      anything the pack named that was not found.
+    accepts: "readonly Area[], StandardsConfig, workspaceRoot, reader?, kind?"
     returns: Promise<StandardsResolution>
     afferent:
       - from: entrypoint.cli.governCommand#runGovern
@@ -52,12 +83,12 @@ signals:
       - from: entrypoint.cli.scaffoldCommands#runDoctor
         via: direct-call
     efferent:
-      - to: standards.reader.standardsResolver#standardsIdFor
+      - to: standards.reader.standardsResolver#reviewPackEntries
         via: direct-call
-        because: names the reference id for each area that resolved at least one document
+        because: the pack path list is the only source of documents to load
       - to: standards.reader.standardsResolver#truncateAtSection
         via: direct-call
-        because: enforces the per-area character budget on the concatenated text before returning it
+        because: enforces the per-document character budget before returning text
       - to: standards.reader.HouseStandardsReader#exists
         via: di
         because: when govern-command supplies a HouseStandardsReader, existence checks reach house-api instead of the local filesystem
@@ -85,4 +116,4 @@ signals:
         via: direct-call
     efferent: []
 
-revision: 2026-08-30
+revision: 2026-09-07

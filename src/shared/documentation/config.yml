@@ -8,8 +8,8 @@ unit: src/shared/config.ts
 responsibility: >
   Reads and validates pipeline.config.yml into a PipelineConfig, failing closed with a specific
   ConfigError message on any unrecognized shape rather than silently defaulting it away, and
-  supplies this pipeline's own opinionated defaults (area paths, standards docs, protected
-  paths) for anything the consumer's config leaves unset.
+  supplies this pipeline's own opinionated defaults (area paths, standards on/off and
+  budget, protected paths) for anything the consumer's config leaves unset.
 
 owns:
   - Every DEFAULT_* constant - the opinionated defaults applied when a config omits a setting
@@ -53,4 +53,4 @@ signals:
       - code: ConfigError
         when: the text is not valid YAML, or any field does not match the expected shape (wrong type, unrecognized area, unrecognized required-check name)
 
-revision: 2026-08-30
+revision: 2026-09-07

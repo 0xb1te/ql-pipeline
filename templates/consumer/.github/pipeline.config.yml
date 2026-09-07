@@ -37,9 +37,8 @@ merge:
 #     frontend: ["apps/*frontend*/**"]
 #     backend: ["apps/*backend*/**"]
 
-# The house engineering standards the reviewer judges against. The
-# defaults map every area onto the ql-docs stage checklists; override
-# only if this repo needs something different.
+# Review criteria come from ql-docs workflow/review/pr-* (feature / hotfix /
+# bugfix), loaded from house-api. There is no path map to override.
 # standards:
 #   enabled: true              # false = review against rules only
 #   max_chars_per_area: 140000 # lower to cut review cost

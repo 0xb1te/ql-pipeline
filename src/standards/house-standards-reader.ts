@@ -42,18 +42,30 @@ export interface HouseStandardsReaderOptions {
 }
 
 const STAGE_FOLDER = /^workflow\/rules\/stage-(\d)-/;
+const REVIEW_PREFIX = 'workflow/review/';
 
 /**
- * Mirrors `RouteIds.routesForNode`'s stage-folder branch only — the one
- * route family every doc path `ql-pipeline` configures actually needs.
- * `RouteIds`'s other branches (flows, harness, review) don't apply to
- * engineering-standards checklists and are deliberately not reimplemented
- * here; a doc path outside `workflow/rules/stage-N-*` is reported missing
- * rather than guessed at.
+ * Mirrors `RouteIds.routesForNode` for the two families this reader
+ * actually opens: `review:pr-*` (the pack ql-pipeline loads) and
+ * `stage:N` (kept so a leftover stage-path fixture still resolves).
  */
+function reviewRouteForNode(nodeId: string): string | null {
+  if (!nodeId.startsWith(REVIEW_PREFIX)) {
+    return null;
+  }
+  const rest = nodeId.slice(REVIEW_PREFIX.length);
+  const slash = rest.indexOf('/');
+  const name = slash < 0 ? rest.replace(/\.md$/, '') : rest.slice(0, slash);
+  return name === '' ? null : `review:${name}`;
+}
+
 function stageRouteForNode(nodeId: string): string | null {
   const match = STAGE_FOLDER.exec(nodeId);
   return match ? `stage:${match[1]}` : null;
+}
+
+function routeForNode(nodeId: string): string | null {
+  return reviewRouteForNode(nodeId) ?? stageRouteForNode(nodeId);
 }
 
 /**
@@ -153,7 +165,7 @@ export class HouseStandardsReader implements StandardsReader {
   }
 
   private async fetchDocument(docPath: string): Promise<string | null> {
-    const route = stageRouteForNode(docPath);
+    const route = routeForNode(docPath);
     if (route === null) {
       return null;
     }

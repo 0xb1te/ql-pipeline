@@ -146,9 +146,12 @@ signals:
       - to: shared.core.config#parseConfig
         via: direct-call
         because: reads the repo's own pipeline config the same way govern does, to check it is valid and see what it configures
+      - to: standards.reader.standardsResolver#allReviewDocumentPaths
+        via: direct-call
+        because: the convention list is the set of pack files a local checkout must carry
       - to: standards.reader.standardsResolver#resolveStandards
         via: direct-call
-        because: checks a local .standards checkout - never house-api - for the doctor command's own reasons independent of what govern reads in CI
+        because: checks a local .standards checkout - never house-api - for every review kind's pack, independent of what govern reads in CI
       - to: scaffold.core.doctor#runDoctorChecks
         via: direct-call
         because: turns everything collected about the repo into the pass/warn/fail checks reported
@@ -156,4 +159,4 @@ signals:
         via: direct-call
         because: the worst status across every check decides this command's boolean result
 
-revision: 2026-08-30
+revision: 2026-09-07

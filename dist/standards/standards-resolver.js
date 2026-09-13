@@ -1,6 +1,8 @@
 // @neuron standards.reader.standardsResolver
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { AREAS } from '../shared/types.js';
+import { REVIEW_KINDS } from './review-kind.js';
 const defaultReader = {
     exists: (path) => Promise.resolve(existsSync(path)),
     read: (path) => Promise.resolve(readFileSync(path, 'utf-8')),
@@ -8,6 +10,21 @@ const defaultReader = {
 // @signal standardsIdFor
 export function standardsIdFor(area) {
     return `${area}.standards`;
+}
+// @signal reviewPackEntries
+export function reviewPackEntries(kind, areas) {
+    const entries = [
+        { id: 'review.standards', area: null, docPath: `workflow/review/${kind}/checklist.md` },
+    ];
+    for (const area of areas) {
+        entries.push({ id: standardsIdFor(area), area, docPath: `workflow/review/${kind}/${area}.md` });
+    }
+    return entries;
+}
+/** Every file a local `.standards` checkout must have for `doctor` to pass. */
+// @signal allReviewDocumentPaths
+export function allReviewDocumentPaths() {
+    return REVIEW_KINDS.flatMap((kind) => reviewPackEntries(kind, AREAS).map((entry) => entry.docPath));
 }
 /**
  * Truncates on a section boundary where possible. The checklists are
@@ -29,44 +46,27 @@ export function truncateAtSection(text, maxChars) {
     };
 }
 /**
- * Loads the engineering standards that apply to a PR's areas — the house
- * workflow documentation, checked out alongside the code under review.
- *
- * Each area's documents are concatenated into a single reference the
- * reviewer can cite, budgeted per area so a large checklist cannot crowd
- * the diff out of the prompt.
+ * Loads the review pack for this PR's kind and areas from
+ * `workflow/review/pr-*`. The pack path is a convention, not a config map.
  */
 // @signal resolveStandards
-export async function resolveStandards(areas, config, workspaceRoot, reader = defaultReader) {
+export async function resolveStandards(areas, config, workspaceRoot, reader = defaultReader, kind = 'pr-feature') {
     if (!config.enabled) {
         return { standards: [], missing: [] };
     }
     const standards = [];
     const missing = [];
-    for (const area of areas) {
-        const docPaths = config.docs[area];
-        if (docPaths === undefined || docPaths.length === 0) {
+    for (const entry of reviewPackEntries(kind, areas)) {
+        const absolute = join(workspaceRoot, config.root, entry.docPath);
+        if (!(await reader.exists(absolute))) {
+            missing.push(entry.docPath);
             continue;
         }
-        const parts = [];
-        const included = [];
-        for (const docPath of docPaths) {
-            const absolute = join(workspaceRoot, config.root, docPath);
-            if (!(await reader.exists(absolute))) {
-                missing.push(docPath);
-                continue;
-            }
-            parts.push(`===== ${docPath} =====\n\n${await reader.read(absolute)}`);
-            included.push(docPath);
-        }
-        if (parts.length === 0) {
-            continue;
-        }
-        const { text, truncated } = truncateAtSection(parts.join('\n\n'), config.maxCharsPerArea);
+        const { text, truncated } = truncateAtSection(await reader.read(absolute), config.maxCharsPerArea);
         standards.push({
-            id: standardsIdFor(area),
-            area,
-            docPath: included.join(', '),
+            id: entry.id,
+            area: entry.area,
+            docPath: entry.docPath,
             text,
             truncated,
         });

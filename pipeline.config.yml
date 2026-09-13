@@ -62,54 +62,15 @@ areas:
     frontend: ["apps/*frontend*/**"]
     backend: ["apps/*backend*/**"]
 
-# The house engineering standards the reviewer judges against — the
-# authoritative definition of how code in each area should be structured,
-# checked out by the workflow from the standards repository.
-#
-# Only each stage's `checklist.md` is loaded. The `PROMPT.md` and
-# `CREATE-*.md` files in the same trees are code-generation instructions:
-# they would tell a reviewer how to write code, not how to judge it.
-#
-# These mappings ARE the area rules. `rules/*.rules` deliberately does not
-# restate them — see rules/_common.rules for why.
+# Review criteria come from ql-docs workflow/review/pr-*, chosen by branch
+# prefix (features → pr-feature, hotfixes → pr-fix, bugfixes → pr-bugfix).
+# There is no standards.docs path map; that key is ignored if present.
 standards:
   enabled: true
   root: .standards
-  # Sized so no area truncates; frontend is the largest at ~128k chars.
-  # Lower it to cut review cost, at the price of dropping trailing
-  # checklist sections (cut on a section boundary, never mid-rule).
+  # Sized so no pack file truncates. Lower it to cut review cost, at the
+  # price of dropping trailing sections (cut on a section boundary).
   max_chars_per_area: 140000
-  docs:
-    # Two stages own the frontend: stage 2 the visible surface, stage 5
-    # the non-visual architecture. A PR under apps/*frontend* can
-    # legitimately be either kind of work, so both apply.
-    #
-    # Every path below is nested under workflow/rules/ (workflow/ on its
-    # own is the playbook's own reference material, not the checklists a
-    # reviewer judges code against) — verified against the real ql-docs tree.
-    frontend:
-      - workflow/rules/stage-2-mockup/checklist.md
-      - workflow/rules/stage-5-frontend/checklist.md
-    backend:
-      - workflow/rules/stage-4-backend/backend/checklist.md
-      - workflow/rules/stage-4-backend/sql/checklist.md
-      # The backend test checklist lives under stage-6-tests/backend/, not
-      # stage-4-backend/tests/ — there is no such directory upstream.
-      - workflow/rules/stage-6-tests/backend/checklist.md
-    # Mobile apps are the frontend packaged with Capacitor (see
-    # workflow/rules/stage-8-deployment/07-capacitor-apps/); there is no
-    # separate native codebase and no dedicated mobile checklist upstream.
-    mobile:
-      - workflow/rules/stage-5-frontend/checklist.md
-    ios:
-      - workflow/rules/stage-5-frontend/checklist.md
-    android:
-      - workflow/rules/stage-5-frontend/checklist.md
-    # Deployment is stage 8, not stage 7 (stage 7 is integration).
-    infrastructure:
-      - workflow/rules/stage-8-deployment/checklist.md
-    # `docs` is absent deliberately: the workflow has no documentation
-    # checklist, so rules/docs.rules covers that area on its own.
 
 # This repo stays on the Cursor CLI (default provider). openai_compatible
 # is review-only and would disable the fixer. Slug is the cursor-agent

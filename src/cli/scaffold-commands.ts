@@ -3,7 +3,9 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { dirname, join, posix, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseConfig } from '../shared/config.js';
-import { resolveStandards } from '../standards/standards-resolver.js';
+import { AREAS } from '../shared/types.js';
+import { REVIEW_KINDS } from '../standards/review-kind.js';
+import { allReviewDocumentPaths, resolveStandards } from '../standards/standards-resolver.js';
 import { runDoctorChecks, worstStatus, type CheckResult, type DoctorInput } from '../scaffold/doctor.js';
 import { MANIFEST_PATH, parseManifest, serializeManifest, type ScaffoldManifest } from '../scaffold/manifest.js';
 import {
@@ -241,11 +243,13 @@ async function collectDoctorInput(root: string): Promise<DoctorInput> {
       standardsRoot = config.standards.root;
 
       if (standardsEnabled && existsSync(join(root, standardsRoot))) {
-        const areas = Object.keys(config.standards.docs) as Parameters<typeof resolveStandards>[0][number][];
-        // doctor always checks the local checkout, never house-api — its
-        // whole job is verifying that checkout for a human at a terminal,
-        // independent of whatever `govern` reads in CI.
-        missingStandardsDocs = (await resolveStandards(areas, config.standards, root)).missing;
+        const expected = new Set(allReviewDocumentPaths());
+        const missing: string[] = [];
+        for (const kind of REVIEW_KINDS) {
+          const resolved = await resolveStandards([...AREAS], config.standards, root, undefined, kind);
+          missing.push(...resolved.missing.filter((path) => expected.has(path)));
+        }
+        missingStandardsDocs = [...new Set(missing)];
       }
     } catch (cause) {
       configError = cause instanceof Error ? cause.message : String(cause);

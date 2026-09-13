@@ -5,15 +5,18 @@ layer: reader
 path: src/standards
 
 role: >
-  Loads the engineering-standards documents that apply to a PR's areas, budgeted per area, from
-  whichever StandardsReader is injected - house-api in CI, or a local ql-docs checkout for the
-  doctor command.
+  Picks the ql-docs review pack for a PR's kind, then loads that pack's documents for the
+  matched areas, budgeted per document, from whichever StandardsReader is injected - house-api
+  in CI, or a local ql-docs checkout for the doctor command.
 
 upstream:
   - entrypoint.cli
 downstream: []
 
 neurons:
+  - id: standards.reader.reviewKind
+    file: reviewKind.yml
+    unit: ../review-kind.ts
   - id: standards.reader.standardsResolver
     file: standardsResolver.yml
     unit: ../standards-resolver.ts
@@ -24,4 +27,4 @@ neurons:
     file: houseCredentials.yml
     unit: ../house-credentials.ts
 
-revision: 2026-08-30
+revision: 2026-09-07

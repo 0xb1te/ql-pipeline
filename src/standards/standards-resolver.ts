@@ -1,12 +1,13 @@
 // @neuron standards.reader.standardsResolver
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Area, StandardsConfig } from '../shared/types.js';
+import { AREAS, type Area, type StandardsConfig } from '../shared/types.js';
+import { REVIEW_KINDS, type ReviewKind } from './review-kind.js';
 
 export interface ResolvedStandard {
-  /** Reference id findings cite, e.g. `frontend.standards`. */
+  /** Reference id findings cite, e.g. `frontend.standards` or `review.standards`. */
   readonly id: string;
-  readonly area: Area;
+  readonly area: Area | null;
   /** Path relative to the standards root, kept so the reviewer can name its source. */
   readonly docPath: string;
   readonly text: string;
@@ -15,21 +16,14 @@ export interface ResolvedStandard {
 
 export interface StandardsResolution {
   readonly standards: readonly ResolvedStandard[];
-  /** Docs the config named that were not present — surfaced, never silently ignored. */
+  /** Docs the pack named that were not present — surfaced, never silently ignored. */
   readonly missing: readonly string[];
 }
 
 /**
  * A source of standards documents, keyed by the same absolute path
  * `resolveStandards` joins from `workspaceRoot` + `config.root` + a
- * configured doc path. HTTP-backed implementations (`HouseStandardsReader`)
- * reverse that join internally to recover the doc path they actually need —
- * this interface's shape stays the local-filesystem one so neither side has
- * to change when a new transport is added.
- *
- * Both methods are `Promise`-returning because a reader backed by a network
- * call is inherently async; the local-filesystem reader below just resolves
- * immediately.
+ * pack-relative doc path.
  */
 export interface StandardsReader {
   exists: (path: string) => Promise<boolean>;
@@ -41,9 +35,32 @@ const defaultReader: StandardsReader = {
   read: (path) => Promise.resolve(readFileSync(path, 'utf-8')),
 };
 
+export interface ReviewPackEntry {
+  readonly id: string;
+  readonly area: Area | null;
+  readonly docPath: string;
+}
+
 // @signal standardsIdFor
 export function standardsIdFor(area: Area): string {
   return `${area}.standards`;
+}
+
+// @signal reviewPackEntries
+export function reviewPackEntries(kind: ReviewKind, areas: readonly Area[]): ReviewPackEntry[] {
+  const entries: ReviewPackEntry[] = [
+    { id: 'review.standards', area: null, docPath: `workflow/review/${kind}/checklist.md` },
+  ];
+  for (const area of areas) {
+    entries.push({ id: standardsIdFor(area), area, docPath: `workflow/review/${kind}/${area}.md` });
+  }
+  return entries;
+}
+
+/** Every file a local `.standards` checkout must have for `doctor` to pass. */
+// @signal allReviewDocumentPaths
+export function allReviewDocumentPaths(): string[] {
+  return REVIEW_KINDS.flatMap((kind) => reviewPackEntries(kind, AREAS).map((entry) => entry.docPath));
 }
 
 /**
@@ -69,12 +86,8 @@ export function truncateAtSection(text: string, maxChars: number): { text: strin
 }
 
 /**
- * Loads the engineering standards that apply to a PR's areas — the house
- * workflow documentation, checked out alongside the code under review.
- *
- * Each area's documents are concatenated into a single reference the
- * reviewer can cite, budgeted per area so a large checklist cannot crowd
- * the diff out of the prompt.
+ * Loads the review pack for this PR's kind and areas from
+ * `workflow/review/pr-*`. The pack path is a convention, not a config map.
  */
 // @signal resolveStandards
 export async function resolveStandards(
@@ -82,6 +95,7 @@ export async function resolveStandards(
   config: StandardsConfig,
   workspaceRoot: string,
   reader: StandardsReader = defaultReader,
+  kind: ReviewKind = 'pr-feature',
 ): Promise<StandardsResolution> {
   if (!config.enabled) {
     return { standards: [], missing: [] };
@@ -90,34 +104,17 @@ export async function resolveStandards(
   const standards: ResolvedStandard[] = [];
   const missing: string[] = [];
 
-  for (const area of areas) {
-    const docPaths = config.docs[area];
-    if (docPaths === undefined || docPaths.length === 0) {
+  for (const entry of reviewPackEntries(kind, areas)) {
+    const absolute = join(workspaceRoot, config.root, entry.docPath);
+    if (!(await reader.exists(absolute))) {
+      missing.push(entry.docPath);
       continue;
     }
-
-    const parts: string[] = [];
-    const included: string[] = [];
-
-    for (const docPath of docPaths) {
-      const absolute = join(workspaceRoot, config.root, docPath);
-      if (!(await reader.exists(absolute))) {
-        missing.push(docPath);
-        continue;
-      }
-      parts.push(`===== ${docPath} =====\n\n${await reader.read(absolute)}`);
-      included.push(docPath);
-    }
-
-    if (parts.length === 0) {
-      continue;
-    }
-
-    const { text, truncated } = truncateAtSection(parts.join('\n\n'), config.maxCharsPerArea);
+    const { text, truncated } = truncateAtSection(await reader.read(absolute), config.maxCharsPerArea);
     standards.push({
-      id: standardsIdFor(area),
-      area,
-      docPath: included.join(', '),
+      id: entry.id,
+      area: entry.area,
+      docPath: entry.docPath,
       text,
       truncated,
     });

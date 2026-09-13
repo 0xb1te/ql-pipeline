@@ -1,8 +1,10 @@
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  allReviewDocumentPaths,
   formatStandardsForPrompt,
   resolveStandards,
+  reviewPackEntries,
   standardsIds,
   truncateAtSection,
   type StandardsReader,
@@ -15,10 +17,7 @@ function config(overrides: Partial<StandardsConfig> = {}): StandardsConfig {
   return {
     enabled: true,
     root: '.standards',
-    docs: {
-      frontend: ['workflow/stage-5-frontend/checklist.md'],
-      backend: ['workflow/stage-4-backend/backend/checklist.md', 'workflow/stage-4-backend/sql/checklist.md'],
-    },
+    docs: {},
     maxCharsPerArea: 90_000,
     ...overrides,
   };
@@ -33,62 +32,70 @@ function reader(files: Record<string, string>): StandardsReader {
 
 const at = (docPath: string): string => join(ROOT, '.standards', docPath);
 
+describe('reviewPackEntries', () => {
+  it('always includes the type checklist plus one file per area', () => {
+    expect(reviewPackEntries('pr-feature', ['frontend', 'backend'])).toEqual([
+      { id: 'review.standards', area: null, docPath: 'workflow/review/pr-feature/checklist.md' },
+      { id: 'frontend.standards', area: 'frontend', docPath: 'workflow/review/pr-feature/frontend.md' },
+      { id: 'backend.standards', area: 'backend', docPath: 'workflow/review/pr-feature/backend.md' },
+    ]);
+  });
+
+  it('lists every pack file a local checkout must carry', () => {
+    expect(allReviewDocumentPaths()).toContain('workflow/review/pr-fix/checklist.md');
+    expect(allReviewDocumentPaths()).toContain('workflow/review/pr-bugfix/docs.md');
+  });
+});
+
 describe('resolveStandards', () => {
-  it('loads the configured document for a matched area', async () => {
-    const files = reader({ [at('workflow/stage-5-frontend/checklist.md')]: '# Frontend checklist' });
-
-    const { standards } = await resolveStandards(['frontend'], config(), ROOT, files);
-
-    expect(standards).toHaveLength(1);
-    expect(standards[0]).toMatchObject({ id: 'frontend.standards', area: 'frontend', truncated: false });
-    expect(standards[0]?.text).toContain('# Frontend checklist');
-  });
-
-  it('concatenates several documents for one area, labelling each source', async () => {
+  it('loads the convention pack, not standards.docs', async () => {
     const files = reader({
-      [at('workflow/stage-4-backend/backend/checklist.md')]: 'BACKEND RULES',
-      [at('workflow/stage-4-backend/sql/checklist.md')]: 'SQL RULES',
+      [at('workflow/review/pr-feature/checklist.md')]: '# Type rules',
+      [at('workflow/review/pr-feature/frontend.md')]: '# Frontend checklist',
     });
 
-    const { standards } = await resolveStandards(['backend'], config(), ROOT, files);
+    const { standards } = await resolveStandards(['frontend'], config(), ROOT, files, 'pr-feature');
 
-    expect(standards[0]?.text).toContain('BACKEND RULES');
-    expect(standards[0]?.text).toContain('SQL RULES');
-    expect(standards[0]?.text).toContain('workflow/stage-4-backend/sql/checklist.md');
+    expect(standardsIds(standards)).toEqual(['review.standards', 'frontend.standards']);
+    expect(standards[0]?.text).toContain('# Type rules');
+    expect(standards[1]?.text).toContain('# Frontend checklist');
   });
 
-  it('returns one entry per area for a PR spanning several', async () => {
+  it('uses the kind to pick pr-fix vs pr-feature', async () => {
     const files = reader({
-      [at('workflow/stage-5-frontend/checklist.md')]: 'FE',
-      [at('workflow/stage-4-backend/backend/checklist.md')]: 'BE',
-      [at('workflow/stage-4-backend/sql/checklist.md')]: 'SQL',
+      [at('workflow/review/pr-fix/checklist.md')]: 'HOTFIX RULES',
+      [at('workflow/review/pr-fix/backend.md')]: 'BE',
     });
 
-    const { standards } = await resolveStandards(['frontend', 'backend'], config(), ROOT, files);
+    const { standards } = await resolveStandards(['backend'], config(), ROOT, files, 'pr-fix');
 
-    expect(standardsIds(standards)).toEqual(['frontend.standards', 'backend.standards']);
+    expect(standards[0]?.docPath).toBe('workflow/review/pr-fix/checklist.md');
+    expect(standards[0]?.text).toContain('HOTFIX RULES');
   });
 
-  it('reports a configured document that is not checked out, rather than silently skipping it', async () => {
+  it('reports a pack file that is not present, rather than silently skipping it', async () => {
     const files = reader({});
 
-    const { standards, missing } = await resolveStandards(['frontend'], config(), ROOT, files);
+    const { standards, missing } = await resolveStandards(['frontend'], config(), ROOT, files, 'pr-feature');
 
     expect(standards).toEqual([]);
-    expect(missing).toEqual(['workflow/stage-5-frontend/checklist.md']);
+    expect(missing).toEqual([
+      'workflow/review/pr-feature/checklist.md',
+      'workflow/review/pr-feature/frontend.md',
+    ]);
   });
 
   it('still applies the documents it does find when only some are missing', async () => {
-    const files = reader({ [at('workflow/stage-4-backend/backend/checklist.md')]: 'BE' });
+    const files = reader({ [at('workflow/review/pr-bugfix/checklist.md')]: 'TYPE' });
 
-    const { standards, missing } = await resolveStandards(['backend'], config(), ROOT, files);
+    const { standards, missing } = await resolveStandards(['backend'], config(), ROOT, files, 'pr-bugfix');
 
     expect(standards).toHaveLength(1);
-    expect(missing).toEqual(['workflow/stage-4-backend/sql/checklist.md']);
+    expect(missing).toEqual(['workflow/review/pr-bugfix/backend.md']);
   });
 
   it('loads nothing at all when standards are disabled', async () => {
-    const files = reader({ [at('workflow/stage-5-frontend/checklist.md')]: 'FE' });
+    const files = reader({ [at('workflow/review/pr-feature/frontend.md')]: 'FE' });
 
     expect(await resolveStandards(['frontend'], config({ enabled: false }), ROOT, files)).toEqual({
       standards: [],
@@ -97,23 +104,22 @@ describe('resolveStandards', () => {
     expect(files.exists).not.toHaveBeenCalled();
   });
 
-  it('skips an area that has no documents configured', async () => {
-    const files = reader({});
-
-    const { standards, missing } = await resolveStandards(['docs'], config(), ROOT, files);
-
-    expect(standards).toEqual([]);
-    expect(missing).toEqual([]);
-  });
-
   it('marks a document truncated when it exceeds the per-area budget', async () => {
     const huge = `## 01 — First\n${'x'.repeat(500)}\n## 02 — Second\n${'y'.repeat(500)}`;
-    const files = reader({ [at('workflow/stage-5-frontend/checklist.md')]: huge });
+    const files = reader({
+      [at('workflow/review/pr-feature/checklist.md')]: 'ok',
+      [at('workflow/review/pr-feature/frontend.md')]: huge,
+    });
 
-    const { standards } = await resolveStandards(['frontend'], config({ maxCharsPerArea: 400 }), ROOT, files);
+    const { standards } = await resolveStandards(
+      ['frontend'],
+      config({ maxCharsPerArea: 400 }),
+      ROOT,
+      files,
+      'pr-feature',
+    );
 
-    expect(standards[0]?.truncated).toBe(true);
-    expect(standards[0]?.text).toContain('truncated');
+    expect(standards.find((item) => item.id === 'frontend.standards')?.truncated).toBe(true);
   });
 });
 
@@ -146,13 +152,17 @@ describe('formatStandardsForPrompt', () => {
   });
 
   it('tells the reviewer exactly how to cite each document', async () => {
-    const files = reader({ [at('workflow/stage-5-frontend/checklist.md')]: 'FE RULES' });
-    const { standards } = await resolveStandards(['frontend'], config(), ROOT, files);
+    const files = reader({
+      [at('workflow/review/pr-feature/checklist.md')]: 'TYPE',
+      [at('workflow/review/pr-feature/frontend.md')]: 'FE RULES',
+    });
+    const { standards } = await resolveStandards(['frontend'], config(), ROOT, files, 'pr-feature');
 
     const text = formatStandardsForPrompt(standards);
 
     expect(text).toContain('frontend.standards');
     expect(text).toContain('`frontend.standards#<section>`');
     expect(text).toContain('FE RULES');
+    expect(text).toContain('review.standards');
   });
 });

@@ -40,6 +40,26 @@ function at(docPath: string): string {
 }
 
 describe('HouseStandardsReader', () => {
+  it('opens a review:pr-* session for a workflow/review pack path', async () => {
+    const docPath = 'workflow/review/pr-feature/checklist.md';
+    const client = fakeClient({
+      createSession: vi.fn(() => Promise.resolve(here({ cursor: docPath, body: '# Feature pack' }))),
+    });
+    const reader = new HouseStandardsReader({
+      client,
+      workspaceRoot: ROOT,
+      standardsRoot: STANDARDS_ROOT,
+      projectId: PROJECT_ID,
+    });
+
+    expect(await reader.read(at(docPath))).toBe('# Feature pack');
+    expect(client.createSession).toHaveBeenCalledWith({
+      route: 'review:pr-feature',
+      projectId: PROJECT_ID,
+      taskRef: docPath,
+    });
+  });
+
   it('reads a document that is the session entry node itself', async () => {
     const docPath = 'workflow/rules/stage-5-frontend/checklist.md';
     const client = fakeClient({

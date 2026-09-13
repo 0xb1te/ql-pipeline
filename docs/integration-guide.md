@@ -46,7 +46,7 @@ The `checks /` prefix is your calling job's id — rename the job and the prefix
 - **Secret for the default Cursor provider:** `CURSOR_API_KEY`, used by both the reviewer and the fixer when `agent.provider` is `cursor` (the default). The workflow still installs the Cursor CLI on the runner — the fixer remains Cursor-only even if review uses another endpoint.
 - **Secrets for `agent.provider: openai_compatible`:** `QL_PIPELINE_AGENT_API_KEY` (preferred) or `OPENAI_API_KEY` (fallback). These are bearer tokens for `POST {base_url}/chat/completions`. Never put them in `pipeline.config.yml`. A FIX verdict then escalates to a human instead of running the Cursor fixer.
 - **Required secrets (unless `standards.enabled: false`):** `HOUSE_API_URL`, `QL_AUTH_URL`, `QL_AUTH_CLIENT_ID`, `QL_AUTH_CLIENT_SECRET` — a `github_agent` client-credentials client registered in `ql-auth`, used to read the engineering standards from `house-api` for this review. Without them the `ql-pipeline` check fails with an explicit message rather than quietly reviewing against no standards.
-  **Grant this client `stage:1` through `stage:9` — not the `review:frontend`/`review:backend`/`review:infrastructure` routes `ql-auth`'s own README lists as "recommended" for `github_agent`.** `HouseStandardsReader` opens every `house-api` session with `route: "stage:${N}"` (`N` taken from the `workflow/rules/stage-N-*` folder each configured `standards.docs` path lives under — see `src/standards/house-standards-reader.ts`'s `stageRouteForNode`), because that is the route family `house-api`'s session graph actually gates engineering-standards checklists by; it never requests a `review:*` route. A client provisioned with only the `review:*` routes gets a `403` on its very first `govern` call. `stage:1`–`stage:9` covers every stage this or a future `standards.docs` config could reference; grant a narrower set only if you have confirmed exactly which stage numbers your own `pipeline.config.yml` uses.
+  **Grant this client `review:*` (or `review:pr-feature`, `review:pr-fix`, `review:pr-bugfix`).** `HouseStandardsReader` opens every session with `route: "review:${pack}"` for a path under `workflow/review/pr-*`. That is the only tree `ql-pipeline` loads. A leftover `stage:N` mapping remains only so an old fixture still resolves; new reviews never request it.
 - **Optional secret:** `GH_TOKEN`. Omit it and the workflow falls back to the default `GITHUB_TOKEN` — but note the consequence: **commits pushed with the default token do not trigger new workflow runs**, so an auto-fix commit will not re-run the pipeline on its own. For the fix loop to close automatically (fix → re-review → merge), supply a PAT or GitHub App token as `GH_TOKEN`. With the default token the fix still lands on the PR; it just waits for the next push or a manual re-run to be re-reviewed.
 
 ### Fork pull requests
@@ -182,23 +182,19 @@ Globs support `*` (within a path segment), `**` (across segments), and `?` (one 
 
 ## 4c. Engineering standards
 
-The reviewer judges your code against the organisation's own workflow documentation, not just the generic rule sets. Standards documents are read live from `house-api` at review time — never vendored, never checked out — so reviews always reflect the current standards.
+The reviewer judges your code against ql-docs `workflow/review/pr-*`, not the build-stage trees and not the feature/hotfix/bugfix *process* checklists. Documents are read live from `house-api` at review time — never vendored, never checked out — so reviews always reflect the current packs.
 
-Defaults — these mappings **are** the area rules; `rules/*.rules` deliberately does not restate them:
+Which pack loads is a convention, not a `standards.docs` map:
 
-| Area | Documents loaded from `0xb1te/ql-docs` | Size |
+| PR | Pack | House route |
 |---|---|---|
-| `frontend` | `workflow/rules/stage-2-mockup/checklist.md` + `stage-5-frontend/checklist.md` | ~128k chars (~32k tokens) |
-| `backend` | `workflow/rules/stage-4-backend/{backend,sql}/checklist.md` + `stage-6-tests/backend/checklist.md` | ~100k (~25k tokens) |
-| `mobile`, `ios`, `android` | `workflow/rules/stage-5-frontend/checklist.md` | ~58k (~14k tokens) |
-| `infrastructure` | `workflow/rules/stage-8-deployment/checklist.md` | ~12k (~3k tokens) |
-| `docs` | — (no upstream checklist; `rules/docs.rules` covers it) | — |
+| `features/` branch, or a `feat` commit on an unnamed branch | `workflow/review/pr-feature/` | `review:pr-feature` |
+| `hotfixes/` branch | `workflow/review/pr-fix/` | `review:pr-fix` |
+| `bugfixes/` branch, or a `fix` commit that is not a hotfix | `workflow/review/pr-bugfix/` | `review:pr-bugfix` |
 
-Only the `checklist.md` files are used. The `PROMPT.md` and `CREATE-*.md` files in those trees are *code-generation* instructions — giving them to a reviewer would tell it how to write code, not how to judge it.
+Every pack is self-contained: `checklist.md` (PR hygiene + type rules, cited as `review.standards`) plus one file per area the diff touches (`frontend.md`, `backend.md`, …, cited as `<area>.standards`). `standards.docs` in YAML is accepted for older configs and ignored.
 
-Mobile maps to the frontend checklist because in this architecture mobile apps are the frontend packaged with Capacitor (`workflow/rules/stage-8-deployment/07-capacitor-apps/`) — there is no separate native codebase upstream. If you do maintain native code, override `standards.docs` for those areas.
-
-The reviewer cites standards findings as `backend.standards#09-controllers`, and they are held to the same grounding requirement as rule findings: a citation to a section or file that doesn't exist is discarded.
+The reviewer cites findings as `backend.standards#09-controllers` or `review.standards#MUST`, and they are held to the same grounding requirement as rule findings: a citation to a section or file that doesn't exist is discarded.
 
 ```yaml
 standards:
@@ -206,15 +202,9 @@ standards:
   root: .standards         # a local checkout path, read only by `doctor` for your editor —
                             # `govern` never reads this path; it always goes to house-api
   max_chars_per_area: 120000
-  docs:
-    frontend: ["workflow/rules/stage-5-frontend/checklist.md"]
-    backend:
-      - workflow/rules/stage-4-backend/backend/checklist.md
-      - workflow/rules/stage-4-backend/sql/checklist.md
-      - workflow/rules/stage-6-tests/backend/checklist.md
 ```
 
-Each `docs` path is the same `nodeId` house-api serves that document under — see `house-api`'s own docs for how a path maps onto a route. There is no per-caller way to point at a different standards source or pin a ref; `house-api` always serves the current `ql-docs` content its own operators configured it with.
+There is no per-caller way to point at a different standards source or pin a ref; `house-api` always serves the current `ql-docs` content its own operators configured it with.
 
 **Cost — read this before enabling on a busy repo.** The checklists are large. A frontend PR sends ~31k tokens of standards, a backend PR ~24k, and a PR touching **both sends ~54k tokens** on top of the diff. That is the price of reviewing against your actual documented architecture rather than a generic rule list.
 

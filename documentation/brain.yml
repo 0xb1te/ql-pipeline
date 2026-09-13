@@ -56,8 +56,8 @@ regions:
 
   - region: standards
     purpose: >
-      Loads the house engineering-standards documents for a PR's areas, from house-api (or a
-      local ql-docs checkout for `doctor`), budgeted per area for the reviewer prompt.
+      Loads the ql-docs `workflow/review/pr-*` pack for a PR's kind and areas, from house-api
+      (or a local ql-docs checkout for `doctor`), budgeted per document for the reviewer prompt.
     ganglia:
       - id: standards.reader
         file: src/standards/documentation/_ganglion.yml

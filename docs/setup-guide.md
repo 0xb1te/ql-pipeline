@@ -45,7 +45,7 @@ In the repository you want governed: **Settings → Secrets and variables → Ac
 
 The four `HOUSE_*`/`QL_AUTH_*` secrets are only needed while `standards.enabled` is `true` (the default) — set it to `false` in your pipeline config to review with rules only and skip creating them.
 
-**When you register the `QL_AUTH_CLIENT_ID` client in `ql-auth`, grant it routes `stage:1` through `stage:9`.** Do not follow `ql-auth`'s own README "recommended routes" table for `github_agent` (`review:frontend`, `review:backend`, `review:infrastructure`) — that table describes a different, unimplemented review-area route family. `house-api` gates every engineering-standards checklist `ql-pipeline` reads by `stage:N` (matching the `workflow/rules/stage-N-*` folder the document lives under), and a client with only `review:*` routes gets a `403` on the very first PR. See [integration-guide.md](integration-guide.md)'s secrets section for the full explanation.
+**When you register the `QL_AUTH_CLIENT_ID` client in `ql-auth`, grant it `review:*` (or the three routes `review:pr-feature`, `review:pr-fix`, `review:pr-bugfix`).** Those are the House routes for `workflow/review/pr-*`, which is the only tree `ql-pipeline` loads. Stage routes (`stage:1`–`stage:9`) are for the build playbook, not for PR review. See [integration-guide.md](integration-guide.md)'s secrets section.
 
 ## Step 2 — Add the caller workflow
 
@@ -128,7 +128,7 @@ git clone git@github.com:0xb1te/ql-docs.git .standards
 echo '.standards/' >> .gitignore
 ```
 
-The Cursor rules reference the same document paths `standards.docs` names, so cloning them to `.standards/` lets your editor resolve those references — but nothing in CI depends on this checkout existing.
+The Cursor rules still point at the build-stage trees. `ql-pipeline doctor` checks that `.standards/workflow/review/pr-*` is present. Nothing in CI depends on this checkout existing.
 
 See [templates/cursor-rules/README.md](../templates/cursor-rules/README.md) for what each rule covers.
 

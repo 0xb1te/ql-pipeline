@@ -1,4 +1,6 @@
-import { type GateOutcome } from '../shared/types.js';
+import { type AgentProvider, type GateOutcome } from '../shared/types.js';
+/** Auto-fix still requires cursor-agent. An OpenAI-compatible review cannot write a fix commit. */
+export declare function shouldSkipCursorFixer(provider: AgentProvider): boolean;
 /**
  * Collects the reports the gate jobs left behind. A report that is present
  * but unreadable is fatal: the pipeline would otherwise merge a PR while

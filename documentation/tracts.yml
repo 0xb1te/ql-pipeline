@@ -49,6 +49,23 @@ tracts:
     effectors:
       - filesystem:the cursor-agent CLI binary
 
+  - tract: run-the-openai-compatible-reviewer
+    stimulus: process start (node dist/main.js govern)
+    response: an OpenAI-compatible chat completion reviews the PR's diff; a FIX verdict escalates to a human instead of running cursor-agent
+    path:
+      - entrypoint.cli.governCommand#runGovern
+      - review.reviewer.reviewer#runReview
+      - review.reviewer.openaiCompatibleRunner#createOpenAiCompatibleReviewer
+    effectors:
+      - http-out:{agent.baseUrl}/chat/completions
+
+  - tract: escalate-fix-when-review-is-openai-compatible
+    stimulus: process start (node dist/main.js govern)
+    response: a FIX verdict from an OpenAI-compatible review is escalated to a human rather than invoking cursor-agent
+    path:
+      - entrypoint.cli.governCommand#runGovern
+      - entrypoint.cli.governCommand#shouldSkipCursorFixer
+
   - tract: run-an-automated-fix-attempt
     stimulus: process start (node dist/main.js govern)
     response: cursor-agent runs against blocking findings, any protected-path edit is hard-reverted, and the real changes left are committed and pushed
@@ -129,4 +146,4 @@ tracts:
     effectors:
       - filesystem:the already-built dist/main.js
 
-revision: 2026-08-30
+revision: 2026-09-07

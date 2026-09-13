@@ -29,6 +29,7 @@ const CONFIG: PipelineConfig = {
   },
   merge: { targetBranch: 'main', targetBranchByArea: {}, method: 'merge', deleteBranch: true, requiredChecks: ['build', 'test', 'ai-review'], requireHumanApproval: false },
   fixer: { maxFixAttempts: 3, protectedPaths: ['rules/', 'prompts/', 'pipeline.config.yml', '.github/workflows/'] },
+  agent: { provider: 'cursor', model: null, baseUrl: null, review: { model: null }, fix: { model: null } },
   areas: { paths: {} },
   standards: { enabled: false, root: '.standards', docs: {}, maxCharsPerArea: 90_000 },
 };

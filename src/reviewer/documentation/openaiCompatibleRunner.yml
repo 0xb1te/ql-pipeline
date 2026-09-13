@@ -1,0 +1,59 @@
+cns: "1.0"
+neuron: openaiCompatibleRunner
+kind: function
+region: review
+layer: reviewer
+unit: src/reviewer/openai-compatible-runner.ts
+
+responsibility: >
+  Reviews a PR through an OpenAI-compatible chat-completions endpoint and wraps the assistant
+  text in the cursor-agent envelope parseReviewVerdict already unwraps, refusing write/agent
+  mode because a completion cannot push a fix commit.
+
+excludes:
+  - Deciding MERGE/FIX/BLOCK - that is verdict.decision's job once findings reach it
+  - Running the Cursor CLI fixer - openai_compatible is review-only; govern escalates a FIX
+
+invariants:
+  - The bearer token is read from the environment, never from pipeline.config.yml, and is never logged
+  - An HTTP error reports only the status code, never the response body or the API key
+
+receptors: []
+
+effectors:
+  - kind: http-out
+    target: "{agent.baseUrl}/chat/completions"
+    signal: createOpenAiCompatibleReviewer
+    effect: POSTs the review prompt as a chat completion and returns the assistant text wrapped in the cursor-agent envelope
+
+signals:
+  - signal: readAgentApiKeyFromEnv
+    intent: >
+      Reads the bearer token for an OpenAI-compatible review, preferring QL_PIPELINE_AGENT_API_KEY
+      and falling back to OPENAI_API_KEY, without logging the value.
+    accepts: "env? (defaults to process.env)"
+    returns: string
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+    raises:
+      - code: Error
+        when: both QL_PIPELINE_AGENT_API_KEY and OPENAI_API_KEY are unset or empty
+
+  - signal: createOpenAiCompatibleReviewer
+    intent: >
+      Returns a CursorAgentRunner that POSTs {baseUrl}/chat/completions in ask mode and wraps
+      the assistant text in the cursor-agent envelope, or exits 1 with a Cursor-only message
+      in agent mode.
+    accepts: OpenAiCompatibleReviewerOptions
+    returns: CursorAgentRunner
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+      - from: review.reviewer.reviewer#runReview
+        via: di
+    efferent: []
+
+revision: 2026-09-07

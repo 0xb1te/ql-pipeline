@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { readGateReports } from '../../src/cli/govern-command.js';
+import { readGateReports, shouldSkipCursorFixer } from '../../src/cli/govern-command.js';
 import { serializeGateReport } from '../../src/shared/gate-report.js';
 
 function reader(files: Record<string, string>): {
@@ -28,6 +28,16 @@ const TEST_REPORT = serializeGateReport({
 const BUILD_REPORT = serializeGateReport({
   stage: 'build',
   outcomes: [{ area: 'backend', gate: 'build', command: 'npm run build', passed: false, output: 'tsc error' }],
+});
+
+describe('shouldSkipCursorFixer', () => {
+  it('lets the Cursor fixer run when the review provider is cursor', () => {
+    expect(shouldSkipCursorFixer('cursor')).toBe(false);
+  });
+
+  it('escalates a FIX after an openai_compatible review instead of pretending HTTP can write a fix', () => {
+    expect(shouldSkipCursorFixer('openai_compatible')).toBe(true);
+  });
 });
 
 describe('readGateReports', () => {

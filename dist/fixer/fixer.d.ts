@@ -17,6 +17,7 @@ export interface RunFixOptions {
     readonly protectedPaths: readonly string[];
     readonly attemptNumber: number;
     readonly maxFixAttempts: number;
+    readonly model?: string;
     readonly agentRunner?: CursorAgentRunner;
     readonly commandExecutor?: CommandExecutor;
 }

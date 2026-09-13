@@ -45,9 +45,9 @@ export async function runReview(context, promptTemplate, options) {
     // the build and test gates have already run by this point and will have
     // left artifacts behind.
     const before = await captureWorktreeState(options.cwd, commandExecutor);
-    let attempt = await invokeAndParse(agentRunner, prompt, options.cwd);
+    let attempt = await invokeAndParse(agentRunner, prompt, options.cwd, options.model);
     if (!attempt.ok) {
-        attempt = await invokeAndParse(agentRunner, prompt, options.cwd);
+        attempt = await invokeAndParse(agentRunner, prompt, options.cwd, options.model);
     }
     const after = await captureWorktreeState(options.cwd, commandExecutor);
     if (reviewerMutatedCheckout(before, after)) {
@@ -63,8 +63,12 @@ export async function runReview(context, promptTemplate, options) {
     const { grounded, discarded } = groundFindings(attempt.value.findings, diffIndex, context.ruleFiles);
     return { ok: true, outcome: { findings: grounded, discarded } };
 }
-async function invokeAndParse(agentRunner, prompt, cwd) {
-    const invocation = await agentRunner(prompt, { cwd, mode: 'ask' });
+async function invokeAndParse(agentRunner, prompt, cwd, model) {
+    const invocation = await agentRunner(prompt, {
+        cwd,
+        mode: 'ask',
+        ...(model !== undefined && model !== '' ? { model } : {}),
+    });
     if (invocation.exitCode !== 0) {
         return { ok: false, reason: `cursor-agent exited with code ${invocation.exitCode}: ${invocation.stderr}` };
     }

@@ -16,6 +16,7 @@ function config(overrides: Partial<PipelineConfig['merge']> = {}): PipelineConfi
       ...overrides,
     },
     fixer: { maxFixAttempts: 3, protectedPaths: [] },
+    agent: { provider: 'cursor', model: null, baseUrl: null, review: { model: null }, fix: { model: null } },
     areas: { paths: {} },
     standards: { enabled: false, root: '.standards', docs: {}, maxCharsPerArea: 90000 },
   };

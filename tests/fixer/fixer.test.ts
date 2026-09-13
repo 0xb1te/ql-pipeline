@@ -72,6 +72,23 @@ describe('runFix', () => {
     expect(agentRunner).toHaveBeenCalledWith(expect.any(String), { cwd: '/repo', mode: 'agent' });
   });
 
+  it('forwards a configured Cursor model to the agent runner', async () => {
+    const agentRunner = agentThatSucceeds();
+
+    await runFix([finding()], 'template', 'backend', {
+      ...BASE_OPTIONS,
+      model: 'cursor-grok-4.6-xhigh-fast',
+      agentRunner,
+      commandExecutor: fakeExec({ statuses: AGENT_MADE_A_CHANGE }),
+    });
+
+    expect(agentRunner).toHaveBeenCalledWith(expect.any(String), {
+      cwd: '/repo',
+      mode: 'agent',
+      model: 'cursor-grok-4.6-xhigh-fast',
+    });
+  });
+
   it('builds the prompt from the template, attempt number, and findings', async () => {
     const agentRunner = agentThatSucceeds();
 

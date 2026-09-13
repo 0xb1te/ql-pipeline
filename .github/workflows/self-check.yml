@@ -15,14 +15,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # No hard `version:` — it contradicts package.json's `packageManager`
+      # field and pnpm refuses to guess between them (ERR_PNPM_BAD_PM_VERSION).
       - uses: pnpm/action-setup@v4
-        with:
-          version: '9'
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
+
+      # ql-pipeline installs @0xb1te/house-client and @0xb1te/ql-auth-client
+      # straight from the private 0xb1te/ql-docs and 0xb1te/ql-auth repos.
+      # The calling repo's GITHUB_TOKEN cannot read either — it is scoped to
+      # the caller — so pnpm needs a credential of its own. The rewrite is
+      # pinned to those two repositories so the token is never offered to any
+      # other github.com fetch, the checkouts above included.
+      - name: Authenticate ql-pipeline's private git dependencies
+        env:
+          GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+        run: |
+          if [ -z "$GH_PACKAGES_TOKEN" ]; then
+            echo "::warning::GH_PACKAGES_TOKEN is not set - installing ql-pipeline will fail to fetch its private git dependencies."
+            exit 0
+          fi
+          for repo in 0xb1te/ql-docs 0xb1te/ql-auth; do
+            git config --global "url.https://x-access-token:$GH_PACKAGES_TOKEN@github.com/$repo.insteadOf" "https://github.com/$repo"
+          done
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

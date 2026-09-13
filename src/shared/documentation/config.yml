@@ -39,7 +39,13 @@ signals:
         when: the file cannot be read
 
   - signal: parseConfig
-    intent: Parses a pipeline config's raw YAML text and validates its shape into a PipelineConfig, applying this pipeline's defaults for anything omitted.
+    intent: >
+      Parses a pipeline config's raw YAML text and validates its shape into a PipelineConfig,
+      applying this pipeline's defaults for anything omitted, including agent.provider cursor
+      and agent.model/baseUrl null when the agent block is absent, resolving agent.review.model
+      and agent.fix.model against agent.model once at parse time so no reader re-applies the
+      fallback itself, and rejecting a cursor
+      base_url or an openai_compatible agent that is missing model or base_url.
     accepts: "raw, sourceLabel?"
     returns: PipelineConfig
     pure: true

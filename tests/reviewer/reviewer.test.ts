@@ -89,6 +89,23 @@ describe('runReview', () => {
     expect(agentRunner).toHaveBeenCalledWith(expect.any(String), { cwd: '/repo', mode: 'ask' });
   });
 
+  it('forwards a configured Cursor model to the agent runner', async () => {
+    const agentRunner = vi.fn<CursorAgentRunner>().mockResolvedValue(passResponse());
+
+    await runReview(context(), TEMPLATE, {
+      cwd: '/repo',
+      model: 'cursor-grok-4.6-xhigh-fast',
+      agentRunner,
+      commandExecutor: cleanExecutor(),
+    });
+
+    expect(agentRunner).toHaveBeenCalledWith(expect.any(String), {
+      cwd: '/repo',
+      mode: 'ask',
+      model: 'cursor-grok-4.6-xhigh-fast',
+    });
+  });
+
   it('partitions grounded and ungrounded findings using the diff', async () => {
     const diff = 'diff --git a/x b/x\n+++ b/x\n@@ -1,1 +1,1 @@\n+bad line\n';
     const verdict = {

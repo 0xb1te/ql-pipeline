@@ -25,7 +25,8 @@ signals:
   - signal: runCursorAgent
     intent: >
       Spawns cursor-agent with the given prompt, in read-only ask mode or full agent mode (paired
-      with --force so a headless run never blocks on a permission prompt).
+      with --force so a headless run never blocks on a permission prompt), passing --model when
+      CursorAgentRunOptions.model is set.
     accepts: "prompt, CursorAgentRunOptions"
     returns: Promise<CursorAgentInvocation>
     afferent:
@@ -33,6 +34,21 @@ signals:
         via: di
       - from: fix.fixer.fixer#runFix
         via: di
+    efferent:
+      - to: review.reviewer.cursorRunner#cursorAgentArgs
+        via: direct-call
+        because: the argv this spawn uses
+
+  - signal: cursorAgentArgs
+    intent: >
+      Builds the cursor-agent argv: print/json/trust/workspace, optional --model, then --mode ask
+      or --force, then the prompt as the last element.
+    accepts: "prompt, CursorAgentRunOptions"
+    returns: string[]
+    pure: true
+    afferent:
+      - from: review.reviewer.cursorRunner#runCursorAgent
+        via: direct-call
     efferent: []
 
   - signal: reviewerMutatedCheckout
@@ -51,4 +67,4 @@ signals:
         via: direct-call
         because: the actual before/after comparison this signal's verdict is based on
 
-revision: 2026-08-30
+revision: 2026-09-07

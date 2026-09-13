@@ -22,6 +22,9 @@ neurons:
   - id: review.reviewer.cursorRunner
     file: cursorRunner.yml
     unit: ../cursor-runner.ts
+  - id: review.reviewer.openaiCompatibleRunner
+    file: openaiCompatibleRunner.yml
+    unit: ../openai-compatible-runner.ts
   - id: review.reviewer.diffGrounding
     file: diffGrounding.yml
     unit: ../diff-grounding.ts
@@ -29,4 +32,4 @@ neurons:
     file: responseParser.yml
     unit: ../response-parser.ts
 
-revision: 2026-08-30
+revision: 2026-09-07

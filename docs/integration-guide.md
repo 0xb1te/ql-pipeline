@@ -145,6 +145,23 @@ fixer:
 #   base_url: https://api.openai.com/v1
 ```
 
+### What the runner gives your gate commands
+
+The pipeline job provisions **Node and pnpm only** — there is no `setup-java`, `setup-go`, Terraform or Xcode step anywhere in the reusable workflow, because ql-pipeline has no way to know which of those your repo needs.
+
+A gate command therefore gets whatever else the GitHub runner image happens to preinstall, at whatever version that image defaults to. That is usually fine, and occasionally a trap: `ubuntu-latest` ships several JDKs but defaults `JAVA_HOME` to one of them, which may not be the one your build requires.
+
+Gate commands run through a shell, so the fix lives in the command itself rather than in ql-pipeline:
+
+```yaml
+gates:
+  backend:
+    build: "JAVA_HOME=$JAVA_HOME_21_X64 mvn -B -f apps/pom.xml -DskipTests package"
+    test: "JAVA_HOME=$JAVA_HOME_21_X64 mvn -B -f apps/pom.xml test"
+```
+
+The runner image documents the variables it sets for each preinstalled toolchain. If your gate needs something the image does not ship at all, install it as part of the gate command.
+
 ### Choosing models per job
 
 Review and fix are different jobs. Review reads the whole diff plus the house checklists and has to reason about them; a fix applies a complaint that has already been reasoned out. Pinning them separately lets a repo spend a strong model where judgement happens and a cheaper one where it does not:

@@ -21,15 +21,10 @@ jobs:
   # `checks / ql-pipeline`. Those exact strings go into branch protection.
   checks:
     uses: 0xb1te/ql-pipeline/.github/workflows/pr-pipeline.yml@main
-    secrets:
-      CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-      # The engineering standards the reviewer applies come from house-api,
-      # not a checkout — a github_agent client-credentials client. Only
-      # needed while standards.enabled is true in pipeline.config.yml.
-      HOUSE_API_URL: ${{ secrets.HOUSE_API_URL }}
-      QL_AUTH_URL: ${{ secrets.QL_AUTH_URL }}
-      QL_AUTH_CLIENT_ID: ${{ secrets.QL_AUTH_CLIENT_ID }}
-      QL_AUTH_CLIENT_SECRET: ${{ secrets.QL_AUTH_CLIENT_SECRET }}
-      # Optional. Supply a PAT/App token so fix commits re-trigger the
-      # pipeline; with the default token they land but are not re-reviewed.
-      # GH_TOKEN: ${{ secrets.GH_TOKEN }}
+    # Every secret this repo holds is forwarded to the pipeline. This is
+    # deliberate: which secrets ql-pipeline needs is ql-pipeline's business
+    # and changes over time (GH_PACKAGES_TOKEN was added after the first
+    # consumers were scaffolded). Listing them here would mean editing every
+    # governed repo each time that set changes. See docs/integration-guide.md
+    # for which secrets to actually create on the repository.
+    secrets: inherit

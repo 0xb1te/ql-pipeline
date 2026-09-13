@@ -26,10 +26,19 @@ on:
         default: main
     secrets:
       CURSOR_API_KEY:
-        description: Cursor CLI API key, used for the AI review and the auto-fix agent.
-        required: true
+        description: Cursor CLI API key, used when agent.provider is cursor (the default) for AI review and auto-fix. Optional when review uses an OpenAI-compatible endpoint, but still required for the fixer.
+        required: false
+      QL_PIPELINE_AGENT_API_KEY:
+        description: Bearer token for agent.provider openai_compatible. Preferred over OPENAI_API_KEY. Never put this in pipeline.config.yml.
+        required: false
+      OPENAI_API_KEY:
+        description: Fallback bearer token for agent.provider openai_compatible when QL_PIPELINE_AGENT_API_KEY is unset.
+        required: false
       GH_TOKEN:
         description: Token used to read PR data, manage labels/reviews, and push fix commits. Falls back to the calling workflow's default GITHUB_TOKEN.
+        required: false
+      GH_PACKAGES_TOKEN:
+        description: Token with read access to the private 0xb1te/ql-docs and 0xb1te/ql-auth repositories, which ql-pipeline installs its house-api and ql-auth clients from. Required until those repositories are public - without it every job fails at install.
         required: false
       # The engineering standards the reviewer judges against are read from
       # house-api over HTTP, not a checkout of ql-docs — see
@@ -80,15 +89,37 @@ jobs:
       - name: Hide the ql-pipeline checkout from the repo under review
         run: echo '/.ql-pipeline/' >> .git/info/exclude
 
+      # No hard `version:` — it contradicts the `packageManager` field and
+      # pnpm refuses to guess between them (ERR_PNPM_BAD_PM_VERSION). The
+      # file it reads is ql-pipeline's own, not the consumer repo's root
+      # package.json, which may pin a different pnpm or not exist at all.
       - uses: pnpm/action-setup@v4
         with:
-          version: '9'
+          package_json_file: .ql-pipeline/package.json
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
           cache-dependency-path: .ql-pipeline/pnpm-lock.yaml
+
+      # ql-pipeline installs @0xb1te/house-client and @0xb1te/ql-auth-client
+      # straight from the private 0xb1te/ql-docs and 0xb1te/ql-auth repos.
+      # The calling repo's GITHUB_TOKEN cannot read either — it is scoped to
+      # the caller — so pnpm needs a credential of its own. The rewrite is
+      # pinned to those two repositories so the token is never offered to any
+      # other github.com fetch, the checkouts above included.
+      - name: Authenticate ql-pipeline's private git dependencies
+        env:
+          GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+        run: |
+          if [ -z "$GH_PACKAGES_TOKEN" ]; then
+            echo "::warning::GH_PACKAGES_TOKEN is not set - installing ql-pipeline will fail to fetch its private git dependencies."
+            exit 0
+          fi
+          for repo in 0xb1te/ql-docs 0xb1te/ql-auth; do
+            git config --global "url.https://x-access-token:$GH_PACKAGES_TOKEN@github.com/$repo.insteadOf" "https://github.com/$repo"
+          done
 
       - name: Install and build ql-pipeline
         working-directory: .ql-pipeline
@@ -139,13 +170,25 @@ jobs:
 
       - uses: pnpm/action-setup@v4
         with:
-          version: '9'
+          package_json_file: .ql-pipeline/package.json
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
           cache-dependency-path: .ql-pipeline/pnpm-lock.yaml
+
+      - name: Authenticate ql-pipeline's private git dependencies
+        env:
+          GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+        run: |
+          if [ -z "$GH_PACKAGES_TOKEN" ]; then
+            echo "::warning::GH_PACKAGES_TOKEN is not set - installing ql-pipeline will fail to fetch its private git dependencies."
+            exit 0
+          fi
+          for repo in 0xb1te/ql-docs 0xb1te/ql-auth; do
+            git config --global "url.https://x-access-token:$GH_PACKAGES_TOKEN@github.com/$repo.insteadOf" "https://github.com/$repo"
+          done
 
       - name: Install and build ql-pipeline
         working-directory: .ql-pipeline
@@ -199,13 +242,25 @@ jobs:
 
       - uses: pnpm/action-setup@v4
         with:
-          version: '9'
+          package_json_file: .ql-pipeline/package.json
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
           cache-dependency-path: .ql-pipeline/pnpm-lock.yaml
+
+      - name: Authenticate ql-pipeline's private git dependencies
+        env:
+          GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+        run: |
+          if [ -z "$GH_PACKAGES_TOKEN" ]; then
+            echo "::warning::GH_PACKAGES_TOKEN is not set - installing ql-pipeline will fail to fetch its private git dependencies."
+            exit 0
+          fi
+          for repo in 0xb1te/ql-docs 0xb1te/ql-auth; do
+            git config --global "url.https://x-access-token:$GH_PACKAGES_TOKEN@github.com/$repo.insteadOf" "https://github.com/$repo"
+          done
 
       - name: Install and build ql-pipeline
         working-directory: .ql-pipeline
@@ -243,6 +298,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
           PIPELINE_CONFIG_PATH: ${{ inputs.config-path }}
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          QL_PIPELINE_AGENT_API_KEY: ${{ secrets.QL_PIPELINE_AGENT_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           HOUSE_API_URL: ${{ secrets.HOUSE_API_URL }}
           QL_AUTH_URL: ${{ secrets.QL_AUTH_URL }}
           QL_AUTH_CLIENT_ID: ${{ secrets.QL_AUTH_CLIENT_ID }}

@@ -31,6 +31,32 @@ merge:
 # Areas are detected from conventional-commit headers AND from the paths a
 # PR touches. Path detection is additive: a commit labelled feat(frontend)
 # that also edits apps/api-backend/ still gets the backend rules applied.
+# Which model runs which job. Omit the whole block and cursor-agent uses
+# whatever your CURSOR_API_KEY account defaults to.
+#
+# `model` is the fallback for every phase; `review.model` and `fix.model`
+# override it per phase. They are separate jobs: review reads the whole diff
+# plus the house checklists and has to reason about them, while a fix applies
+# a complaint that has already been reasoned out - so a strong model for
+# review and a cheaper one for fix is usually the right trade.
+#
+# Cursor values are cursor-agent --list-models slugs, not product names.
+# agent:
+#   provider: cursor
+#   model: cursor-grok-4.6-xhigh-fast   # fallback for both phases
+#   review:
+#     model: cursor-grok-4.6-xhigh-fast
+#   fix:
+#     model: cursor-auto
+#
+# OpenAI-compatible review (review-only; a FIX escalates to a human, so
+# fix.model is inert here). Token comes from QL_PIPELINE_AGENT_API_KEY or
+# OPENAI_API_KEY, never from this file.
+# agent:
+#   provider: openai_compatible
+#   model: gpt-4.1
+#   base_url: https://api.openai.com/v1
+
 # Uncomment and edit only if your layout differs from the house convention.
 # areas:
 #   paths:

@@ -52,6 +52,7 @@ export type ReviewResult = { readonly ok: true; readonly outcome: ReviewOutcome 
 
 export interface RunReviewOptions {
   readonly cwd: string;
+  readonly model?: string;
   readonly agentRunner?: CursorAgentRunner;
   readonly commandExecutor?: CommandExecutor;
 }
@@ -76,9 +77,9 @@ export async function runReview(context: ReviewContext, promptTemplate: string, 
   // left artifacts behind.
   const before = await captureWorktreeState(options.cwd, commandExecutor);
 
-  let attempt = await invokeAndParse(agentRunner, prompt, options.cwd);
+  let attempt = await invokeAndParse(agentRunner, prompt, options.cwd, options.model);
   if (!attempt.ok) {
-    attempt = await invokeAndParse(agentRunner, prompt, options.cwd);
+    attempt = await invokeAndParse(agentRunner, prompt, options.cwd, options.model);
   }
 
   const after = await captureWorktreeState(options.cwd, commandExecutor);
@@ -103,8 +104,13 @@ async function invokeAndParse(
   agentRunner: CursorAgentRunner,
   prompt: string,
   cwd: string,
+  model?: string,
 ): Promise<ParseResult<ReviewVerdict>> {
-  const invocation = await agentRunner(prompt, { cwd, mode: 'ask' });
+  const invocation = await agentRunner(prompt, {
+    cwd,
+    mode: 'ask',
+    ...(model !== undefined && model !== '' ? { model } : {}),
+  });
   if (invocation.exitCode !== 0) {
     return { ok: false, reason: `cursor-agent exited with code ${invocation.exitCode}: ${invocation.stderr}` };
   }

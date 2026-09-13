@@ -22,11 +22,11 @@ effectors: []
 
 signals:
   - signal: Types
-    intent: The type and constant vocabulary (Area/AREAS, CommitType/COMMIT_TYPES, PipelineConfig and its sub-shapes, RouteDecision/RouteResult, GateOutcome, Finding, ReviewVerdict) every other region imports.
+    intent: The type and constant vocabulary (Area/AREAS, CommitType/COMMIT_TYPES, PipelineConfig and its sub-shapes including AgentConfig with provider/model/baseUrl plus per-phase review/fix AgentPhaseConfig, AGENT_PROVIDERS and AGENT_PHASES, RouteDecision/RouteResult, GateOutcome, Finding, ReviewVerdict) every other region imports.
     accepts: "n/a - types and constants, not a callable"
     returns: "n/a"
     pure: true
     afferent: []
     efferent: []
 
-revision: 2026-08-30
+revision: 2026-09-07

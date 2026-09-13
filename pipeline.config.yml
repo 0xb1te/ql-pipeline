@@ -111,6 +111,21 @@ standards:
     # `docs` is absent deliberately: the workflow has no documentation
     # checklist, so rules/docs.rules covers that area on its own.
 
+# This repo stays on the Cursor CLI (default provider). openai_compatible
+# is review-only and would disable the fixer. Slug is the cursor-agent
+# --list-models id, not the product display name.
+agent:
+  provider: cursor
+  # Fallback for every phase. Override one phase at a time with
+  # `review.model` / `fix.model` - review reasons about a whole diff against
+  # the checklists, a fix just applies a complaint that is already reasoned
+  # out, so they do not need the same model.
+  model: cursor-grok-4.6-xhigh-fast
+  # review:
+  #   model: cursor-grok-4.6-xhigh-fast
+  # fix:
+  #   model: cursor-auto
+
 fixer:
   max_fix_attempts: 3
   # An explicit override, not the shipped default: this file governs

@@ -27,9 +27,12 @@ The manual steps below are the same thing done by hand, and explain what each fi
 In the repository you want governed: **Settings → Secrets and variables → Actions → New repository secret**.
 
 
-| Secret                  | Value                                                          | Why                                                                                                          |
-| ----------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `CURSOR_API_KEY`        | Your Cursor API key                                              | Powers both the AI review and the auto-fix agent                                                              |
+| Secret                       | Value                                                          | Why                                                                                                          |
+| ---------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `CURSOR_API_KEY`             | Your Cursor API key                                              | Powers AI review and auto-fix when `agent.provider` is `cursor` (the default). Still needed for the fixer.     |
+| `GH_PACKAGES_TOKEN`         | A token with **read** access to `0xb1te/ql-docs` and `0xb1te/ql-auth` | ql-pipeline installs its house-api and ql-auth clients straight from those two private repos. Without it every job fails at install. |
+| `QL_PIPELINE_AGENT_API_KEY`  | Bearer token for an OpenAI-compatible review endpoint            | Optional. Used when `agent.provider` is `openai_compatible`. Preferred over `OPENAI_API_KEY`. Never YAML.      |
+| `OPENAI_API_KEY`             | Fallback bearer token for an OpenAI-compatible review endpoint   | Optional. Used only if `QL_PIPELINE_AGENT_API_KEY` is unset.                                                   |
 | `HOUSE_API_URL`         | Origin `house-api` is reachable at (e.g. `https://house.example.com`) | Where the engineering standards the reviewer applies are read from                                            |
 | `QL_AUTH_URL`           | Origin `ql-auth` is reachable at (e.g. `https://auth.example.com`)    | Mints the token `house-api` requires                                                                          |
 | `QL_AUTH_CLIENT_ID`     | Client id of a `ql-auth` `github_agent` client-credentials client | Identifies this repo's pipeline to `ql-auth`                                                                  |
@@ -37,6 +40,8 @@ In the repository you want governed: **Settings → Secrets and variables → Ac
 
 
 > For an organisation, set these once as **organisation** secrets and share them with the relevant repos rather than repeating them per repository.
+
+`GH_PACKAGES_TOKEN` is needed by **every** job, not just `ql-pipeline`: all three install ql-pipeline before they can run. A fine-grained PAT with read-only Contents access to `0xb1te/ql-docs` and `0xb1te/ql-auth` is enough. It becomes unnecessary if those repositories are ever made public.
 
 The four `HOUSE_*`/`QL_AUTH_*` secrets are only needed while `standards.enabled` is `true` (the default) — set it to `false` in your pipeline config to review with rules only and skip creating them.
 
@@ -60,13 +65,13 @@ concurrency:
 jobs:
   checks:
     uses: 0xb1te/ql-pipeline/.github/workflows/pr-pipeline.yml@main
-    secrets:
-      CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-      HOUSE_API_URL: ${{ secrets.HOUSE_API_URL }}
-      QL_AUTH_URL: ${{ secrets.QL_AUTH_URL }}
-      QL_AUTH_CLIENT_ID: ${{ secrets.QL_AUTH_CLIENT_ID }}
-      QL_AUTH_CLIENT_SECRET: ${{ secrets.QL_AUTH_CLIENT_SECRET }}
+    secrets: inherit
 ```
+
+`secrets: inherit` forwards every secret the repository holds. Name them
+individually only if you have a reason to withhold some: the set ql-pipeline
+needs changes over time, and an explicit list means editing every governed
+repo each time it does.
 
 
 

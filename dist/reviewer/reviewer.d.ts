@@ -30,6 +30,7 @@ export type ReviewResult = {
 };
 export interface RunReviewOptions {
     readonly cwd: string;
+    readonly model?: string;
     readonly agentRunner?: CursorAgentRunner;
     readonly commandExecutor?: CommandExecutor;
 }

@@ -20,16 +20,13 @@ concurrency:
 jobs:
   checks:
     uses: 0xb1te/ql-pipeline/.github/workflows/pr-pipeline.yml@main
-    secrets:
-      CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-      # The engineering standards the reviewer applies are read from
-      # house-api, not a checkout of ql-docs. Omit these four only if you
-      # set standards.enabled: false in your pipeline config.
-      HOUSE_API_URL: ${{ secrets.HOUSE_API_URL }}
-      QL_AUTH_URL: ${{ secrets.QL_AUTH_URL }}
-      QL_AUTH_CLIENT_ID: ${{ secrets.QL_AUTH_CLIENT_ID }}
-      QL_AUTH_CLIENT_SECRET: ${{ secrets.QL_AUTH_CLIENT_SECRET }}
+    secrets: inherit
 ```
+
+`secrets: inherit` forwards every secret the repository holds. Name them
+individually only if you have a reason to withhold some: the set ql-pipeline
+needs changes over time, and an explicit list means editing every governed
+repo each time it does.
 
 This adds **three checks** to every PR, which run in order:
 
@@ -45,7 +42,9 @@ The `checks /` prefix is your calling job's id — rename the job and the prefix
 
 - **Pin `@main` to a tag or SHA in production** once ql-pipeline has releases — `@main` tracks the latest commit, which is fine for trying it out but not for a repo whose merges depend on it staying stable.
 - **The `concurrency` block is your responsibility, not ql-pipeline's.** A new commit pushed to a PR should cancel the in-flight run for the old one (including a stale fix-loop attempt) — the reusable workflow doesn't declare this for you since it's a property of *your* workflow, not the called one.
-- **Required secret:** `CURSOR_API_KEY`, used by both the reviewer and the fixer. The workflow installs the Cursor CLI on the runner itself; you don't need to.
+- **Required secret for every job:** `GH_PACKAGES_TOKEN` — a token with read access to `0xb1te/ql-docs` and `0xb1te/ql-auth`. ql-pipeline installs `@0xb1te/house-client` and `@0xb1te/ql-auth-client` directly from those two private repositories, and your repo's `GITHUB_TOKEN` cannot read them: it is scoped to your repository alone. All three jobs install ql-pipeline, so all three need it. The workflow rewrites only those two repository URLs, so the token is never offered to any other `github.com` fetch. A read-only fine-grained PAT is enough.
+- **Secret for the default Cursor provider:** `CURSOR_API_KEY`, used by both the reviewer and the fixer when `agent.provider` is `cursor` (the default). The workflow still installs the Cursor CLI on the runner — the fixer remains Cursor-only even if review uses another endpoint.
+- **Secrets for `agent.provider: openai_compatible`:** `QL_PIPELINE_AGENT_API_KEY` (preferred) or `OPENAI_API_KEY` (fallback). These are bearer tokens for `POST {base_url}/chat/completions`. Never put them in `pipeline.config.yml`. A FIX verdict then escalates to a human instead of running the Cursor fixer.
 - **Required secrets (unless `standards.enabled: false`):** `HOUSE_API_URL`, `QL_AUTH_URL`, `QL_AUTH_CLIENT_ID`, `QL_AUTH_CLIENT_SECRET` — a `github_agent` client-credentials client registered in `ql-auth`, used to read the engineering standards from `house-api` for this review. Without them the `ql-pipeline` check fails with an explicit message rather than quietly reviewing against no standards.
   **Grant this client `stage:1` through `stage:9` — not the `review:frontend`/`review:backend`/`review:infrastructure` routes `ql-auth`'s own README lists as "recommended" for `github_agent`.** `HouseStandardsReader` opens every `house-api` session with `route: "stage:${N}"` (`N` taken from the `workflow/rules/stage-N-*` folder each configured `standards.docs` path lives under — see `src/standards/house-standards-reader.ts`'s `stageRouteForNode`), because that is the route family `house-api`'s session graph actually gates engineering-standards checklists by; it never requests a `review:*` route. A client provisioned with only the `review:*` routes gets a `403` on its very first `govern` call. `stage:1`–`stage:9` covers every stage this or a future `standards.docs` config could reference; grant a narrower set only if you have confirmed exactly which stage numbers your own `pipeline.config.yml` uses.
 - **Optional secret:** `GH_TOKEN`. Omit it and the workflow falls back to the default `GITHUB_TOKEN` — but note the consequence: **commits pushed with the default token do not trigger new workflow runs**, so an auto-fix commit will not re-run the pipeline on its own. For the fix loop to close automatically (fix → re-review → merge), supply a PAT or GitHub App token as `GH_TOKEN`. With the default token the fix still lands on the PR; it just waits for the next push or a manual re-run to be re-reviewed.
@@ -122,9 +121,43 @@ fixer:
     - .github/workflows/    # reverted structurally even if the agent edits them
     - .github/pipeline.config.yml
     - .github/pipeline-rules/
+
+# Which model runs which job. Omit the block entirely and cursor-agent
+# uses whatever the CURSOR_API_KEY account defaults to.
+#
+# `model` is the fallback for every phase; `review.model` and `fix.model`
+# override it per phase. Cursor values are cursor-agent --list-models slugs.
+# agent:
+#   provider: cursor
+#   model: cursor-grok-4.6-xhigh-fast   # fallback for both phases
+#   review:
+#     model: cursor-grok-4.6-xhigh-fast
+#   fix:
+#     model: cursor-auto
+#
+# OpenAI-compatible review (review-only). Token comes from
+# QL_PIPELINE_AGENT_API_KEY or OPENAI_API_KEY — never from this file.
+# A FIX verdict escalates to a human; the fixer still requires cursor-agent,
+# so `fix.model` is inert under this provider rather than an error.
+# agent:
+#   provider: openai_compatible
+#   model: gpt-4.1
+#   base_url: https://api.openai.com/v1
 ```
 
-Every key under `merge:` and `fixer:` has the sensible default shown above and can be omitted. `gates:` has no fallback of its own — an area with no configured gate is simply ungated for that area, since ql-pipeline has no way to guess your build/test commands.
+### Choosing models per job
+
+Review and fix are different jobs. Review reads the whole diff plus the house checklists and has to reason about them; a fix applies a complaint that has already been reasoned out. Pinning them separately lets a repo spend a strong model where judgement happens and a cheaper one where it does not:
+
+| Key | Applies to | Falls back to |
+|---|---|---|
+| `agent.model` | both phases | the provider's own default |
+| `agent.review.model` | the AI review | `agent.model` |
+| `agent.fix.model` | the auto-fix agent | `agent.model` |
+
+A phase naming no model sends no `--model` flag at all, leaving the choice to the provider. The resolved values are printed in the `ql-pipeline` job log (`agent: provider=… review model=…`), so you can confirm from a run which model actually answered.
+
+Every key under `merge:`, `fixer:`, and `agent:` has the sensible default shown above and can be omitted. `gates:` has no fallback of its own — an area with no configured gate is simply ungated for that area, since ql-pipeline has no way to guess your build/test commands. `agent.provider` chooses Cursor CLI (default) or an OpenAI-compatible chat-completions URL; `agent.model` is the model slug for that provider. Tokens never live in this file.
 
 ## 4b. Area detection and the `apps/*` convention
 

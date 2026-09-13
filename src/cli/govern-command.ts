@@ -7,7 +7,12 @@ import { countFixAttempts } from '../fixer/attempt-counter.js';
 import { formatComplaintSummary } from '../fixer/complaint.js';
 import { runFix } from '../fixer/fixer.js';
 import { executeMergeDecision, findingToReviewComment } from '../merger/merger.js';
+import {
+  createOpenAiCompatibleReviewer,
+  readAgentApiKeyFromEnv,
+} from '../reviewer/openai-compatible-runner.js';
 import { runReview } from '../reviewer/reviewer.js';
+import type { CursorAgentRunner } from '../reviewer/cursor-runner.js';
 import { formatRulesForPrompt, resolveRuleFiles, ruleFileIds } from '../rules/rule-resolver.js';
 import { areasFromPaths } from '../router/area-paths.js';
 import { touchesProtectedPaths } from '../router/self-protection.js';
@@ -22,7 +27,7 @@ import { formatAuditSummary } from '../shared/audit-summary.js';
 import { mergeGateReports, parseGateReport, type GateReport } from '../shared/gate-report.js';
 import type { GithubClient, PullRequestInfo } from '../shared/github-client.js';
 import type { Logger } from '../shared/logger.js';
-import { AREAS, type Finding, type GateOutcome } from '../shared/types.js';
+import { AREAS, type AgentProvider, type Finding, type GateOutcome, type PipelineConfig } from '../shared/types.js';
 import { gateFindings, isReviewRequired } from '../verdict/required-checks.js';
 import { decidePipelineOutcome } from '../verdict/verdict.js';
 import { createPipelineContext, resolveRouting } from './bootstrap.js';
@@ -34,6 +39,27 @@ const PIPELINE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 function loadPromptTemplate(fileName: string): string {
   return readFileSync(join(PIPELINE_ROOT, 'prompts', fileName), 'utf-8');
+}
+
+function openAiCompatibleReviewerFrom(config: PipelineConfig): CursorAgentRunner {
+  const { baseUrl } = config.agent;
+  const model = config.agent.review.model;
+  if (baseUrl === null || model === null) {
+    throw new Error(
+      'agent.base_url and agent.model (or agent.review.model) are required when agent.provider is openai_compatible',
+    );
+  }
+  return createOpenAiCompatibleReviewer({
+    baseUrl,
+    model,
+    apiKey: readAgentApiKeyFromEnv(),
+  });
+}
+
+/** Auto-fix still requires cursor-agent. An OpenAI-compatible review cannot write a fix commit. */
+// @signal shouldSkipCursorFixer
+export function shouldSkipCursorFixer(provider: AgentProvider): boolean {
+  return provider === 'openai_compatible';
 }
 
 /**
@@ -235,6 +261,30 @@ export async function runGovern(reportsDir: string): Promise<void> {
     }
 
     const { description, diff } = await client.getPullRequestDetails(pr);
+    let reviewAgentRunner: CursorAgentRunner | undefined;
+    if (config.agent.provider === 'openai_compatible') {
+      try {
+        reviewAgentRunner = openAiCompatibleReviewerFrom(config);
+      } catch (cause) {
+        await escalateToHuman(
+          client,
+          pr,
+          logger,
+          `openai-compatible reviewer could not start: ${String(cause)}`,
+          '**The OpenAI-compatible reviewer could not start**, so this PR was not reviewed:\n\n' +
+            `> ${String(cause)}\n\n` +
+            'Set `QL_PIPELINE_AGENT_API_KEY` or `OPENAI_API_KEY` as a repository secret. ' +
+            'Do not put the token in `pipeline.config.yml`.',
+        );
+        return;
+      }
+    }
+    // Stated in the log next to the rules and standards, for the same
+    // reason: a model pinned in config is only useful if you can confirm
+    // from the run which one actually answered.
+    logger.info(
+      `agent: provider=${config.agent.provider} review model=${config.agent.review.model ?? '(provider default)'}`,
+    );
     const reviewResult = await runReview(
       {
         areas: reviewAreas,
@@ -246,7 +296,11 @@ export async function runGovern(reportsDir: string): Promise<void> {
         diff,
       },
       loadPromptTemplate('reviewer.md'),
-      { cwd: consumerRoot },
+      {
+        cwd: consumerRoot,
+        ...(config.agent.review.model !== null ? { model: config.agent.review.model } : {}),
+        ...(reviewAgentRunner !== undefined ? { agentRunner: reviewAgentRunner } : {}),
+      },
     );
 
     if (!reviewResult.ok) {
@@ -329,13 +383,27 @@ export async function runGovern(reportsDir: string): Promise<void> {
     return;
   }
 
+  if (shouldSkipCursorFixer(config.agent.provider)) {
+    await escalateToHuman(
+      client,
+      pr,
+      logger,
+      'review used an OpenAI-compatible endpoint; auto-fix is Cursor-only this round',
+      'This review ran against an OpenAI-compatible API. The automated fixer still requires ' +
+        '`cursor-agent`, so the findings above need a human rather than a pretended HTTP fix.',
+    );
+    return;
+  }
+
   const primaryArea = route.areas[0]!;
+  logger.info(`agent: fix model=${config.agent.fix.model ?? '(provider default)'}`);
   const fixOutcome = await runFix(decision.findings, loadPromptTemplate('fixer.md'), primaryArea, {
     cwd: consumerRoot,
     branch: pr.headRef,
     protectedPaths: config.fixer.protectedPaths,
     attemptNumber,
     maxFixAttempts: config.fixer.maxFixAttempts,
+    ...(config.agent.fix.model !== null ? { model: config.agent.fix.model } : {}),
   });
 
   if (fixOutcome.kind === 'committed') {

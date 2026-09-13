@@ -106,6 +106,43 @@ export interface FixerConfig {
   readonly protectedPaths: readonly string[];
 }
 
+export const AGENT_PROVIDERS = ['cursor', 'openai_compatible'] as const;
+export type AgentProvider = (typeof AGENT_PROVIDERS)[number];
+
+/** The two phases that spend a model: the AI review, and the auto-fix agent. */
+export const AGENT_PHASES = ['review', 'fix'] as const;
+export type AgentPhase = (typeof AGENT_PHASES)[number];
+
+/**
+ * Model selection for one phase. Resolved at parse time, so a reader never
+ * has to re-apply the `agent.model` fallback itself and risk the two call
+ * sites disagreeing about which model actually ran.
+ */
+export interface AgentPhaseConfig {
+  /** Null means "no --model flag": the provider's own default for this key. */
+  readonly model: string | null;
+}
+
+/**
+ * Which model reviews (and, for `cursor`, auto-fixes) PRs.
+ * `openai_compatible` is review-only — the fixer still requires cursor-agent.
+ *
+ * Review and fix are different jobs: review reads a large diff plus the
+ * house checklists and must reason about them, while a fix applies a
+ * complaint that has already been reasoned out. Pinning them separately
+ * lets a repo spend a strong model where judgement happens and a cheaper
+ * one where it does not.
+ */
+export interface AgentConfig {
+  readonly provider: AgentProvider;
+  /** Fallback for every phase that names no model of its own. */
+  readonly model: string | null;
+  /** Origin + version prefix, e.g. `https://api.openai.com/v1`. Null on `cursor`. */
+  readonly baseUrl: string | null;
+  readonly review: AgentPhaseConfig;
+  readonly fix: AgentPhaseConfig;
+}
+
 /**
  * Path globs that imply an area on top of the conventional-commit header.
  * Projects following the `apps/<name>-frontend` / `apps/<name>-backend`
@@ -136,6 +173,7 @@ export interface PipelineConfig {
   readonly gates: GatesConfig;
   readonly merge: MergeConfig;
   readonly fixer: FixerConfig;
+  readonly agent: AgentConfig;
   readonly areas: AreasConfig;
   readonly standards: StandardsConfig;
 }

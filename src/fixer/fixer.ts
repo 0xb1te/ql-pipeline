@@ -21,6 +21,7 @@ export interface RunFixOptions {
   readonly protectedPaths: readonly string[];
   readonly attemptNumber: number;
   readonly maxFixAttempts: number;
+  readonly model?: string;
   readonly agentRunner?: CursorAgentRunner;
   readonly commandExecutor?: CommandExecutor;
 }
@@ -54,7 +55,11 @@ export async function runFix(
   }
 
   const prompt = buildFixerPrompt(promptTemplate, findings, options.attemptNumber, options.maxFixAttempts);
-  const invocation = await agentRunner(prompt, { cwd: options.cwd, mode: 'agent' });
+  const invocation = await agentRunner(prompt, {
+    cwd: options.cwd,
+    mode: 'agent',
+    ...(options.model !== undefined && options.model !== '' ? { model: options.model } : {}),
+  });
 
   if (invocation.exitCode !== 0) {
     return { kind: 'agent-error', reason: `cursor-agent exited with code ${invocation.exitCode}: ${invocation.stderr}` };

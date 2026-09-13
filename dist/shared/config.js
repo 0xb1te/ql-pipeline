@@ -1,7 +1,7 @@
 // @neuron shared.core.config
 import { readFileSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
-import { AREAS, REQUIRED_CHECKS, } from './types.js';
+import { AGENT_PROVIDERS, AREAS, REQUIRED_CHECKS, } from './types.js';
 export class ConfigError extends Error {
     constructor(message) {
         super(message);
@@ -159,6 +159,7 @@ function validateConfig(data, sourceLabel) {
         gates: validateGates(root['gates'], sourceLabel),
         merge: validateMerge(root['merge'], sourceLabel),
         fixer: validateFixer(root['fixer'], sourceLabel),
+        agent: validateAgent(root['agent'], sourceLabel),
         areas: validateAreas(root['areas'], sourceLabel),
         standards: validateStandards(root['standards'], sourceLabel),
     };
@@ -309,5 +310,82 @@ function validateFixer(value, sourceLabel) {
         ? DEFAULT_PROTECTED_PATHS
         : assertArrayOfStrings(rawProtectedPaths, 'fixer.protected_paths', sourceLabel);
     return { maxFixAttempts, protectedPaths };
+}
+const DEFAULT_AGENT = {
+    provider: 'cursor',
+    model: null,
+    baseUrl: null,
+    review: { model: null },
+    fix: { model: null },
+};
+function validateAgent(value, sourceLabel) {
+    if (value === undefined) {
+        return DEFAULT_AGENT;
+    }
+    const agent = assertRecord(value, 'agent', sourceLabel);
+    const rawProvider = agent['provider'];
+    const provider = rawProvider === undefined
+        ? 'cursor'
+        : assertNonEmptyString(rawProvider, 'agent.provider', sourceLabel);
+    if (!AGENT_PROVIDERS.includes(provider)) {
+        fail(sourceLabel, `"agent.provider" must be one of ${AGENT_PROVIDERS.join(', ')}`);
+    }
+    const rawModel = agent['model'];
+    const model = rawModel === undefined || rawModel === null
+        ? null
+        : assertNonEmptyString(rawModel, 'agent.model', sourceLabel);
+    const rawBaseUrl = agent['base_url'];
+    const baseUrl = rawBaseUrl === undefined || rawBaseUrl === null
+        ? null
+        : assertHttpUrl(rawBaseUrl, 'agent.base_url', sourceLabel);
+    // Resolved here, once, rather than at each call site: `govern` reads
+    // `agent.review.model` and `agent.fix.model` directly and can no longer
+    // forget to fall back to `agent.model`.
+    const review = validateAgentPhase(agent['review'], 'review', model, sourceLabel);
+    const fix = validateAgentPhase(agent['fix'], 'fix', model, sourceLabel);
+    if (provider === 'openai_compatible') {
+        // The review model is the one this provider actually spends, so the
+        // requirement is on the resolved value: `agent.review.model` satisfies
+        // it just as well as `agent.model` does.
+        if (review.model === null) {
+            fail(sourceLabel, '"agent.model" or "agent.review.model" is required when agent.provider is openai_compatible');
+        }
+        if (baseUrl === null) {
+            fail(sourceLabel, '"agent.base_url" is required when agent.provider is openai_compatible');
+        }
+        // `agent.fix.model` is deliberately NOT rejected here. The fixer is
+        // skipped on this provider (a FIX escalates to a human), so the key is
+        // inert rather than wrong — and keeping it lets a repo switch providers
+        // back and forth without rewriting its config each time.
+    }
+    if (provider === 'cursor' && baseUrl !== null) {
+        fail(sourceLabel, '"agent.base_url" is only valid when agent.provider is openai_compatible');
+    }
+    return { provider: provider, model, baseUrl, review, fix };
+}
+function validateAgentPhase(value, phase, fallbackModel, sourceLabel) {
+    if (value === undefined) {
+        return { model: fallbackModel };
+    }
+    const record = assertRecord(value, `agent.${phase}`, sourceLabel);
+    const rawModel = record['model'];
+    if (rawModel === undefined || rawModel === null) {
+        return { model: fallbackModel };
+    }
+    return { model: assertNonEmptyString(rawModel, `agent.${phase}.model`, sourceLabel) };
+}
+function assertHttpUrl(value, label, sourceLabel) {
+    const raw = assertNonEmptyString(value, label, sourceLabel);
+    let parsed;
+    try {
+        parsed = new URL(raw);
+    }
+    catch {
+        fail(sourceLabel, `"${label}" must be an absolute http(s) URL`);
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        fail(sourceLabel, `"${label}" must be an http or https URL`);
+    }
+    return raw.replace(/\/+$/, '');
 }
 //# sourceMappingURL=config.js.map

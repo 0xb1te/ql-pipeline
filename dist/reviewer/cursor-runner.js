@@ -1,6 +1,22 @@
 // @neuron review.reviewer.cursorRunner
 import { spawn } from 'node:child_process';
 import { worktreeChanged } from '../shared/worktree.js';
+/** Pure argv for `cursor-agent`. Extracted so tests can assert `--model` without spawning. */
+// @signal cursorAgentArgs
+export function cursorAgentArgs(prompt, options) {
+    const args = ['--print', '--output-format', 'json', '--trust', '--workspace', options.cwd];
+    if (options.model !== undefined && options.model !== '') {
+        args.push('--model', options.model);
+    }
+    if (options.mode === 'ask') {
+        args.push('--mode', 'ask');
+    }
+    else {
+        args.push('--force');
+    }
+    args.push(prompt);
+    return args;
+}
 /**
  * Invokes the real `cursor-agent` CLI. The prompt (PR diff, complaint JSON,
  * etc. — all PR-derived, untrusted content) is passed as a single argv
@@ -16,14 +32,7 @@ import { worktreeChanged } from '../shared/worktree.js';
 // @signal runCursorAgent
 export const runCursorAgent = (prompt, options) => {
     return new Promise((resolve, reject) => {
-        const args = ['--print', '--output-format', 'json', '--trust', '--workspace', options.cwd];
-        if (options.mode === 'ask') {
-            args.push('--mode', 'ask');
-        }
-        else {
-            args.push('--force');
-        }
-        args.push(prompt);
+        const args = cursorAgentArgs(prompt, options);
         const child = spawn('cursor-agent', args, { cwd: options.cwd, shell: false });
         let stdout = '';
         let stderr = '';

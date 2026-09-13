@@ -30,7 +30,11 @@ export async function runFix(findings, promptTemplate, area, options) {
         return { kind: 'agent-error', reason: 'could not read the working tree state before running the fix agent' };
     }
     const prompt = buildFixerPrompt(promptTemplate, findings, options.attemptNumber, options.maxFixAttempts);
-    const invocation = await agentRunner(prompt, { cwd: options.cwd, mode: 'agent' });
+    const invocation = await agentRunner(prompt, {
+        cwd: options.cwd,
+        mode: 'agent',
+        ...(options.model !== undefined && options.model !== '' ? { model: options.model } : {}),
+    });
     if (invocation.exitCode !== 0) {
         return { kind: 'agent-error', reason: `cursor-agent exited with code ${invocation.exitCode}: ${invocation.stderr}` };
     }

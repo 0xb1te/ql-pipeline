@@ -13,6 +13,24 @@ export type CursorAgentMode = 'ask' | 'agent';
 export interface CursorAgentRunOptions {
   readonly cwd: string;
   readonly mode: CursorAgentMode;
+  /** Cursor CLI `--model` slug. Omitted: the CLI's own default for this API key. */
+  readonly model?: string;
+}
+
+/** Pure argv for `cursor-agent`. Extracted so tests can assert `--model` without spawning. */
+// @signal cursorAgentArgs
+export function cursorAgentArgs(prompt: string, options: CursorAgentRunOptions): string[] {
+  const args = ['--print', '--output-format', 'json', '--trust', '--workspace', options.cwd];
+  if (options.model !== undefined && options.model !== '') {
+    args.push('--model', options.model);
+  }
+  if (options.mode === 'ask') {
+    args.push('--mode', 'ask');
+  } else {
+    args.push('--force');
+  }
+  args.push(prompt);
+  return args;
 }
 
 export type CursorAgentRunner = (prompt: string, options: CursorAgentRunOptions) => Promise<CursorAgentInvocation>;
@@ -32,13 +50,7 @@ export type CursorAgentRunner = (prompt: string, options: CursorAgentRunOptions)
 // @signal runCursorAgent
 export const runCursorAgent: CursorAgentRunner = (prompt, options) => {
   return new Promise((resolve, reject) => {
-    const args = ['--print', '--output-format', 'json', '--trust', '--workspace', options.cwd];
-    if (options.mode === 'ask') {
-      args.push('--mode', 'ask');
-    } else {
-      args.push('--force');
-    }
-    args.push(prompt);
+    const args = cursorAgentArgs(prompt, options);
 
     const child = spawn('cursor-agent', args, { cwd: options.cwd, shell: false });
 

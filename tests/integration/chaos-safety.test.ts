@@ -32,6 +32,7 @@ const CONFIG: PipelineConfig = {
     maxFixAttempts: 3,
     protectedPaths: ['.github/workflows/', '.github/pipeline.config.yml', '.github/pipeline-rules/'],
   },
+  agent: { provider: 'cursor', model: null, baseUrl: null, review: { model: null }, fix: { model: null } },
   areas: { paths: {} },
   standards: { enabled: false, root: '.standards', docs: {}, maxCharsPerArea: 90_000 },
 };

@@ -6,9 +6,10 @@ layer: reviewer
 unit: src/reviewer/reviewer.ts
 
 responsibility: >
-  Builds the reviewer prompt, invokes cursor-agent in read-only mode, verifies the checkout
-  wasn't mutated despite that, parses the strict JSON verdict (retrying once on a parse
-  failure), and applies the grounding requirement to the resulting findings.
+  Builds the reviewer prompt, invokes the injected agent runner in read-only mode (cursor-agent
+  by default, or the OpenAI-compatible HTTP reviewer when govern injects it), verifies the
+  checkout wasn't mutated despite that, parses the strict JSON verdict (retrying once on a
+  parse failure), and applies the grounding requirement to the resulting findings.
 
 excludes:
   - Deciding what a finding means for the PR's fate - that is verdict.decision's job, once findings reach it
@@ -29,9 +30,9 @@ signals:
 
   - signal: runReview
     intent: >
-      Runs the AI reviewer end to end against one PR: builds the prompt, invokes cursor-agent
-      read-only, verifies it left the checkout untouched, parses its verdict (one retry on
-      failure), and grounds the resulting findings against the diff and loaded references.
+      Runs the AI reviewer end to end against one PR: builds the prompt, invokes the injected
+      agent runner read-only, verifies it left the checkout untouched, parses its verdict (one
+      retry on failure), and grounds the resulting findings against the diff and loaded references.
     accepts: "ReviewContext, promptTemplate, RunReviewOptions"
     returns: Promise<ReviewResult>
     afferent:
@@ -44,6 +45,9 @@ signals:
       - to: review.reviewer.cursorRunner#runCursorAgent
         via: di
         because: the agent runner is whatever RunReviewOptions.agentRunner was given, defaulting to the real cursor-agent-spawning implementation
+      - to: review.reviewer.openaiCompatibleRunner#createOpenAiCompatibleReviewer
+        via: di
+        because: when agent.provider is openai_compatible, govern injects the HTTP reviewer this factory returns
       - to: shared.core.worktree#captureWorktreeState
         via: direct-call
         because: snapshots the tree before and after the read-only invocation, to verify it was actually left untouched
@@ -60,4 +64,4 @@ signals:
         via: direct-call
         because: discards any finding that cites a file/line not in the diff or a reference not actually loaded
 
-revision: 2026-08-30
+revision: 2026-09-07

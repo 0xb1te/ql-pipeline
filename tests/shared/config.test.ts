@@ -39,6 +39,7 @@ describe('parseConfig', () => {
         maxFixAttempts: 5,
         protectedPaths: ['rules/', 'prompts/'],
       },
+      agent: { provider: 'cursor', model: null, baseUrl: null, review: { model: null }, fix: { model: null } },
       areas: { paths: { frontend: ['apps/*frontend*/**'], backend: ['apps/*backend*/**'] } },
       standards: {
         enabled: true,
@@ -76,6 +77,119 @@ describe('parseConfig', () => {
       maxFixAttempts: 3,
       protectedPaths: ['.github/workflows/', '.github/pipeline.config.yml', '.github/pipeline-rules/'],
     });
+    expect(config.agent).toEqual({
+      provider: 'cursor',
+      model: null,
+      baseUrl: null,
+      review: { model: null },
+      fix: { model: null },
+    });
+  });
+
+  it('parses agent.model when set on the cursor provider', () => {
+    const config = parseConfig(
+      'merge:\n  target_branch: main\nagent:\n  model: cursor-grok-4.6-xhigh-fast\n',
+    );
+
+    expect(config.agent).toEqual({
+      provider: 'cursor',
+      model: 'cursor-grok-4.6-xhigh-fast',
+      baseUrl: null,
+      review: { model: 'cursor-grok-4.6-xhigh-fast' },
+      fix: { model: 'cursor-grok-4.6-xhigh-fast' },
+    });
+  });
+
+  it('lets each phase override agent.model with its own', () => {
+    const config = parseConfig(
+      'merge:\n  target_branch: main\nagent:\n  model: strong\n  fix:\n    model: cheap\n',
+    );
+
+    expect(config.agent.review).toEqual({ model: 'strong' });
+    expect(config.agent.fix).toEqual({ model: 'cheap' });
+  });
+
+  it('allows per-phase models with no agent.model fallback at all', () => {
+    const config = parseConfig(
+      'merge:\n  target_branch: main\nagent:\n  review:\n    model: reviewer\n  fix:\n    model: fixer\n',
+    );
+
+    expect(config.agent.model).toBeNull();
+    expect(config.agent.review).toEqual({ model: 'reviewer' });
+    expect(config.agent.fix).toEqual({ model: 'fixer' });
+  });
+
+  it('rejects an empty per-phase model', () => {
+    expect(() =>
+      parseConfig('merge:\n  target_branch: main\nagent:\n  review:\n    model: ""\n'),
+    ).toThrow(/agent.review.model/);
+  });
+
+  it('parses an openai_compatible agent', () => {
+    const config = parseConfig(
+      'merge:\n  target_branch: main\nagent:\n  provider: openai_compatible\n  model: gpt-4.1\n  base_url: https://api.openai.com/v1\n',
+    );
+
+    expect(config.agent).toEqual({
+      provider: 'openai_compatible',
+      model: 'gpt-4.1',
+      baseUrl: 'https://api.openai.com/v1',
+      review: { model: 'gpt-4.1' },
+      fix: { model: 'gpt-4.1' },
+    });
+  });
+
+  it('accepts agent.review.model as the openai_compatible review model', () => {
+    const config = parseConfig(
+      'merge:\n  target_branch: main\nagent:\n  provider: openai_compatible\n  review:\n    model: gpt-4.1\n  base_url: https://api.openai.com/v1\n',
+    );
+
+    expect(config.agent.review).toEqual({ model: 'gpt-4.1' });
+  });
+
+  it('rejects openai_compatible without model or base_url', () => {
+    expect(() =>
+      parseConfig('merge:\n  target_branch: main\nagent:\n  provider: openai_compatible\n  model: gpt-4.1\n'),
+    ).toThrow(/agent.base_url/);
+    expect(() =>
+      parseConfig(
+        'merge:\n  target_branch: main\nagent:\n  provider: openai_compatible\n  base_url: https://api.openai.com/v1\n',
+      ),
+    ).toThrow(/agent.model/);
+  });
+
+  it('rejects base_url on the cursor provider', () => {
+    expect(() =>
+      parseConfig(
+        'merge:\n  target_branch: main\nagent:\n  base_url: https://api.openai.com/v1\n',
+      ),
+    ).toThrow(/only valid when agent.provider is openai_compatible/);
+  });
+
+  it('rejects an unknown agent.provider', () => {
+    expect(() =>
+      parseConfig('merge:\n  target_branch: main\nagent:\n  provider: anthropic\n'),
+    ).toThrow(/agent.provider/);
+  });
+
+  it('rejects a non-http agent.base_url', () => {
+    expect(() =>
+      parseConfig(
+        'merge:\n  target_branch: main\nagent:\n  provider: openai_compatible\n  model: gpt-4.1\n  base_url: ftp://llm.example.com/v1\n',
+      ),
+    ).toThrow(/http or https/);
+  });
+
+  it('strips trailing slashes from agent.base_url', () => {
+    const config = parseConfig(
+      'merge:\n  target_branch: main\nagent:\n  provider: openai_compatible\n  model: gpt-4.1\n  base_url: https://api.openai.com/v1/\n',
+    );
+
+    expect(config.agent.baseUrl).toBe('https://api.openai.com/v1');
+  });
+
+  it('rejects an empty agent.model', () => {
+    expect(() => parseConfig('merge:\n  target_branch: main\nagent:\n  model: ""\n')).toThrow(/non-empty string/);
   });
 
   it('rejects a non-mapping top level', () => {

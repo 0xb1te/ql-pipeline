@@ -52,7 +52,9 @@ signals:
   - signal: runGovern
     intent: >
       Runs the pipeline check end to end: routes the PR, checks for protected-path edits, reads
-      the gate reports, runs the AI review when required, decides the verdict, and carries it out.
+      the gate reports, runs the AI review when required (cursor-agent or the OpenAI-compatible
+      HTTP reviewer), decides the verdict, and carries it out - escalating a FIX to a human when
+      the review ran against openai_compatible, because the fixer is still Cursor-only.
     accepts: reportsDir
     returns: "Promise<void>"
     afferent:
@@ -107,9 +109,18 @@ signals:
       - to: standards.reader.standardsResolver#standardsIds
         via: direct-call
         because: names which standards documents the reviewer may cite, for the grounding check
+      - to: review.reviewer.openaiCompatibleRunner#readAgentApiKeyFromEnv
+        via: direct-call
+        because: when agent.provider is openai_compatible, the bearer token comes from the environment, never from YAML
+      - to: review.reviewer.openaiCompatibleRunner#createOpenAiCompatibleReviewer
+        via: direct-call
+        because: when agent.provider is openai_compatible, builds the HTTP reviewer injected into runReview
       - to: review.reviewer.reviewer#runReview
         via: direct-call
         because: runs the AI reviewer against this PR's diff, rules, standards, and gate results
+      - to: entrypoint.cli.governCommand#shouldSkipCursorFixer
+        via: direct-call
+        because: a FIX after an OpenAI-compatible review must escalate rather than pretend an HTTP completion can write a fix commit
       - to: fix.fixer.attemptCounter#countFixAttempts
         via: direct-call
         because: counts prior [bot] fix commits already on this PR, to know which attempt this is
@@ -130,6 +141,18 @@ signals:
         because: renders the top-level body of the request-changes review posted for a FIX or BLOCK verdict
       - to: fix.fixer.fixer#runFix
         via: direct-call
-        because: runs the automated fix attempt for a FIX verdict on a non-fork PR
+        because: runs the automated fix attempt for a FIX verdict on a non-fork PR when the provider is still cursor
 
-revision: 2026-08-30
+  - signal: shouldSkipCursorFixer
+    intent: >
+      Answers whether a FIX verdict must escalate to a human because the review ran against an
+      OpenAI-compatible endpoint that cannot write a fix commit.
+    accepts: AgentProvider
+    returns: boolean
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
+revision: 2026-09-07

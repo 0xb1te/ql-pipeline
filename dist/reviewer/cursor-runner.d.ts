@@ -8,7 +8,11 @@ export type CursorAgentMode = 'ask' | 'agent';
 export interface CursorAgentRunOptions {
     readonly cwd: string;
     readonly mode: CursorAgentMode;
+    /** Cursor CLI `--model` slug. Omitted: the CLI's own default for this API key. */
+    readonly model?: string;
 }
+/** Pure argv for `cursor-agent`. Extracted so tests can assert `--model` without spawning. */
+export declare function cursorAgentArgs(prompt: string, options: CursorAgentRunOptions): string[];
 export type CursorAgentRunner = (prompt: string, options: CursorAgentRunOptions) => Promise<CursorAgentInvocation>;
 /**
  * Invokes the real `cursor-agent` CLI. The prompt (PR diff, complaint JSON,

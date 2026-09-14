@@ -158,33 +158,57 @@ export async function resolveStandards(
   const missing: string[] = [];
 
   for (const entry of reviewPackEntries(kind, areas)) {
-    const absolute = join(workspaceRoot, config.root, entry.docPath);
-    if (!(await reader.exists(absolute))) {
+    const docPaths = await discoverDocs(entry, config, workspaceRoot, reader);
+    if (docPaths.length === 0) {
       missing.push(entry.docPath);
       continue;
     }
-    const { text, truncated, droppedSections, droppedChars } = truncateAtSection(
-      await reader.read(absolute),
-      config.maxCharsPerArea,
-    );
-    standards.push({
-      id: entry.id,
-      area: entry.area,
-      docPath: entry.docPath,
-      text,
-      truncated,
-      droppedSections,
-      droppedChars,
-    });
+    for (const docPath of docPaths) {
+      const absolute = join(workspaceRoot, config.root, docPath);
+      const { text, truncated, droppedSections, droppedChars } = truncateAtSection(
+        await reader.read(absolute),
+        config.maxCharsPerArea,
+      );
+      standards.push({
+        id: entry.id,
+        area: entry.area,
+        docPath,
+        text,
+        truncated,
+        droppedSections,
+        droppedChars,
+      });
+    }
   }
 
   return { standards, missing };
 }
 
-/** The reference ids the reviewer may cite for these standards. */
+/**
+ * The reference ids the reviewer may cite for these standards.
+ *
+ * Deduplicated: every slice of an area carries that area's id, so a sliced
+ * area would otherwise list `frontend.standards` once per slice. The id is a
+ * citation vocabulary, not a document count - slicing is deliberately
+ * invisible to the reviewer.
+ */
 // @signal standardsIds
 export function standardsIds(standards: readonly ResolvedStandard[]): string[] {
-  return standards.map((standard) => standard.id);
+  return [...new Set(standards.map((standard) => standard.id))];
+}
+
+/**
+ * Renders one standards document as it appears in the prompt. Exported so the
+ * pass planner can size a document exactly as the prompt will carry it, rather
+ * than approximating from `text.length` and drifting from the real cost.
+ */
+// @signal formatStandard
+export function formatStandard(standard: ResolvedStandard): string {
+  return (
+    `----- ${standard.id} (source: ${standard.docPath}) -----\n` +
+    `Cite findings against this document as \`${standard.id}#<section>\`, e.g. ` +
+    `\`${standard.id}#09-controllers\`.\n\n${standard.text}`
+  );
 }
 
 /** Renders the standards block injected into the reviewer prompt. */
@@ -194,12 +218,52 @@ export function formatStandardsForPrompt(standards: readonly ResolvedStandard[])
     return '(no engineering standards are configured for the areas this PR touches)';
   }
 
-  return standards
-    .map(
-      (standard) =>
-        `----- ${standard.id} (source: ${standard.docPath}) -----\n` +
-        `Cite findings against this document as \`${standard.id}#<section>\`, e.g. ` +
-        `\`${standard.id}#09-controllers\`.\n\n${standard.text}`,
-    )
-    .join('\n\n');
+  return standards.map(formatStandard).join('\n\n');
+}
+
+/**
+ * Most sections of a pack document a reviewer never sees are not dropped by
+ * choice - the document is simply larger than a prompt can carry (task 017
+ * measured 48% of `frontend.md` reaching the reviewer). An area may therefore
+ * publish numbered slices instead of one file:
+ *
+ *   workflow/review/pr-bugfix/frontend-1.md
+ *   workflow/review/pr-bugfix/frontend-2.md
+ *
+ * They are flat siblings, NOT a `frontend/` folder: house-api cannot reach a
+ * document two or more levels below a route's entry node (see
+ * `house-standards-reader.ts` and House problem
+ * d5a75cba-3ede-4f35-afed-0f2dfdde9dcb), and a folder would put them there.
+ *
+ * `${area}.md` still wins when present, so an area that fits stays exactly as
+ * it was and pays nothing for this.
+ */
+const MAX_SLICES = 20;
+
+async function discoverDocs(
+  entry: ReviewPackEntry,
+  config: StandardsConfig,
+  workspaceRoot: string,
+  reader: StandardsReader,
+): Promise<string[]> {
+  const whole = join(workspaceRoot, config.root, entry.docPath);
+  if (await reader.exists(whole)) {
+    return [entry.docPath];
+  }
+  // Only an area document slices. The shared checklist is small by design and
+  // a numbered `checklist-1.md` would be a sign something else went wrong.
+  if (entry.area === null) {
+    return [];
+  }
+
+  const base = entry.docPath.replace(/\.md$/, '');
+  const found: string[] = [];
+  for (let n = 1; n <= MAX_SLICES; n += 1) {
+    const slice = `${base}-${n}.md`;
+    if (!(await reader.exists(join(workspaceRoot, config.root, slice)))) {
+      break;
+    }
+    found.push(slice);
+  }
+  return found;
 }

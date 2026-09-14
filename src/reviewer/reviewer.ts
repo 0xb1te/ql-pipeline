@@ -81,6 +81,16 @@ const NO_PROMPT_TRUNCATION: PromptTruncation = {
   droppedChars: 0,
 };
 
+/**
+ * Bytes left for standards once everything else in the prompt is accounted
+ * for. The pass planner needs this to decide how many passes a PR takes;
+ * computing it here keeps the substitution maths in one place.
+ */
+// @signal standardsBudgetFor
+export function standardsBudgetFor(template: string, context: ReviewContext): number {
+  return MAX_PROMPT_BYTES - Buffer.byteLength(substitute(template, context, ''), 'utf8');
+}
+
 // @signal buildReviewPrompt
 export function buildReviewPrompt(template: string, context: ReviewContext): BuiltPrompt {
   const full = substitute(template, context, context.standardsText);

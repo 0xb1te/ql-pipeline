@@ -72,7 +72,20 @@ export declare function truncateAtSection(text: string, maxChars: number): Trunc
  * `workflow/review/pr-*`. The pack path is a convention, not a config map.
  */
 export declare function resolveStandards(areas: readonly Area[], config: StandardsConfig, workspaceRoot: string, reader?: StandardsReader, kind?: ReviewKind): Promise<StandardsResolution>;
-/** The reference ids the reviewer may cite for these standards. */
+/**
+ * The reference ids the reviewer may cite for these standards.
+ *
+ * Deduplicated: every slice of an area carries that area's id, so a sliced
+ * area would otherwise list `frontend.standards` once per slice. The id is a
+ * citation vocabulary, not a document count - slicing is deliberately
+ * invisible to the reviewer.
+ */
 export declare function standardsIds(standards: readonly ResolvedStandard[]): string[];
+/**
+ * Renders one standards document as it appears in the prompt. Exported so the
+ * pass planner can size a document exactly as the prompt will carry it, rather
+ * than approximating from `text.length` and drifting from the real cost.
+ */
+export declare function formatStandard(standard: ResolvedStandard): string;
 /** Renders the standards block injected into the reviewer prompt. */
 export declare function formatStandardsForPrompt(standards: readonly ResolvedStandard[]): string;

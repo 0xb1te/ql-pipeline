@@ -244,6 +244,18 @@ prompt: standards cut further to fit the prompt ceiling, dropped 18344 chars, 6 
 This matters for reading a verdict. `Findings: 0` against a whole standards
 document and `Findings: 0` against a gutted one are not the same claim, and
 before the sections were named there was no way to tell them apart.
+
+3. Split the document into numbered slices — `frontend-1.md`, `frontend-2.md`,
+   … beside the whole file. ql-pipeline reviews the diff once per pass, packing
+   as many slices into each pass as the budget carries, so nothing is dropped.
+   `${area}.md` still wins when present; an area that fits is never even probed
+   for slices, and a PR whose standards already fit still runs a single pass.
+
+   Slices must be flat siblings, **not** a `frontend/` folder: house-api cannot
+   reach a document two or more levels below a route's entry node.
+
+   Findings are merged across passes and deduplicated, and a failure in any
+   pass escalates the PR rather than reporting a partial verdict.
 3. Remove `ai-review` from `merge.required_checks` on low-risk repos, which skips the review entirely.
 
 **Fail-closed.** If `enabled` is true and a configured document can't be loaded — a wrong path, a route the `github_agent` client doesn't carry, or `house-api`/`ql-auth` being unreachable — the `ql-pipeline` check fails and says exactly what went wrong. It will not review against a subset and report success.

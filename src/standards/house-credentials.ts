@@ -11,6 +11,40 @@ export interface HouseCredentials {
 }
 
 /**
+ * Header ql-proxy checks in front of a protected exposure, before the request
+ * reaches ql-auth or house-api at all. Matches `expose.protection.header` in
+ * the host's `ql-proxy.yml`.
+ */
+export const PROXY_TOKEN_HEADER = 'X-QL-Proxy-Token';
+
+/**
+ * A `fetch` that adds the ql-proxy shared secret to every request, or
+ * `undefined` when no secret is configured.
+ *
+ * This exists because neither `QlAuthClient` nor `HouseClient` takes arbitrary
+ * headers — both expose a `fetch` override instead, which is the seam that
+ * lets ql-pipeline speak to a protected exposure without either published
+ * client having to learn about ql-proxy.
+ *
+ * Absent means "the exposure is public", not "refuse to run": a self-hosted
+ * fleet on a private network has nothing in front of it to satisfy.
+ */
+// @signal proxyFetchFromEnv
+export function proxyFetchFromEnv(env: NodeJS.ProcessEnv = process.env): typeof fetch | undefined {
+  const token = env['QL_PROXY_TOKEN'];
+  if (token === undefined || token.length === 0) {
+    return undefined;
+  }
+  return (input, init) => {
+    // `new Headers` normalises the plain-object form both clients build, so
+    // their Authorization and Content-Type survive rather than being replaced.
+    const headers = new Headers(init?.headers);
+    headers.set(PROXY_TOKEN_HEADER, token);
+    return fetch(input, { ...init, headers });
+  };
+}
+
+/**
  * Reads the four environment variables `govern` needs to reach house-api —
  * separate from `createPipelineContext` deliberately: `gate` and the
  * scaffolding commands never touch house-api, so they never have to know
@@ -72,7 +106,12 @@ export async function createHouseStandardsReader(
   workspaceRoot: string,
   standardsRoot: string,
 ): Promise<HouseStandardsReader> {
-  const auth = new QlAuthClient({ baseUrl: credentials.qlAuthUrl });
+  // Both hops go through the same exposure, so both carry the same secret.
+  const proxyFetch = proxyFetchFromEnv();
+  const auth = new QlAuthClient({
+    baseUrl: credentials.qlAuthUrl,
+    ...(proxyFetch !== undefined ? { fetch: proxyFetch } : {}),
+  });
   const { access_token: accessToken } = await auth.issueToken({
     grantType: 'client_credentials',
     clientId: credentials.qlAuthClientId,
@@ -85,7 +124,11 @@ export async function createHouseStandardsReader(
   // allow — see SessionDtos.java) — cast at this one boundary rather than
   // threading `| undefined` through HouseStandardsReader for fields the
   // real API always sends.
-  const client = new HouseClient({ baseUrl: credentials.houseApiUrl, token: accessToken }) as unknown as HouseSessionClient;
+  const client = new HouseClient({
+    baseUrl: credentials.houseApiUrl,
+    token: accessToken,
+    ...(proxyFetch !== undefined ? { fetch: proxyFetch } : {}),
+  }) as unknown as HouseSessionClient;
 
   return new HouseStandardsReader({ client, workspaceRoot, standardsRoot, projectId });
 }

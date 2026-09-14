@@ -37,6 +37,7 @@ In the repository you want governed: **Settings → Secrets and variables → Ac
 | `QL_AUTH_URL`           | Origin `ql-auth` is reachable at (e.g. `https://auth.example.com`)    | Mints the token `house-api` requires                                                                          |
 | `QL_AUTH_CLIENT_ID`     | Client id of a `ql-auth` `github_agent` client-credentials client | Identifies this repo's pipeline to `ql-auth`                                                                  |
 | `QL_AUTH_CLIENT_SECRET` | Client secret for `QL_AUTH_CLIENT_ID`                            | Authenticates the token request                                                                               |
+| `QL_PROXY_TOKEN`       | Shared secret of a `ql-proxy` exposure published with `--protect` | Only when `house-api`/`ql-auth` sit behind a protected public address. Sent as `X-QL-Proxy-Token` in front of both. |
 
 
 > For an organisation, set these once as **organisation** secrets and share them with the relevant repos rather than repeating them per repository.

@@ -60,6 +60,29 @@ Standards are cited as `review.standards#<section>` or `<area>.standards#<sectio
 
 Standards are cut in two places — `standards.max_chars_per_area` per document, and a total ceiling on the assembled prompt, which shares its budget with the diff. **Neither may cut in silence.** Both name the `## ` sections they removed, in the run log, in the note the reviewer itself reads, and in the PR summary's **Standards coverage** line. A missing document escalates; a partially loaded one is reviewed, so the record of what was missing is the only thing that makes the resulting verdict interpretable.
 
+### Sliced documents and multi-pass review
+
+An area whose checklist is larger than a prompt can carry may publish numbered
+slices beside the whole document:
+
+```
+workflow/review/pr-bugfix/frontend-1.md
+workflow/review/pr-bugfix/frontend-2.md
+```
+
+They are flat siblings, not a `frontend/` folder — house-api cannot reach a
+document two or more levels below a route's entry node. `${area}.md` wins when
+present, so an area that fits is unaffected and is never probed for slices.
+
+The reviewer runs once per **pass**, where a pass is as many standards
+documents as the prompt budget will carry; the shared `checklist.md` rides in
+every one. A PR whose standards already fit runs exactly one pass, as before —
+passes are added only where the alternative is dropping text. Findings from
+every pass are merged and deduplicated on `(file, line, rule)`, then the verdict
+is derived once from the merged list, so a BLOCK in any pass blocks. **If any
+pass fails to review, the PR escalates** rather than reporting a verdict formed
+against part of the standards.
+
 ## 3. Locked design decisions
 
 Decided 2026-07-16 (see [001/plan.md §8](001-first-task-base-project/plan.md)); the whole implementation depends on these.

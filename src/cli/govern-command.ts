@@ -11,7 +11,8 @@ import {
   createOpenAiCompatibleReviewer,
   readAgentApiKeyFromEnv,
 } from '../reviewer/openai-compatible-runner.js';
-import { runReview } from '../reviewer/reviewer.js';
+import { runReview, standardsBudgetFor } from '../reviewer/reviewer.js';
+import { dedupeFindings, planReviewPasses } from '../reviewer/review-passes.js';
 import type { CursorAgentRunner } from '../reviewer/cursor-runner.js';
 import { formatRulesForPrompt, resolveRuleFiles, ruleFileIds } from '../rules/rule-resolver.js';
 import { reviewKindFor } from '../standards/review-kind.js';
@@ -312,55 +313,83 @@ export async function runGovern(reportsDir: string): Promise<void> {
     logger.info(
       `agent: provider=${config.agent.provider} review model=${config.agent.review.model ?? '(provider default)'}`,
     );
-    const reviewResult = await runReview(
-      {
-        areas: reviewAreas,
-        ruleFiles: [...ruleFileIds(resolvedRules), ...standardsIds(standards)],
-        rulesText: formatRulesForPrompt(resolvedRules),
-        standardsText: formatStandardsForPrompt(standards),
-        gateOutcomes,
-        prDescription: description,
-        diff,
-      },
-      loadPromptTemplate('reviewer.md'),
-      {
-        cwd: consumerRoot,
-        ...(config.agent.review.model !== null ? { model: config.agent.review.model } : {}),
-        ...(reviewAgentRunner !== undefined ? { agentRunner: reviewAgentRunner } : {}),
-      },
-    );
+    const promptTemplate = loadPromptTemplate('reviewer.md');
+    const reviewBase = {
+      areas: reviewAreas,
+      ruleFiles: [...ruleFileIds(resolvedRules), ...standardsIds(standards)],
+      rulesText: formatRulesForPrompt(resolvedRules),
+      gateOutcomes,
+      prDescription: description,
+      diff,
+    };
+    const reviewOptions = {
+      cwd: consumerRoot,
+      ...(config.agent.review.model !== null ? { model: config.agent.review.model } : {}),
+      ...(reviewAgentRunner !== undefined ? { agentRunner: reviewAgentRunner } : {}),
+    };
 
-    // The prompt ceiling is the layer that used to cut in silence. It shares
-    // its budget with the diff, so it cuts by a different amount on every PR.
-    const promptCut = reviewResult.standardsTruncation;
-    if (promptCut.truncated) {
-      promptCoverage = {
-        droppedSections: promptCut.droppedSections.length,
-        droppedChars: promptCut.droppedChars,
-        omitted: promptCut.standardsOmitted,
-      };
-      logger.info(
-        promptCut.standardsOmitted
-          ? 'prompt: the diff filled the budget; no engineering standards were sent'
-          : `prompt: standards cut further to fit the prompt ceiling, ${describeDroppedSections(promptCut.droppedSections, promptCut.droppedChars)}`,
-      );
+    // Packed by budget, not one pass per document: a PR whose standards
+    // already fit runs exactly one pass, as it always has. Extra passes are
+    // bought only where the alternative is dropping text.
+    const passes = planReviewPasses(standards, standardsBudgetFor(promptTemplate, { ...reviewBase, standardsText: '' }));
+    if (passes.length > 1) {
+      logger.info(`review: ${passes.length} passes, so no standards section has to be dropped`);
     }
 
-    if (!reviewResult.ok) {
+    const reviewed: Finding[] = [];
+    let reviewFailure: string | null = null;
+
+    for (const [index, pass] of passes.entries()) {
+      const label =
+        passes.length > 1 ? ` [pass ${index + 1}/${passes.length}: ${pass.standards.map((standard) => standard.docPath).join(', ')}]` : '';
+      const reviewResult = await runReview(
+        { ...reviewBase, standardsText: formatStandardsForPrompt(pass.standards) },
+        promptTemplate,
+        reviewOptions,
+      );
+
+      // The prompt ceiling is the layer that used to cut in silence. It shares
+      // its budget with the diff, so it cuts by a different amount on every PR.
+      // With passes planned to fit, it should now cut nothing - and this is how
+      // we find out rather than assume.
+      const promptCut = reviewResult.standardsTruncation;
+      if (promptCut.truncated) {
+        promptCoverage = {
+          droppedSections: (promptCoverage?.droppedSections ?? 0) + promptCut.droppedSections.length,
+          droppedChars: (promptCoverage?.droppedChars ?? 0) + promptCut.droppedChars,
+          omitted: (promptCoverage?.omitted ?? false) || promptCut.standardsOmitted,
+        };
+        logger.info(
+          promptCut.standardsOmitted
+            ? `prompt${label}: the diff filled the budget; no engineering standards were sent`
+            : `prompt${label}: standards cut further to fit the prompt ceiling, ${describeDroppedSections(promptCut.droppedSections, promptCut.droppedChars)}`,
+        );
+      }
+
+      if (!reviewResult.ok) {
+        // Reviewing some of the standards and calling that a pass is the exact
+        // failure this design exists to end, so one bad pass fails the run.
+        reviewFailure = `${reviewResult.reason}${label}`;
+        break;
+      }
+      for (const { finding, reason } of reviewResult.outcome.discarded) {
+        logger.warn('discarded ungrounded finding', { rule: finding.rule, file: finding.file, reason });
+      }
+      reviewed.push(...reviewResult.outcome.findings);
+    }
+
+    if (reviewFailure !== null) {
       await escalateToHuman(
         client,
         pr,
         logger,
-        `review could not be completed: ${reviewResult.reason}`,
-        `**The AI review could not be completed**, so this PR is blocked rather than merged:\n\n> ${reviewResult.reason}`,
+        `review could not be completed: ${reviewFailure}`,
+        `**The AI review could not be completed**, so this PR is blocked rather than merged:\n\n> ${reviewFailure}`,
       );
       return;
     }
     reviewRan = true;
-    for (const { finding, reason } of reviewResult.outcome.discarded) {
-      logger.warn('discarded ungrounded finding', { rule: finding.rule, file: finding.file, reason });
-    }
-    findings = [...findingsFromGates, ...reviewResult.outcome.findings];
+    findings = [...findingsFromGates, ...dedupeFindings(reviewed)];
   }
 
   const commitMessages = await client.listCommitMessages(pr);

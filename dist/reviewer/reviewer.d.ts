@@ -54,6 +54,12 @@ export interface BuiltPrompt {
     readonly prompt: string;
     readonly standardsTruncation: PromptTruncation;
 }
+/**
+ * Bytes left for standards once everything else in the prompt is accounted
+ * for. The pass planner needs this to decide how many passes a PR takes;
+ * computing it here keeps the substitution maths in one place.
+ */
+export declare function standardsBudgetFor(template: string, context: ReviewContext): number;
 export declare function buildReviewPrompt(template: string, context: ReviewContext): BuiltPrompt;
 export interface ReviewOutcome {
     readonly findings: readonly Finding[];

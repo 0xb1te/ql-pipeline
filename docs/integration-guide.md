@@ -229,6 +229,8 @@ There is no per-caller way to point at a different standards source or pin a ref
 Ways to trim, in order of how much you lose:
 
 1. Drop `stage-2-mockup/checklist.md` from `frontend` if that repo never does visual-surface work (saves ~17k tokens).
+> **`max_chars_per_area` is per area, and there is also a total ceiling.** The whole prompt goes to `cursor-agent` as one argv element, and Linux refuses a single argument over 131072 bytes with `spawn E2BIG`. A per-area cap cannot bound that on its own - a PR touching two areas carries twice it. ql-pipeline therefore clamps the assembled prompt to 120000 bytes, trimming the standards (never the diff or the rules) and saying so in the prompt when it does. Lowering `max_chars_per_area` still controls how much each area contributes before that clamp applies.
+
 2. Lower `max_chars_per_area` — trailing sections are dropped whole, never mid-rule, and the truncation is stated in both the prompt and the run log.
 3. Remove `ai-review` from `merge.required_checks` on low-risk repos, which skips the review entirely.
 

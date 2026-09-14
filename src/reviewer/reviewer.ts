@@ -5,6 +5,7 @@ import { captureWorktreeState } from '../shared/worktree.js';
 import { runCursorAgent, reviewerMutatedCheckout, type CursorAgentRunner } from './cursor-runner.js';
 import { buildDiffLineIndex, groundFindings } from './diff-grounding.js';
 import { parseReviewVerdict, type ParseResult } from './response-parser.js';
+import { truncateAtSection } from '../standards/standards-resolver.js';
 
 export interface ReviewContext {
   readonly areas: readonly Area[];
@@ -18,16 +19,73 @@ export interface ReviewContext {
   readonly diff: string;
 }
 
-/** Substitutes the placeholders documented in prompts/reviewer.md. */
-// @signal buildReviewPrompt
-export function buildReviewPrompt(template: string, context: ReviewContext): string {
+/**
+ * Ceiling for the assembled prompt, in bytes.
+ *
+ * The whole prompt is handed to `cursor-agent` as a single argv element, and
+ * Linux refuses any one argument over MAX_ARG_STRLEN — 131072 bytes — with
+ * `spawn E2BIG`, before the process starts. This sits below that to leave room
+ * for the rest of argv.
+ *
+ * `standards.max_chars_per_area` cannot enforce this on its own: it is a
+ * *per-area* cap, so a PR touching two areas can carry twice it. A PR touching
+ * three areas, three times. Only a total has the property we need.
+ */
+export const MAX_PROMPT_BYTES = 120_000;
+
+function substitute(template: string, context: ReviewContext, standardsText: string): string {
   return template
     .replaceAll('{{AREAS}}', context.areas.join(', '))
     .replaceAll('{{RULES}}', context.rulesText)
-    .replaceAll('{{STANDARDS}}', context.standardsText)
+    .replaceAll('{{STANDARDS}}', standardsText)
     .replaceAll('{{GATE_RESULTS}}', formatGateResults(context.gateOutcomes))
     .replaceAll('{{PR_DESCRIPTION}}', context.prDescription)
     .replaceAll('{{DIFF}}', context.diff);
+}
+
+/**
+ * Substitutes the placeholders documented in prompts/reviewer.md, trimming the
+ * standards if the result would be too large to spawn.
+ *
+ * The standards are what gets cut, because they are the one part that is both
+ * large and safely divisible — they are already organised into sections and
+ * already have a truncation routine that cuts on a section boundary. The diff
+ * and the rules are not: half a diff is a misleading review, and a rule set
+ * missing its tail silently stops being the thing the PR is judged against.
+ */
+// @signal buildReviewPrompt
+export function buildReviewPrompt(template: string, context: ReviewContext): string {
+  const full = substitute(template, context, context.standardsText);
+  if (Buffer.byteLength(full, 'utf8') <= MAX_PROMPT_BYTES) {
+    return full;
+  }
+
+  const note =
+    '\n\n----- NOTE: the engineering standards above were truncated to fit the prompt size limit. ' +
+    'Trailing sections are missing. Do not treat their absence as permission. -----';
+
+  // The note is part of what gets substituted, so it has to come out of the
+  // budget too - otherwise the result lands just over the ceiling.
+  const overhead = Buffer.byteLength(substitute(template, context, ''), 'utf8') + Buffer.byteLength(note, 'utf8');
+  const budget = MAX_PROMPT_BYTES - overhead;
+  if (budget <= 0) {
+    // The diff alone fills the prompt. Dropping the standards entirely is the
+    // most that can be done here; the spawn may still fail, and that is a
+    // clearer signal than a review of a silently halved diff.
+    return substitute(template, context, '(engineering standards omitted: the diff alone fills the prompt budget)');
+  }
+
+  // `truncateAtSection` takes a character budget and cuts on a section
+  // boundary, so its result can still sit a little over a *byte* budget -
+  // by the tail of the last section it kept, and by any multi-byte character
+  // in it. Clamp afterwards so the ceiling is an actual guarantee rather than
+  // an approximation that fails on the one PR that happens to cross it.
+  const { text } = truncateAtSection(context.standardsText, budget);
+  let standards = text;
+  while (standards.length > 0 && Buffer.byteLength(standards, 'utf8') > budget) {
+    standards = standards.slice(0, Math.max(0, standards.length - Math.max(1, Math.ceil((Buffer.byteLength(standards, 'utf8') - budget) / 2))));
+  }
+  return substitute(template, context, `${standards}${note}`);
 }
 
 function formatGateResults(outcomes: readonly GateOutcome[]): string {

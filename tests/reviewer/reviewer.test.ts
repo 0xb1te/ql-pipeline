@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildReviewPrompt, runReview, type ReviewContext } from '../../src/reviewer/reviewer.js';
+import { MAX_PROMPT_BYTES, buildReviewPrompt, runReview, type ReviewContext } from '../../src/reviewer/reviewer.js';
 import type { CursorAgentInvocation, CursorAgentRunner } from '../../src/reviewer/cursor-runner.js';
 import type { CommandExecutor } from '../../src/shared/exec.js';
 import type { GateOutcome } from '../../src/shared/types.js';
@@ -74,6 +74,57 @@ describe('buildReviewPrompt', () => {
     const prompt = buildReviewPrompt('{{AREAS}} / {{AREAS}}', context({ areas: ['frontend'] }));
 
     expect(prompt).toBe('frontend / frontend');
+  });
+});
+
+describe('buildReviewPrompt size ceiling', () => {
+  const TEMPLATE = 'areas {{AREAS}} rules {{RULES}} standards {{STANDARDS}} gates {{GATE_RESULTS}} desc {{PR_DESCRIPTION}} diff {{DIFF}}';
+
+  function ceilingContext(standardsText: string, diff = 'diff body'): ReviewContext {
+    return {
+      areas: ['frontend'],
+      ruleFiles: ['_common.rules'],
+      rulesText: 'rules body',
+      standardsText,
+      gateOutcomes: [],
+      prDescription: 'desc',
+      diff,
+    };
+  }
+
+  function sections(count: number, filler: string): string {
+    return Array.from({ length: count }, (_, i) => `## ${i} - section ${filler.repeat(400)}`).join(' ');
+  }
+
+  it('leaves a prompt that already fits untouched', () => {
+    const prompt = buildReviewPrompt(TEMPLATE, ceilingContext('## 01 - small standards'));
+
+    expect(prompt).toContain('small standards');
+    expect(prompt).not.toContain('truncated to fit');
+  });
+
+  it('keeps the prompt spawnable when one area alone exceeds the limit', () => {
+    // A real pack file is ~132KB, over Linux MAX_ARG_STRLEN by itself.
+    const prompt = buildReviewPrompt(TEMPLATE, ceilingContext(sections(400, 'x')));
+
+    expect(Buffer.byteLength(prompt, 'utf8')).toBeLessThanOrEqual(MAX_PROMPT_BYTES);
+    expect(prompt).toContain('truncated to fit');
+  });
+
+  it('bounds the TOTAL, not each area: two areas cannot each spend the cap', () => {
+    // The actual bug. max_chars_per_area is per area, so a PR touching two
+    // areas carried twice it and still blew past the argv limit.
+    const twoAreas = `${sections(220, 'y')} ${sections(220, 'y')}`;
+    const prompt = buildReviewPrompt(TEMPLATE, ceilingContext(twoAreas));
+
+    expect(Buffer.byteLength(prompt, 'utf8')).toBeLessThanOrEqual(MAX_PROMPT_BYTES);
+  });
+
+  it('never trims the diff or the rules to make room', () => {
+    const prompt = buildReviewPrompt(TEMPLATE, ceilingContext(sections(400, 'z'), 'UNIQUE_DIFF_MARKER'));
+
+    expect(prompt).toContain('UNIQUE_DIFF_MARKER');
+    expect(prompt).toContain('rules body');
   });
 });
 

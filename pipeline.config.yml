@@ -10,26 +10,48 @@
 # ungated — ql-pipeline cannot guess a repo's build commands, so there is
 # no default. Commands run through a shell (they need `&&` and pipes) and
 # come only from this trusted, R4-protected file, never from PR content.
+#
+# These are ql-pipeline's REAL gates, not illustrations. Only the two areas
+# this repo routes to are listed: R2.1 puts all pipeline work in
+# `infrastructure`, and prose in `docs`. An area left out is ungated, which
+# is the honest state for code this repo does not contain — a placeholder
+# command that cannot run is worse than no gate, because it fails the PR and
+# takes the AI review down with it ("skipping AI review: a required gate
+# failed"). Task 018 exists because `infrastructure` was `tflint && checkov`
+# on a TypeScript repo, so this pipeline had never once reviewed its own code.
+#
+# For the other areas, see the two complete `gates:` blocks in
+# docs/integration-guide.md §4. The shape, for reference:
+#
+#   frontend:
+#     build: "npm ci && npm run build"
+#     test: "npm run test -- --ci"
+#   backend:
+#     build: "npm ci && npm run build"
+#     test: "npm run test:unit && npm run test:integration"
+#   mobile:
+#     build: "npm ci && npm run build"
+#     test: "npm test -- --ci"
+#   ios:
+#     build: "xcodebuild -scheme App -configuration Debug build"
+#     test: "xcodebuild -scheme App -configuration Debug test"
+#   android:
+#     build: "./gradlew assembleDebug"
+#     test: "./gradlew testDebugUnitTest"
 gates:
-  frontend:
-    build: "npm ci && npm run build"
-    test: "npm run test -- --ci"
-  backend:
-    build: "npm ci && npm run build"
-    test: "npm run test:unit && npm run test:integration"
-  mobile:
-    build: "npm ci && npm run build"
-    test: "npm test -- --ci"
-  ios:
-    build: "xcodebuild -scheme App -configuration Debug build"
-    test: "xcodebuild -scheme App -configuration Debug test"
-  android:
-    build: "./gradlew assembleDebug"
-    test: "./gradlew testDebugUnitTest"
   infrastructure:
-    build: "terraform validate"
-    test: "tflint && checkov -d ."
+    # `pnpm install` resolves this repo's private git dependencies because
+    # pr-pipeline.yml configures the GH_PACKAGES_TOKEN URL rewrite globally
+    # before the gate step runs, in all three jobs.
+    build: "pnpm install --frozen-lockfile && pnpm run build"
+    # typecheck and lint belong in the TEST gate, not just in self-check.yml:
+    # this result is what feeds MERGE/BLOCK, and a gate that ran only `pnpm
+    # test` would let the pipeline approve a PR that does not compile. The
+    # overlap with CI is deliberate - one is the check, this is the evidence.
+    test: "pnpm install --frozen-lockfile && pnpm run typecheck && pnpm run lint && pnpm test"
   docs:
+    # Nothing to build or test in prose; `true` is a real command that really
+    # succeeds, which is the point - it is not a stub that happens to work.
     build: "true"
     test: "true"
 

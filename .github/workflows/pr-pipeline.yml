@@ -58,6 +58,9 @@ on:
       QL_AUTH_CLIENT_SECRET:
         description: Client secret for QL_AUTH_CLIENT_ID.
         required: false
+      QL_PROXY_TOKEN:
+        description: Shared secret for a ql-proxy exposure published with --protect, sent as X-QL-Proxy-Token in front of both HOUSE_API_URL and QL_AUTH_URL. Omit when those addresses are public or private-network only.
+        required: false
 
 jobs:
   # ---------------------------------------------------------------- 1/3 --
@@ -312,3 +315,4 @@ jobs:
           QL_AUTH_URL: ${{ secrets.QL_AUTH_URL }}
           QL_AUTH_CLIENT_ID: ${{ secrets.QL_AUTH_CLIENT_ID }}
           QL_AUTH_CLIENT_SECRET: ${{ secrets.QL_AUTH_CLIENT_SECRET }}
+          QL_PROXY_TOKEN: ${{ secrets.QL_PROXY_TOKEN }}

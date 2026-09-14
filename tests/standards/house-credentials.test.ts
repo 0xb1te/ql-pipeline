@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createHouseStandardsReader, readHouseCredentialsFromEnv } from '../../src/standards/house-credentials.js';
+import {
+  PROXY_TOKEN_HEADER,
+  createHouseStandardsReader,
+  proxyFetchFromEnv,
+  readHouseCredentialsFromEnv,
+} from '../../src/standards/house-credentials.js';
 
 const FULL_ENV = {
   HOUSE_API_URL: 'https://house.example.com',
@@ -40,6 +45,52 @@ function fakeJwt(payload: Record<string, unknown>): string {
   const part = (data: unknown): string => Buffer.from(JSON.stringify(data)).toString('base64url');
   return `${part({ alg: 'none' })}.${part(payload)}.`;
 }
+
+describe('proxyFetchFromEnv', () => {
+  it('is undefined when no proxy token is set, so a public exposure still works', () => {
+    expect(proxyFetchFromEnv({})).toBeUndefined();
+  });
+
+  it('treats an empty token the same as unset', () => {
+    expect(proxyFetchFromEnv({ QL_PROXY_TOKEN: '' })).toBeUndefined();
+  });
+
+  it('sends the shared secret in the header ql-proxy checks', async () => {
+    const seen: Array<Record<string, string>> = [];
+    const spy = vi.fn((_input: unknown, init?: RequestInit) => {
+      seen.push(Object.fromEntries(new Headers(init?.headers).entries()));
+      return Promise.resolve(new Response('{}', { status: 200 }));
+    });
+    vi.stubGlobal('fetch', spy);
+
+    const proxied = proxyFetchFromEnv({ QL_PROXY_TOKEN: 'shared-secret' })!;
+    await proxied('https://house.example.com/v1/x');
+
+    expect(seen[0]?.[PROXY_TOKEN_HEADER.toLowerCase()]).toBe('shared-secret');
+  });
+
+  it('adds the header without dropping the ones the clients already set', async () => {
+    const seen: Array<Record<string, string>> = [];
+    const spy = vi.fn((_input: unknown, init?: RequestInit) => {
+      seen.push(Object.fromEntries(new Headers(init?.headers).entries()));
+      return Promise.resolve(new Response('{}', { status: 200 }));
+    });
+    vi.stubGlobal('fetch', spy);
+
+    const proxied = proxyFetchFromEnv({ QL_PROXY_TOKEN: 'shared-secret' })!;
+    // The plain-object shape both published clients build.
+    await proxied('https://auth.example.com/v1/token', {
+      method: 'POST',
+      headers: { Accept: 'application/json', Authorization: 'Bearer jwt', 'Content-Type': 'application/json' },
+    });
+
+    const headers = seen[0] ?? {};
+    expect(headers['authorization']).toBe('Bearer jwt');
+    expect(headers['content-type']).toBe('application/json');
+    expect(headers['accept']).toBe('application/json');
+    expect(headers[PROXY_TOKEN_HEADER.toLowerCase()]).toBe('shared-secret');
+  });
+});
 
 describe('createHouseStandardsReader', () => {
   afterEach(() => {

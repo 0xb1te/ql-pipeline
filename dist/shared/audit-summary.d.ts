@@ -1,5 +1,19 @@
 import type { PipelineDecision } from '../verdict/verdict.js';
 import type { Area, GateOutcome } from './types.js';
+/** What survived of one standards document, for the coverage line. */
+export interface StandardsCoverage {
+    readonly id: string;
+    readonly keptSections: number;
+    readonly droppedSections: number;
+    readonly droppedChars: number;
+}
+/** What the whole-prompt ceiling cut, on top of any per-area cap. */
+export interface PromptCoverage {
+    readonly droppedSections: number;
+    readonly droppedChars: number;
+    /** True when the diff filled the budget and no standards fit at all. */
+    readonly omitted: boolean;
+}
 export interface AuditSummaryInput {
     readonly areas: readonly Area[];
     readonly gateOutcomes: readonly GateOutcome[];
@@ -10,6 +24,10 @@ export interface AuditSummaryInput {
     readonly targetBranch: string;
     /** False when the AI review was skipped (gate failure, or not a required check). */
     readonly reviewRan: boolean;
+    /** Per-document coverage; only documents that lost something are listed. */
+    readonly standardsCoverage?: readonly StandardsCoverage[];
+    /** Present only when the prompt ceiling cut the standards further. */
+    readonly promptCoverage?: PromptCoverage;
 }
 /**
  * Renders one audit-trail PR comment per pipeline run. Per plan.md §6

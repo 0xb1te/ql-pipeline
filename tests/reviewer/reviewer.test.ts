@@ -42,7 +42,7 @@ function passResponse(): CursorAgentInvocation {
 
 describe('buildReviewPrompt', () => {
   it('substitutes every placeholder', () => {
-    const prompt = buildReviewPrompt(TEMPLATE, context());
+    const { prompt } = buildReviewPrompt(TEMPLATE, context());
 
     expect(prompt).toContain('Areas: backend');
     expect(prompt).toContain('no string-concat SQL');
@@ -52,7 +52,7 @@ describe('buildReviewPrompt', () => {
   });
 
   it('reports when no gates were configured', () => {
-    const prompt = buildReviewPrompt(TEMPLATE, context({ gateOutcomes: [] }));
+    const { prompt } = buildReviewPrompt(TEMPLATE, context({ gateOutcomes: [] }));
 
     expect(prompt).toContain('(no gates were configured for the matched areas)');
   });
@@ -63,7 +63,7 @@ describe('buildReviewPrompt', () => {
       { area: 'backend', gate: 'test', command: 'npm test', passed: false, output: '3 tests failed' },
     ];
 
-    const prompt = buildReviewPrompt(TEMPLATE, context({ gateOutcomes }));
+    const { prompt } = buildReviewPrompt(TEMPLATE, context({ gateOutcomes }));
 
     expect(prompt).toContain('- backend/build: PASSED');
     expect(prompt).toContain('- backend/test: FAILED');
@@ -71,7 +71,7 @@ describe('buildReviewPrompt', () => {
   });
 
   it('replaces every occurrence of a repeated placeholder', () => {
-    const prompt = buildReviewPrompt('{{AREAS}} / {{AREAS}}', context({ areas: ['frontend'] }));
+    const { prompt } = buildReviewPrompt('{{AREAS}} / {{AREAS}}', context({ areas: ['frontend'] }));
 
     expect(prompt).toBe('frontend / frontend');
   });
@@ -97,7 +97,7 @@ describe('buildReviewPrompt size ceiling', () => {
   }
 
   it('leaves a prompt that already fits untouched', () => {
-    const prompt = buildReviewPrompt(TEMPLATE, ceilingContext('## 01 - small standards'));
+    const { prompt } = buildReviewPrompt(TEMPLATE, ceilingContext('## 01 - small standards'));
 
     expect(prompt).toContain('small standards');
     expect(prompt).not.toContain('truncated to fit');
@@ -105,7 +105,7 @@ describe('buildReviewPrompt size ceiling', () => {
 
   it('keeps the prompt spawnable when one area alone exceeds the limit', () => {
     // A real pack file is ~132KB, over Linux MAX_ARG_STRLEN by itself.
-    const prompt = buildReviewPrompt(TEMPLATE, ceilingContext(sections(400, 'x')));
+    const { prompt } = buildReviewPrompt(TEMPLATE, ceilingContext(sections(400, 'x')));
 
     expect(Buffer.byteLength(prompt, 'utf8')).toBeLessThanOrEqual(MAX_PROMPT_BYTES);
     expect(prompt).toContain('truncated to fit');
@@ -115,13 +115,13 @@ describe('buildReviewPrompt size ceiling', () => {
     // The actual bug. max_chars_per_area is per area, so a PR touching two
     // areas carried twice it and still blew past the argv limit.
     const twoAreas = `${sections(220, 'y')} ${sections(220, 'y')}`;
-    const prompt = buildReviewPrompt(TEMPLATE, ceilingContext(twoAreas));
+    const { prompt } = buildReviewPrompt(TEMPLATE, ceilingContext(twoAreas));
 
     expect(Buffer.byteLength(prompt, 'utf8')).toBeLessThanOrEqual(MAX_PROMPT_BYTES);
   });
 
   it('never trims the diff or the rules to make room', () => {
-    const prompt = buildReviewPrompt(TEMPLATE, ceilingContext(sections(400, 'z'), 'UNIQUE_DIFF_MARKER'));
+    const { prompt } = buildReviewPrompt(TEMPLATE, ceilingContext(sections(400, 'z'), 'UNIQUE_DIFF_MARKER'));
 
     expect(prompt).toContain('UNIQUE_DIFF_MARKER');
     expect(prompt).toContain('rules body');
@@ -135,7 +135,13 @@ describe('runReview', () => {
 
     const result = await runReview(context(), TEMPLATE, { cwd: '/repo', agentRunner, commandExecutor: exec });
 
-    expect(result).toEqual({ ok: true, outcome: { findings: [], discarded: [] } });
+    expect(result).toEqual({
+      ok: true,
+      outcome: { findings: [], discarded: [] },
+      // Carried on every outcome: a review whose standards were cut is
+      // exactly the case a caller needs to be able to see.
+      standardsTruncation: { truncated: false, standardsOmitted: false, droppedSections: [], droppedChars: 0 },
+    });
     expect(agentRunner).toHaveBeenCalledTimes(1);
     expect(agentRunner).toHaveBeenCalledWith(expect.any(String), { cwd: '/repo', mode: 'ask' });
   });
@@ -212,7 +218,13 @@ describe('runReview', () => {
       commandExecutor: cleanExecutor(),
     });
 
-    expect(result).toEqual({ ok: true, outcome: { findings: [], discarded: [] } });
+    expect(result).toEqual({
+      ok: true,
+      outcome: { findings: [], discarded: [] },
+      // Carried on every outcome: a review whose standards were cut is
+      // exactly the case a caller needs to be able to see.
+      standardsTruncation: { truncated: false, standardsOmitted: false, droppedSections: [], droppedChars: 0 },
+    });
     expect(agentRunner).toHaveBeenCalledTimes(2);
   });
 

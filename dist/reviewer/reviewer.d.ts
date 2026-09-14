@@ -35,7 +35,26 @@ export declare const MAX_PROMPT_BYTES = 120000;
  * and the rules are not: half a diff is a misleading review, and a rule set
  * missing its tail silently stops being the thing the PR is judged against.
  */
-export declare function buildReviewPrompt(template: string, context: ReviewContext): string;
+/**
+ * What the prompt ceiling did to the standards, so the caller can report it.
+ *
+ * This layer used to be invisible. It is the more misleading of the two: it
+ * shares its budget with the diff, so the same standards document is cut by a
+ * different amount on every PR, and a large diff can evict most of it without
+ * anything saying so.
+ */
+export interface PromptTruncation {
+    readonly truncated: boolean;
+    /** True when the diff alone filled the budget and no standards fit at all. */
+    readonly standardsOmitted: boolean;
+    readonly droppedSections: readonly string[];
+    readonly droppedChars: number;
+}
+export interface BuiltPrompt {
+    readonly prompt: string;
+    readonly standardsTruncation: PromptTruncation;
+}
+export declare function buildReviewPrompt(template: string, context: ReviewContext): BuiltPrompt;
 export interface ReviewOutcome {
     readonly findings: readonly Finding[];
     readonly discarded: readonly {
@@ -43,13 +62,22 @@ export interface ReviewOutcome {
         readonly reason: string;
     }[];
 }
-export type ReviewResult = {
+/**
+ * Carried on every outcome, success or not. The prompt is built before the
+ * agent is invoked, so what the ceiling cut is known even when the review
+ * then fails - and a failed review whose standards were gutted is exactly
+ * the case worth being able to see.
+ */
+export interface ReviewMeta {
+    readonly standardsTruncation: PromptTruncation;
+}
+export type ReviewResult = ReviewMeta & ({
     readonly ok: true;
     readonly outcome: ReviewOutcome;
 } | {
     readonly ok: false;
     readonly reason: string;
-};
+});
 export interface RunReviewOptions {
     readonly cwd: string;
     readonly model?: string;

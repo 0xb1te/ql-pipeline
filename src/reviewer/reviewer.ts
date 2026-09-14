@@ -5,7 +5,7 @@ import { captureWorktreeState } from '../shared/worktree.js';
 import { runCursorAgent, reviewerMutatedCheckout, type CursorAgentRunner } from './cursor-runner.js';
 import { buildDiffLineIndex, groundFindings } from './diff-grounding.js';
 import { parseReviewVerdict, type ParseResult } from './response-parser.js';
-import { truncateAtSection } from '../standards/standards-resolver.js';
+import { describeDroppedSections, truncateAtSection } from '../standards/standards-resolver.js';
 
 export interface ReviewContext {
   readonly areas: readonly Area[];
@@ -53,26 +53,69 @@ function substitute(template: string, context: ReviewContext, standardsText: str
  * and the rules are not: half a diff is a misleading review, and a rule set
  * missing its tail silently stops being the thing the PR is judged against.
  */
+/**
+ * What the prompt ceiling did to the standards, so the caller can report it.
+ *
+ * This layer used to be invisible. It is the more misleading of the two: it
+ * shares its budget with the diff, so the same standards document is cut by a
+ * different amount on every PR, and a large diff can evict most of it without
+ * anything saying so.
+ */
+export interface PromptTruncation {
+  readonly truncated: boolean;
+  /** True when the diff alone filled the budget and no standards fit at all. */
+  readonly standardsOmitted: boolean;
+  readonly droppedSections: readonly string[];
+  readonly droppedChars: number;
+}
+
+export interface BuiltPrompt {
+  readonly prompt: string;
+  readonly standardsTruncation: PromptTruncation;
+}
+
+const NO_PROMPT_TRUNCATION: PromptTruncation = {
+  truncated: false,
+  standardsOmitted: false,
+  droppedSections: [],
+  droppedChars: 0,
+};
+
 // @signal buildReviewPrompt
-export function buildReviewPrompt(template: string, context: ReviewContext): string {
+export function buildReviewPrompt(template: string, context: ReviewContext): BuiltPrompt {
   const full = substitute(template, context, context.standardsText);
   if (Buffer.byteLength(full, 'utf8') <= MAX_PROMPT_BYTES) {
-    return full;
+    return { prompt: full, standardsTruncation: NO_PROMPT_TRUNCATION };
   }
 
-  const note =
+  // The note is substituted into the prompt, so it comes out of the budget.
+  const noteFor = (detail: string): string =>
     '\n\n----- NOTE: the engineering standards above were truncated to fit the prompt size limit. ' +
-    'Trailing sections are missing. Do not treat their absence as permission. -----';
+    `${detail}. Do not treat an absent section as permission. -----`;
 
-  // The note is part of what gets substituted, so it has to come out of the
-  // budget too - otherwise the result lands just over the ceiling.
-  const overhead = Buffer.byteLength(substitute(template, context, ''), 'utf8') + Buffer.byteLength(note, 'utf8');
-  const budget = MAX_PROMPT_BYTES - overhead;
+  // The note now carries the dropped titles, so its length depends on what
+  // gets cut - which depends on the budget, which depends on the note. Probe
+  // once to learn the rough shape, size the budget from that, then clamp
+  // against the note actually emitted. Sizing off the probe alone would let a
+  // longer final note push the prompt back over the ceiling.
+  const baseOverhead = Buffer.byteLength(substitute(template, context, ''), 'utf8');
+  const probe = truncateAtSection(context.standardsText, Math.max(0, MAX_PROMPT_BYTES - baseOverhead));
+  const note = noteFor(describeDroppedSections(probe.droppedSections, probe.droppedChars));
+
+  const budget = MAX_PROMPT_BYTES - baseOverhead - Buffer.byteLength(note, 'utf8');
   if (budget <= 0) {
     // The diff alone fills the prompt. Dropping the standards entirely is the
     // most that can be done here; the spawn may still fail, and that is a
     // clearer signal than a review of a silently halved diff.
-    return substitute(template, context, '(engineering standards omitted: the diff alone fills the prompt budget)');
+    return {
+      prompt: substitute(template, context, '(engineering standards omitted: the diff alone fills the prompt budget)'),
+      standardsTruncation: {
+        truncated: true,
+        standardsOmitted: true,
+        droppedSections: sectionTitlesIn(context.standardsText),
+        droppedChars: context.standardsText.length,
+      },
+    };
   }
 
   // `truncateAtSection` takes a character budget and cuts on a section
@@ -80,12 +123,31 @@ export function buildReviewPrompt(template: string, context: ReviewContext): str
   // by the tail of the last section it kept, and by any multi-byte character
   // in it. Clamp afterwards so the ceiling is an actual guarantee rather than
   // an approximation that fails on the one PR that happens to cross it.
-  const { text } = truncateAtSection(context.standardsText, budget);
-  let standards = text;
-  while (standards.length > 0 && Buffer.byteLength(standards, 'utf8') > budget) {
-    standards = standards.slice(0, Math.max(0, standards.length - Math.max(1, Math.ceil((Buffer.byteLength(standards, 'utf8') - budget) / 2))));
+  const fitted = truncateAtSection(context.standardsText, budget);
+  const finalNote = noteFor(describeDroppedSections(fitted.droppedSections, fitted.droppedChars));
+  const standardsBudget = MAX_PROMPT_BYTES - baseOverhead - Buffer.byteLength(finalNote, 'utf8');
+
+  let standards = fitted.text;
+  while (standards.length > 0 && Buffer.byteLength(standards, 'utf8') > standardsBudget) {
+    standards = standards.slice(
+      0,
+      Math.max(0, standards.length - Math.max(1, Math.ceil((Buffer.byteLength(standards, 'utf8') - standardsBudget) / 2))),
+    );
   }
-  return substitute(template, context, `${standards}${note}`);
+  return {
+    prompt: substitute(template, context, `${standards}${finalNote}`),
+    standardsTruncation: {
+      truncated: true,
+      standardsOmitted: false,
+      droppedSections: fitted.droppedSections,
+      droppedChars: fitted.droppedChars,
+    },
+  };
+}
+
+/** Every `## ` heading in a document, for the omitted-entirely case. */
+function sectionTitlesIn(text: string): string[] {
+  return Array.from(text.matchAll(/^## (.*)$/gm), (match) => (match[1] ?? '').trim());
 }
 
 function formatGateResults(outcomes: readonly GateOutcome[]): string {
@@ -106,7 +168,18 @@ export interface ReviewOutcome {
   readonly discarded: readonly { readonly finding: Finding; readonly reason: string }[];
 }
 
-export type ReviewResult = { readonly ok: true; readonly outcome: ReviewOutcome } | { readonly ok: false; readonly reason: string };
+/**
+ * Carried on every outcome, success or not. The prompt is built before the
+ * agent is invoked, so what the ceiling cut is known even when the review
+ * then fails - and a failed review whose standards were gutted is exactly
+ * the case worth being able to see.
+ */
+export interface ReviewMeta {
+  readonly standardsTruncation: PromptTruncation;
+}
+
+export type ReviewResult = ReviewMeta &
+  ({ readonly ok: true; readonly outcome: ReviewOutcome } | { readonly ok: false; readonly reason: string });
 
 export interface RunReviewOptions {
   readonly cwd: string;
@@ -127,7 +200,7 @@ export interface RunReviewOptions {
 export async function runReview(context: ReviewContext, promptTemplate: string, options: RunReviewOptions): Promise<ReviewResult> {
   const agentRunner = options.agentRunner ?? runCursorAgent;
   const commandExecutor = options.commandExecutor ?? defaultCommandExecutor;
-  const prompt = buildReviewPrompt(promptTemplate, context);
+  const { prompt, standardsTruncation } = buildReviewPrompt(promptTemplate, context);
 
   // Snapshot the tree before the agent runs, so the read-only guard
   // compares against reality rather than demanding a pristine checkout —
@@ -145,17 +218,22 @@ export async function runReview(context: ReviewContext, promptTemplate: string, 
     return {
       ok: false,
       reason: 'the reviewer checkout was modified during a read-only review invocation; treating this run as BLOCK',
+      standardsTruncation,
     };
   }
 
   if (!attempt.ok) {
-    return { ok: false, reason: `reviewer response was unusable even after a retry: ${attempt.reason}` };
+    return {
+      ok: false,
+      reason: `reviewer response was unusable even after a retry: ${attempt.reason}`,
+      standardsTruncation,
+    };
   }
 
   const diffIndex = buildDiffLineIndex(context.diff);
   const { grounded, discarded } = groundFindings(attempt.value.findings, diffIndex, context.ruleFiles);
 
-  return { ok: true, outcome: { findings: grounded, discarded } };
+  return { ok: true, outcome: { findings: grounded, discarded }, standardsTruncation };
 }
 
 async function invokeAndParse(

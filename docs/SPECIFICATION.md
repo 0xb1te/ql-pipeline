@@ -58,6 +58,8 @@ Beyond `rules/*.rules`, the reviewer is given one ql-docs `workflow/review/pr-*`
 
 Standards are cited as `review.standards#<section>` or `<area>.standards#<section>`, and are subject to the same grounding requirement. Loading is fail-closed: if `standards.enabled` is true and a pack document is missing, the PR is escalated rather than reviewed without it.
 
+Standards are cut in two places — `standards.max_chars_per_area` per document, and a total ceiling on the assembled prompt, which shares its budget with the diff. **Neither may cut in silence.** Both name the `## ` sections they removed, in the run log, in the note the reviewer itself reads, and in the PR summary's **Standards coverage** line. A missing document escalates; a partially loaded one is reviewed, so the record of what was missing is the only thing that makes the resulting verdict interpretable.
+
 ## 3. Locked design decisions
 
 Decided 2026-07-16 (see [001/plan.md §8](001-first-task-base-project/plan.md)); the whole implementation depends on these.

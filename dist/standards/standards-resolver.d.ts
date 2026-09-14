@@ -8,6 +8,10 @@ export interface ResolvedStandard {
     readonly docPath: string;
     readonly text: string;
     readonly truncated: boolean;
+    /** Titles of the `## ` sections dropped, in document order. */
+    readonly droppedSections: readonly string[];
+    /** Characters removed from the source document. */
+    readonly droppedChars: number;
 }
 export interface StandardsResolution {
     readonly standards: readonly ResolvedStandard[];
@@ -32,16 +36,37 @@ export declare function standardsIdFor(area: Area): string;
 export declare function reviewPackEntries(kind: ReviewKind, areas: readonly Area[]): ReviewPackEntry[];
 /** Every file a local `.standards` checkout must have for `doctor` to pass. */
 export declare function allReviewDocumentPaths(): string[];
+/** How many section titles a rendered list names before eliding the rest. */
+export declare const MAX_LISTED_SECTIONS = 10;
+export interface TruncationResult {
+    readonly text: string;
+    readonly truncated: boolean;
+    /** Titles of the `## ` sections dropped, in document order. */
+    readonly droppedSections: readonly string[];
+    /** Characters removed from the source document. */
+    readonly droppedChars: number;
+}
+/**
+ * Renders a dropped-section list for a log line or a prompt note. Long lists
+ * are elided: the point is to make the shape of the gap legible, and thirty
+ * titles on one line is not. The full list survives in the gate report, which
+ * has no line-length pressure.
+ */
+export declare function describeDroppedSections(sections: readonly string[], droppedChars: number): string;
 /**
  * Truncates on a section boundary where possible. The checklists are
  * organised as `## NN — Title` sections, so cutting mid-section would hand
  * the reviewer half a rule; dropping whole trailing sections at least
  * leaves every included rule intact and says what was dropped.
+ *
+ * "Says what was dropped" is literal: the removed tail is scanned for its
+ * section headings, which are returned to the caller and named in the marker.
+ * A reviewer that cannot see a rule should at least be able to tell the rule
+ * existed - otherwise `Findings: 0` is unreadable, because nothing separates
+ * "nothing to report" from "the rule that would have caught it was not in the
+ * prompt".
  */
-export declare function truncateAtSection(text: string, maxChars: number): {
-    text: string;
-    truncated: boolean;
-};
+export declare function truncateAtSection(text: string, maxChars: number): TruncationResult;
 /**
  * Loads the review pack for this PR's kind and areas from
  * `workflow/review/pr-*`. The pack path is a convention, not a config map.

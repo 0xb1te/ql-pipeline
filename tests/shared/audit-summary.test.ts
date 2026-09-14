@@ -57,3 +57,49 @@ describe('formatAuditSummary', () => {
     expect(fixed).not.toContain('>');
   });
 });
+
+describe('formatAuditSummary — standards coverage', () => {
+  it('says nothing when the standards were sent whole', () => {
+    // The common case stays quiet; a coverage line every run would be noise.
+    expect(formatAuditSummary(input())).not.toContain('**Standards coverage:**');
+  });
+
+  it('reports what the per-area cap dropped, so `Findings: 0` is readable', () => {
+    const summary = formatAuditSummary(
+      input({
+        standardsCoverage: [{ id: 'frontend.standards', keptSections: 34, droppedSections: 30, droppedChars: 52_112 }],
+      }),
+    );
+
+    expect(summary).toContain('**Standards coverage:**');
+    expect(summary).toContain('frontend.standards — 34 of 64 sections');
+    expect(summary).toContain('30 dropped (52112 chars) by the per-area cap');
+  });
+
+  it('reports the prompt ceiling as a further cut on top of the cap', () => {
+    const summary = formatAuditSummary(
+      input({
+        standardsCoverage: [{ id: 'frontend.standards', keptSections: 34, droppedSections: 30, droppedChars: 52_112 }],
+        promptCoverage: { droppedSections: 6, droppedChars: 18_344, omitted: false },
+      }),
+    );
+
+    expect(summary).toContain('the prompt ceiling cut a further 6 sections (18344 chars)');
+  });
+
+  it('is emphatic when the diff crowded the standards out completely', () => {
+    const summary = formatAuditSummary(
+      input({ promptCoverage: { droppedSections: 64, droppedChars: 132_112, omitted: true } }),
+    );
+
+    expect(summary).toContain('**no engineering standards were sent at all**');
+  });
+
+  it('puts coverage above the finding count, which is what it qualifies', () => {
+    const summary = formatAuditSummary(
+      input({ standardsCoverage: [{ id: 'frontend.standards', keptSections: 1, droppedSections: 1, droppedChars: 10 }] }),
+    );
+
+    expect(summary.indexOf('**Standards coverage:**')).toBeLessThan(summary.indexOf('**Findings:**'));
+  });
+});

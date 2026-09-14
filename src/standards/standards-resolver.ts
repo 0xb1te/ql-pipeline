@@ -12,6 +12,10 @@ export interface ResolvedStandard {
   readonly docPath: string;
   readonly text: string;
   readonly truncated: boolean;
+  /** Titles of the `## ` sections dropped, in document order. */
+  readonly droppedSections: readonly string[];
+  /** Characters removed from the source document. */
+  readonly droppedChars: number;
 }
 
 export interface StandardsResolution {
@@ -63,25 +67,74 @@ export function allReviewDocumentPaths(): string[] {
   return REVIEW_KINDS.flatMap((kind) => reviewPackEntries(kind, AREAS).map((entry) => entry.docPath));
 }
 
+/** How many section titles a rendered list names before eliding the rest. */
+export const MAX_LISTED_SECTIONS = 10;
+
+export interface TruncationResult {
+  readonly text: string;
+  readonly truncated: boolean;
+  /** Titles of the `## ` sections dropped, in document order. */
+  readonly droppedSections: readonly string[];
+  /** Characters removed from the source document. */
+  readonly droppedChars: number;
+}
+
+/**
+ * Renders a dropped-section list for a log line or a prompt note. Long lists
+ * are elided: the point is to make the shape of the gap legible, and thirty
+ * titles on one line is not. The full list survives in the gate report, which
+ * has no line-length pressure.
+ */
+// @signal describeDroppedSections
+export function describeDroppedSections(sections: readonly string[], droppedChars: number): string {
+  if (sections.length === 0) {
+    // A document with no `## ` headings can still overflow. Saying so beats
+    // reporting "0 sections", which reads as "nothing was lost".
+    return `dropped ${droppedChars} chars (no section headings to name)`;
+  }
+  const listed = sections.slice(0, MAX_LISTED_SECTIONS).join(', ');
+  const rest = sections.length - MAX_LISTED_SECTIONS;
+  const elision = rest > 0 ? ` (+${rest} more)` : '';
+  const plural = sections.length === 1 ? '' : 's';
+  return `dropped ${droppedChars} chars, ${sections.length} section${plural}: ${listed}${elision}`;
+}
+
 /**
  * Truncates on a section boundary where possible. The checklists are
  * organised as `## NN — Title` sections, so cutting mid-section would hand
  * the reviewer half a rule; dropping whole trailing sections at least
  * leaves every included rule intact and says what was dropped.
+ *
+ * "Says what was dropped" is literal: the removed tail is scanned for its
+ * section headings, which are returned to the caller and named in the marker.
+ * A reviewer that cannot see a rule should at least be able to tell the rule
+ * existed - otherwise `Findings: 0` is unreadable, because nothing separates
+ * "nothing to report" from "the rule that would have caught it was not in the
+ * prompt".
  */
 // @signal truncateAtSection
-export function truncateAtSection(text: string, maxChars: number): { text: string; truncated: boolean } {
+export function truncateAtSection(text: string, maxChars: number): TruncationResult {
   if (text.length <= maxChars) {
-    return { text, truncated: false };
+    return { text, truncated: false, droppedSections: [], droppedChars: 0 };
   }
 
   const clipped = text.slice(0, maxChars);
   const lastSection = clipped.lastIndexOf('\n## ');
   const cut = lastSection > 0 ? clipped.slice(0, lastSection) : clipped;
 
+  // Scan only the removed tail, so the cost is proportional to what was lost.
+  const removed = text.slice(cut.length);
+  const droppedSections = Array.from(removed.matchAll(/^## (.*)$/gm), (match) => (match[1] ?? '').trim());
+  const droppedChars = text.length - cut.length;
+
   return {
-    text: `${cut}\n\n[... truncated: this document exceeds the configured standards budget. Sections beyond this point were not included. ...]`,
+    text:
+      `${cut}\n\n[... truncated: this document exceeds the configured standards budget. ` +
+      `${describeDroppedSections(droppedSections, droppedChars)}. ` +
+      `Do not treat an absent section as permission. ...]`,
     truncated: true,
+    droppedSections,
+    droppedChars,
   };
 }
 
@@ -110,13 +163,18 @@ export async function resolveStandards(
       missing.push(entry.docPath);
       continue;
     }
-    const { text, truncated } = truncateAtSection(await reader.read(absolute), config.maxCharsPerArea);
+    const { text, truncated, droppedSections, droppedChars } = truncateAtSection(
+      await reader.read(absolute),
+      config.maxCharsPerArea,
+    );
     standards.push({
       id: entry.id,
       area: entry.area,
       docPath: entry.docPath,
       text,
       truncated,
+      droppedSections,
+      droppedChars,
     });
   }
 

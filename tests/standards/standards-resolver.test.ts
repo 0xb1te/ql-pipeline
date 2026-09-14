@@ -125,7 +125,7 @@ describe('resolveStandards', () => {
 
 describe('truncateAtSection', () => {
   it('leaves text within budget untouched', () => {
-    expect(truncateAtSection('short', 100)).toEqual({ text: 'short', truncated: false });
+    expect(truncateAtSection('short', 100)).toEqual({ text: 'short', truncated: false, droppedSections: [], droppedChars: 0 });
   });
 
   it('cuts on a section boundary so no rule is left half-quoted', () => {

@@ -19,12 +19,17 @@ import { areasFromPaths } from '../router/area-paths.js';
 import { touchesProtectedPaths } from '../router/self-protection.js';
 import { createHouseStandardsReader, readHouseCredentialsFromEnv } from '../standards/house-credentials.js';
 import {
+  describeDroppedSections,
   formatStandardsForPrompt,
   resolveStandards,
   standardsIds,
   type StandardsResolution,
 } from '../standards/standards-resolver.js';
-import { formatAuditSummary } from '../shared/audit-summary.js';
+import {
+  formatAuditSummary,
+  type PromptCoverage,
+  type StandardsCoverage,
+} from '../shared/audit-summary.js';
 import { mergeGateReports, parseGateReport, type GateReport } from '../shared/gate-report.js';
 import type { GithubClient, PullRequestInfo } from '../shared/github-client.js';
 import type { Logger } from '../shared/logger.js';
@@ -191,6 +196,10 @@ export async function runGovern(reportsDir: string): Promise<void> {
 
   let findings: readonly Finding[] = findingsFromGates;
   let reviewRan = false;
+  // Declared out here for the same reason as `reviewRan`: the review runs in
+  // an inner block, and the audit summary is rendered after it.
+  const standardsCoverage: StandardsCoverage[] = [];
+  let promptCoverage: PromptCoverage | undefined;
 
   if (gatesBlock) {
     logger.info('skipping AI review: a required gate failed, so there is no point reviewing code that fails to build');
@@ -241,7 +250,18 @@ export async function runGovern(reportsDir: string): Promise<void> {
     }
     const { standards, missing } = standardsResolution;
     for (const standard of standards) {
-      logger.info(`standards: ${standard.id} (${standard.docPath})${standard.truncated ? ' [truncated]' : ''}`);
+      logger.info(`standards: ${standard.id} (${standard.docPath})`);
+      if (standard.truncated) {
+        // A bare [truncated] flag made a review's coverage unknowable: it did
+        // not say how much went, or which rules. Name them.
+        logger.info(`  [per-area cap] ${describeDroppedSections(standard.droppedSections, standard.droppedChars)}`);
+        standardsCoverage.push({
+          id: standard.id,
+          keptSections: (standard.text.match(/^## /gm) ?? []).length,
+          droppedSections: standard.droppedSections.length,
+          droppedChars: standard.droppedChars,
+        });
+      }
     }
 
     // A configured standards document that isn't there means this review
@@ -310,6 +330,22 @@ export async function runGovern(reportsDir: string): Promise<void> {
       },
     );
 
+    // The prompt ceiling is the layer that used to cut in silence. It shares
+    // its budget with the diff, so it cuts by a different amount on every PR.
+    const promptCut = reviewResult.standardsTruncation;
+    if (promptCut.truncated) {
+      promptCoverage = {
+        droppedSections: promptCut.droppedSections.length,
+        droppedChars: promptCut.droppedChars,
+        omitted: promptCut.standardsOmitted,
+      };
+      logger.info(
+        promptCut.standardsOmitted
+          ? 'prompt: the diff filled the budget; no engineering standards were sent'
+          : `prompt: standards cut further to fit the prompt ceiling, ${describeDroppedSections(promptCut.droppedSections, promptCut.droppedChars)}`,
+      );
+    }
+
     if (!reviewResult.ok) {
       await escalateToHuman(
         client,
@@ -343,6 +379,8 @@ export async function runGovern(reportsDir: string): Promise<void> {
       maxFixAttempts: config.fixer.maxFixAttempts,
       targetBranch,
       reviewRan,
+      standardsCoverage,
+      ...(promptCoverage !== undefined ? { promptCoverage } : {}),
     }),
   );
 

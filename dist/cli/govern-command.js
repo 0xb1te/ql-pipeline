@@ -14,8 +14,8 @@ import { reviewKindFor } from '../standards/review-kind.js';
 import { areasFromPaths } from '../router/area-paths.js';
 import { touchesProtectedPaths } from '../router/self-protection.js';
 import { createHouseStandardsReader, readHouseCredentialsFromEnv } from '../standards/house-credentials.js';
-import { formatStandardsForPrompt, resolveStandards, standardsIds, } from '../standards/standards-resolver.js';
-import { formatAuditSummary } from '../shared/audit-summary.js';
+import { describeDroppedSections, formatStandardsForPrompt, resolveStandards, standardsIds, } from '../standards/standards-resolver.js';
+import { formatAuditSummary, } from '../shared/audit-summary.js';
 import { mergeGateReports, parseGateReport } from '../shared/gate-report.js';
 import { AREAS } from '../shared/types.js';
 import { gateFindings, isReviewRequired } from '../verdict/required-checks.js';
@@ -134,6 +134,10 @@ export async function runGovern(reportsDir) {
     const gatesBlock = findingsFromGates.some((finding) => finding.severity === 'must');
     let findings = findingsFromGates;
     let reviewRan = false;
+    // Declared out here for the same reason as `reviewRan`: the review runs in
+    // an inner block, and the audit summary is rendered after it.
+    const standardsCoverage = [];
+    let promptCoverage;
     if (gatesBlock) {
         logger.info('skipping AI review: a required gate failed, so there is no point reviewing code that fails to build');
     }
@@ -169,7 +173,18 @@ export async function runGovern(reportsDir) {
         }
         const { standards, missing } = standardsResolution;
         for (const standard of standards) {
-            logger.info(`standards: ${standard.id} (${standard.docPath})${standard.truncated ? ' [truncated]' : ''}`);
+            logger.info(`standards: ${standard.id} (${standard.docPath})`);
+            if (standard.truncated) {
+                // A bare [truncated] flag made a review's coverage unknowable: it did
+                // not say how much went, or which rules. Name them.
+                logger.info(`  [per-area cap] ${describeDroppedSections(standard.droppedSections, standard.droppedChars)}`);
+                standardsCoverage.push({
+                    id: standard.id,
+                    keptSections: (standard.text.match(/^## /gm) ?? []).length,
+                    droppedSections: standard.droppedSections.length,
+                    droppedChars: standard.droppedChars,
+                });
+            }
         }
         // A configured standards document that isn't there means this review
         // would silently be weaker than the repo believes it is — the same
@@ -218,6 +233,19 @@ export async function runGovern(reportsDir) {
             ...(config.agent.review.model !== null ? { model: config.agent.review.model } : {}),
             ...(reviewAgentRunner !== undefined ? { agentRunner: reviewAgentRunner } : {}),
         });
+        // The prompt ceiling is the layer that used to cut in silence. It shares
+        // its budget with the diff, so it cuts by a different amount on every PR.
+        const promptCut = reviewResult.standardsTruncation;
+        if (promptCut.truncated) {
+            promptCoverage = {
+                droppedSections: promptCut.droppedSections.length,
+                droppedChars: promptCut.droppedChars,
+                omitted: promptCut.standardsOmitted,
+            };
+            logger.info(promptCut.standardsOmitted
+                ? 'prompt: the diff filled the budget; no engineering standards were sent'
+                : `prompt: standards cut further to fit the prompt ceiling, ${describeDroppedSections(promptCut.droppedSections, promptCut.droppedChars)}`);
+        }
         if (!reviewResult.ok) {
             await escalateToHuman(client, pr, logger, `review could not be completed: ${reviewResult.reason}`, `**The AI review could not be completed**, so this PR is blocked rather than merged:\n\n> ${reviewResult.reason}`);
             return;
@@ -241,6 +269,8 @@ export async function runGovern(reportsDir) {
         maxFixAttempts: config.fixer.maxFixAttempts,
         targetBranch,
         reviewRan,
+        standardsCoverage,
+        ...(promptCoverage !== undefined ? { promptCoverage } : {}),
     }));
     if (decision.kind === 'MERGE') {
         const execution = await executeMergeDecision(client, pr, decision.advisoryFindings, config.merge);

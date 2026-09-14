@@ -231,7 +231,19 @@ Ways to trim, in order of how much you lose:
 1. Drop `stage-2-mockup/checklist.md` from `frontend` if that repo never does visual-surface work (saves ~17k tokens).
 > **`max_chars_per_area` is per area, and there is also a total ceiling.** The whole prompt goes to `cursor-agent` as one argv element, and Linux refuses a single argument over 131072 bytes with `spawn E2BIG`. A per-area cap cannot bound that on its own - a PR touching two areas carries twice it. ql-pipeline therefore clamps the assembled prompt to 120000 bytes, trimming the standards (never the diff or the rules) and saying so in the prompt when it does. Lowering `max_chars_per_area` still controls how much each area contributes before that clamp applies.
 
-2. Lower `max_chars_per_area` — trailing sections are dropped whole, never mid-rule, and the truncation is stated in both the prompt and the run log.
+2. Lower `max_chars_per_area` — trailing sections are dropped whole, never mid-rule, and both layers name what they removed.
+
+Whenever either layer cuts, the run log names the dropped sections and the PR summary carries a **Standards coverage** line:
+
+```
+standards: frontend.standards (workflow/review/pr-bugfix/frontend.md)
+  [per-area cap] dropped 52112 chars, 28 sections: 04 — Routing & Lazy Loading, 05 — Guards, ... (+18 more)
+prompt: standards cut further to fit the prompt ceiling, dropped 18344 chars, 6 sections: ...
+```
+
+This matters for reading a verdict. `Findings: 0` against a whole standards
+document and `Findings: 0` against a gutted one are not the same claim, and
+before the sections were named there was no way to tell them apart.
 3. Remove `ai-review` from `merge.required_checks` on low-risk repos, which skips the review entirely.
 
 **Fail-closed.** If `enabled` is true and a configured document can't be loaded — a wrong path, a route the `github_agent` client doesn't carry, or `house-api`/`ql-auth` being unreachable — the `ql-pipeline` check fails and says exactly what went wrong. It will not review against a subset and report success.

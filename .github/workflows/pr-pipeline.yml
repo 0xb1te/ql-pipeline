@@ -86,6 +86,14 @@ jobs:
       # ql-pipeline (and the node_modules it installs) lands inside the repo
       # under review. Hiding it here keeps it out of `git status`, which the
       # reviewer's read-only guard and the fixer's staging both depend on.
+      #
+      # Hiding it from git is not enough for pnpm, though: pnpm finds its
+      # workspace by walking UP the directory tree, so inside a consumer that
+      # is itself a pnpm workspace it reads the consumer's
+      # pnpm-workspace.yaml and installs THAT, ignoring ql-pipeline's own
+      # package.json entirely. The build then fails on missing @actions/core
+      # and yaml. Every install below therefore passes --ignore-workspace,
+      # which is a no-op in a consumer that is not a workspace.
       - name: Hide the ql-pipeline checkout from the repo under review
         run: echo '/.ql-pipeline/' >> .git/info/exclude
 
@@ -123,7 +131,7 @@ jobs:
 
       - name: Install and build ql-pipeline
         working-directory: .ql-pipeline
-        run: pnpm install --frozen-lockfile && pnpm run build
+        run: pnpm install --frozen-lockfile --ignore-workspace && pnpm run build
 
       - name: Run test gate
         run: node .ql-pipeline/dist/main.js gate --stage test --report gate-reports/test.json
@@ -192,7 +200,7 @@ jobs:
 
       - name: Install and build ql-pipeline
         working-directory: .ql-pipeline
-        run: pnpm install --frozen-lockfile && pnpm run build
+        run: pnpm install --frozen-lockfile --ignore-workspace && pnpm run build
 
       - name: Run build gate
         run: node .ql-pipeline/dist/main.js gate --stage build --report gate-reports/build.json
@@ -264,7 +272,7 @@ jobs:
 
       - name: Install and build ql-pipeline
         working-directory: .ql-pipeline
-        run: pnpm install --frozen-lockfile && pnpm run build
+        run: pnpm install --frozen-lockfile --ignore-workspace && pnpm run build
 
       # A gate job that was skipped leaves no artifact; the pipeline job
       # treats an absent report as "that stage did not report", which is

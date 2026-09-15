@@ -11,7 +11,7 @@ responsibility: >
   cannot verify rather than implying a clean bill of health it cannot give.
 
 excludes:
-  - Verifying CURSOR_API_KEY/QL_PIPELINE_AGENT_API_KEY/OPENAI_API_KEY/HOUSE_API_URL/QL_AUTH_* are set - those live in repository secrets, which a local CLI has no business reading
+  - Verifying CURSOR_API_KEY/QL_PIPELINE_AGENT_API_KEY/OPENAI_API_KEY/QL_HOUSE_API_URL/QL_AUTH_* are set - those live in repository secrets, which a local CLI has no business reading
 
 receptors: []
 effectors: []

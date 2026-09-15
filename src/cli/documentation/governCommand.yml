@@ -99,7 +99,7 @@ signals:
         because: picks which workflow/review/pr-* pack this PR's branch and commit types load
       - to: standards.reader.houseCredentials#readHouseCredentialsFromEnv
         via: direct-call
-        because: reads the four HOUSE_API_URL/QL_AUTH_* variables this run needs to reach house-api
+        because: reads the four QL_HOUSE_API_URL/QL_AUTH_* variables this run needs to reach house-api
       - to: standards.reader.houseCredentials#createHouseStandardsReader
         via: direct-call
         because: mints this run's own house-api session credentials and builds the reader standards resolution will read through

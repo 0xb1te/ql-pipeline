@@ -33,7 +33,7 @@ In the repository you want governed: **Settings → Secrets and variables → Ac
 | `GH_PACKAGES_TOKEN`         | A token with **read** access to `0xb1te/ql-docs` and `0xb1te/ql-auth` | ql-pipeline installs its house-api and ql-auth clients straight from those two private repos. Without it every job fails at install. |
 | `QL_PIPELINE_AGENT_API_KEY`  | Bearer token for an OpenAI-compatible review endpoint            | Optional. Used when `agent.provider` is `openai_compatible`. Preferred over `OPENAI_API_KEY`. Never YAML.      |
 | `OPENAI_API_KEY`             | Fallback bearer token for an OpenAI-compatible review endpoint   | Optional. Used only if `QL_PIPELINE_AGENT_API_KEY` is unset.                                                   |
-| `HOUSE_API_URL`         | Origin `house-api` is reachable at (e.g. `https://house.example.com`) | Where the engineering standards the reviewer applies are read from                                            |
+| `QL_HOUSE_API_URL`      | Origin `house-api` is reachable at (e.g. `https://house.example.com`) | Where the engineering standards the reviewer applies are read from. Was `HOUSE_API_URL` before task 020 — the old name is still read, so rename at your leisure. |
 | `QL_AUTH_URL`           | Origin `ql-auth` is reachable at (e.g. `https://auth.example.com`)    | Mints the token `house-api` requires                                                                          |
 | `QL_AUTH_CLIENT_ID`     | Client id of a `ql-auth` `github_agent` client-credentials client | Identifies this repo's pipeline to `ql-auth`                                                                  |
 | `QL_AUTH_CLIENT_SECRET` | Client secret for `QL_AUTH_CLIENT_ID`                            | Authenticates the token request                                                                               |
@@ -44,7 +44,7 @@ In the repository you want governed: **Settings → Secrets and variables → Ac
 
 `GH_PACKAGES_TOKEN` is needed by **every** job, not just `ql-pipeline`: all three install ql-pipeline before they can run. A fine-grained PAT with read-only Contents access to `0xb1te/ql-docs` and `0xb1te/ql-auth` is enough. It becomes unnecessary if those repositories are ever made public.
 
-The four `HOUSE_*`/`QL_AUTH_*` secrets are only needed while `standards.enabled` is `true` (the default) — set it to `false` in your pipeline config to review with rules only and skip creating them.
+The four `QL_HOUSE_API_URL`/`QL_AUTH_*` secrets are only needed while `standards.enabled` is `true` (the default) — set it to `false` in your pipeline config to review with rules only and skip creating them.
 
 **When you register the `QL_AUTH_CLIENT_ID` client in `ql-auth`, grant it `review:*` (or the three routes `review:pr-feature`, `review:pr-fix`, `review:pr-bugfix`).** Those are the House routes for `workflow/review/pr-*`, which is the only tree `ql-pipeline` loads. Stage routes (`stage:1`–`stage:9`) are for the build playbook, not for PR review. See [integration-guide.md](integration-guide.md)'s secrets section.
 
@@ -168,7 +168,7 @@ Once a real PR has been through the loop and you're happy with the findings: **S
 
 | Symptom                                                              | Cause                                                                    | Fix                                                                                                      |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| `ql-pipeline` fails with "engineering standards could not be loaded" | `HOUSE_API_URL`/`QL_AUTH_*` missing, wrong, or `house-api`/`ql-auth` unreachable | Check the four secrets and that `house-api`/`ql-auth` are reachable from the runner, or set `standards.enabled: false` to run without standards |
+| `ql-pipeline` fails with "engineering standards could not be loaded" | `QL_HOUSE_API_URL`/`QL_AUTH_*` missing, wrong, or `house-api`/`ql-auth` unreachable | Check the four secrets and that `house-api`/`ql-auth` are reachable from the runner, or set `standards.enabled: false` to run without standards |
 | "This PR could not be routed"                                        | No commit *and* not the PR title matches `<type>(<area>): <description>` | Reword a commit or the PR title                                                                          |
 | No checks appear at all                                              | The PR targets a branch other than `merge.target_branch`                 | Expected — the pipeline governs only its configured branch                                               |
 | Everything is red on a PR touching `.github/`                        | Self-protection: PRs touching pipeline governance always go to a human   | Expected. Review it yourself                                                                             |

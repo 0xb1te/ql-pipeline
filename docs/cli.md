@@ -96,7 +96,7 @@ pnpm ql-pipeline doctor
 
 `fail` exits 1; `warn` exits 0.
 
-**What it cannot check:** whether `GH_PACKAGES_TOKEN`, `CURSOR_API_KEY`, `QL_PIPELINE_AGENT_API_KEY`, `OPENAI_API_KEY`, `HOUSE_API_URL`, `QL_AUTH_URL`, `QL_AUTH_CLIENT_ID`, and `QL_AUTH_CLIENT_SECRET` are set. Those are GitHub Actions secrets, which a local CLI has no business reading — it says so rather than implying a clean bill of health it cannot give. `doctor` also never calls `house-api` itself — it only checks a local `.standards/` checkout, which is optional and used only by your editor.
+**What it cannot check:** whether `GH_PACKAGES_TOKEN`, `CURSOR_API_KEY`, `QL_PIPELINE_AGENT_API_KEY`, `OPENAI_API_KEY`, `QL_HOUSE_API_URL`, `QL_AUTH_URL`, `QL_AUTH_CLIENT_ID`, and `QL_AUTH_CLIENT_SECRET` are set. Those are GitHub Actions secrets, which a local CLI has no business reading — it says so rather than implying a clean bill of health it cannot give. `doctor` also never calls `house-api` itself — it only checks a local `.standards/` checkout, which is optional and used only by your editor.
 
 ## CI commands
 

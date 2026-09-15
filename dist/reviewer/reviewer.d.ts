@@ -15,14 +15,15 @@ export interface ReviewContext {
 /**
  * Ceiling for the assembled prompt, in bytes.
  *
- * The whole prompt is handed to `cursor-agent` as a single argv element, and
- * Linux refuses any one argument over MAX_ARG_STRLEN — 131072 bytes — with
- * `spawn E2BIG`, before the process starts. This sits below that to leave room
- * for the rest of argv.
+ * This is a cost and context budget, not an OS limit: the prompt goes to
+ * `cursor-agent` on stdin, which has no size ceiling of its own. It was
+ * originally sized against MAX_ARG_STRLEN, back when the prompt was a single
+ * argv element and a PR touching two areas crashed with `spawn E2BIG`.
  *
- * `standards.max_chars_per_area` cannot enforce this on its own: it is a
- * *per-area* cap, so a PR touching two areas can carry twice it. A PR touching
- * three areas, three times. Only a total has the property we need.
+ * It stays because `standards.max_chars_per_area` still cannot express it:
+ * that is a *per-area* cap, so a PR touching two areas carries twice it, and
+ * three areas three times. Whatever the right total is, only a total can say
+ * it. Raise this when the standards are worth more than the tokens.
  */
 export declare const MAX_PROMPT_BYTES = 120000;
 /**

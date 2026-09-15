@@ -17,9 +17,15 @@ export interface CursorAgentRunOptions {
   readonly model?: string;
 }
 
-/** Pure argv for `cursor-agent`. Extracted so tests can assert `--model` without spawning. */
+/**
+ * Pure argv for `cursor-agent`. Extracted so tests can assert `--model`
+ * without spawning.
+ *
+ * The prompt is deliberately NOT here — it goes in on stdin. See
+ * {@link runCursorAgent}.
+ */
 // @signal cursorAgentArgs
-export function cursorAgentArgs(prompt: string, options: CursorAgentRunOptions): string[] {
+export function cursorAgentArgs(options: CursorAgentRunOptions): string[] {
   const args = ['--print', '--output-format', 'json', '--trust', '--workspace', options.cwd];
   if (options.model !== undefined && options.model !== '') {
     args.push('--model', options.model);
@@ -29,7 +35,6 @@ export function cursorAgentArgs(prompt: string, options: CursorAgentRunOptions):
   } else {
     args.push('--force');
   }
-  args.push(prompt);
   return args;
 }
 
@@ -37,9 +42,16 @@ export type CursorAgentRunner = (prompt: string, options: CursorAgentRunOptions)
 
 /**
  * Invokes the real `cursor-agent` CLI. The prompt (PR diff, complaint JSON,
- * etc. — all PR-derived, untrusted content) is passed as a single argv
- * element via `spawn`, never interpolated into a shell string, so shell
- * metacharacters in it are inert (RULES.md R5.4).
+ * etc. — all PR-derived, untrusted content) is written to the child's stdin,
+ * never interpolated into a shell string, so shell metacharacters in it are
+ * inert (RULES.md R5.4).
+ *
+ * It used to be a single argv element, which is where this failed: Linux
+ * refuses any one argument over MAX_ARG_STRLEN (131072 bytes) with
+ * `spawn E2BIG`, and a single ql-docs review pack is already larger than
+ * that. stdin has no such ceiling, so the prompt can be as large as the model
+ * will accept. `cursor-agent` takes its prompt from stdin when none is given
+ * positionally.
  *
  * `--mode ask` is read-only (used for review); its absence means the
  * default full agent mode, which can write/run commands, paired with
@@ -50,9 +62,15 @@ export type CursorAgentRunner = (prompt: string, options: CursorAgentRunOptions)
 // @signal runCursorAgent
 export const runCursorAgent: CursorAgentRunner = (prompt, options) => {
   return new Promise((resolve, reject) => {
-    const args = cursorAgentArgs(prompt, options);
+    const args = cursorAgentArgs(options);
 
     const child = spawn('cursor-agent', args, { cwd: options.cwd, shell: false });
+
+    // The agent reads until EOF, so the stream has to be closed or the run
+    // hangs. An EPIPE here means the child exited before reading it all —
+    // its exit code is the useful signal, not a crash in this process.
+    child.stdin.on('error', () => undefined);
+    child.stdin.end(prompt, 'utf-8');
 
     let stdout = '';
     let stderr = '';

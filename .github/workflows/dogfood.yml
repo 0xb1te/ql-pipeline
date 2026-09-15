@@ -17,6 +17,19 @@ concurrency:
   group: pr-pipeline-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
+# A called workflow can never hold more than its caller. ql-pipeline's jobs
+# declare contents/pull-requests/issues write - they label PRs, comment, push
+# fix commits and merge - so on a repository whose default GITHUB_TOKEN is
+# read-only (GitHub's default) the run fails at startup with NO jobs at all,
+# and GitHub exposes no reason for it through the API or the UI. Granting it
+# here keeps the widening to this one workflow, rather than flipping the
+# repository-wide "Workflow permissions" default and handing write to every
+# other workflow in the repo as well.
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
 jobs:
   checks:
     uses: ./.github/workflows/pr-pipeline.yml

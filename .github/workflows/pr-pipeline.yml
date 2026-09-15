@@ -46,8 +46,11 @@ on:
       # the `ql-pipeline` job's `govern` step; `test`/`build` never need them.
       # All four can be omitted only when the consumer's pipeline config sets
       # `standards.enabled: false`.
-      HOUSE_API_URL:
+      QL_HOUSE_API_URL:
         description: Origin house-api is reachable at (e.g. https://house.example.com).
+        required: false
+      HOUSE_API_URL:
+        description: Deprecated pre-020 spelling of QL_HOUSE_API_URL. Still read when the prefixed name is unset, so an existing consumer keeps working until it renames the secret. Will be removed.
         required: false
       QL_AUTH_URL:
         description: Origin ql-auth is reachable at (e.g. https://auth.example.com).
@@ -59,7 +62,7 @@ on:
         description: Client secret for QL_AUTH_CLIENT_ID.
         required: false
       QL_PROXY_TOKEN:
-        description: Shared secret for a ql-proxy exposure published with --protect, sent as X-QL-Proxy-Token in front of both HOUSE_API_URL and QL_AUTH_URL. Omit when those addresses are public or private-network only.
+        description: Shared secret for a ql-proxy exposure published with --protect, sent as X-QL-Proxy-Token in front of both QL_HOUSE_API_URL and QL_AUTH_URL. Omit when those addresses are public or private-network only.
         required: false
 
 jobs:
@@ -311,6 +314,10 @@ jobs:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           QL_PIPELINE_AGENT_API_KEY: ${{ secrets.QL_PIPELINE_AGENT_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          QL_HOUSE_API_URL: ${{ secrets.QL_HOUSE_API_URL }}
+          # Both names are forwarded and `readHouseCredentialsFromEnv` decides
+          # precedence, rather than a `||` here: the code is what is tested,
+          # and a consumer that sets only the old one must still work.
           HOUSE_API_URL: ${{ secrets.HOUSE_API_URL }}
           QL_AUTH_URL: ${{ secrets.QL_AUTH_URL }}
           QL_AUTH_CLIENT_ID: ${{ secrets.QL_AUTH_CLIENT_ID }}

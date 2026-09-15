@@ -18,7 +18,12 @@ import { formatRulesForPrompt, resolveRuleFiles, ruleFileIds } from '../rules/ru
 import { reviewKindFor } from '../standards/review-kind.js';
 import { areasFromPaths } from '../router/area-paths.js';
 import { touchesProtectedPaths } from '../router/self-protection.js';
-import { createHouseStandardsReader, readHouseCredentialsFromEnv } from '../standards/house-credentials.js';
+import {
+  HOUSE_API_URL_VAR,
+  LEGACY_HOUSE_API_URL_VAR,
+  createHouseStandardsReader,
+  readHouseCredentialsFromEnv,
+} from '../standards/house-credentials.js';
 import {
   describeDroppedSections,
   formatStandardsForPrompt,
@@ -221,11 +226,14 @@ export async function runGovern(reportsDir: string): Promise<void> {
     let standardsResolution: StandardsResolution;
     if (config.standards.enabled) {
       try {
-        const houseReader = await createHouseStandardsReader(
-          readHouseCredentialsFromEnv(),
-          consumerRoot,
-          config.standards.root,
-        );
+        const credentials = readHouseCredentialsFromEnv();
+        if (credentials.houseApiUrlSource === LEGACY_HOUSE_API_URL_VAR) {
+          logger.warn(
+            `${LEGACY_HOUSE_API_URL_VAR} is deprecated — rename this secret to ${HOUSE_API_URL_VAR}. ` +
+              'The old name is still read, but will stop being read in a future release.',
+          );
+        }
+        const houseReader = await createHouseStandardsReader(credentials, consumerRoot, config.standards.root);
         standardsResolution = await resolveStandards(
           reviewAreas,
           config.standards,
@@ -241,7 +249,7 @@ export async function runGovern(reportsDir: string): Promise<void> {
           `could not reach house-api for engineering standards: ${String(cause)}`,
           '**The engineering standards for this PR could not be loaded** — house-api or ql-auth could not be ' +
             `reached, so this PR was not reviewed against them and will not be merged:\n\n> ${String(cause)}\n\n` +
-            'Check `HOUSE_API_URL`, `QL_AUTH_URL`, `QL_AUTH_CLIENT_ID`, and `QL_AUTH_CLIENT_SECRET`, or set ' +
+            'Check `QL_HOUSE_API_URL`, `QL_AUTH_URL`, `QL_AUTH_CLIENT_ID`, and `QL_AUTH_CLIENT_SECRET`, or set ' +
             '`standards.enabled: false` in the pipeline config to review without them.',
         );
         return;

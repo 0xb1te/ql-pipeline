@@ -4,7 +4,24 @@ export interface HouseCredentials {
     readonly qlAuthUrl: string;
     readonly qlAuthClientId: string;
     readonly qlAuthClientSecret: string;
+    /**
+     * Which variable `houseApiUrl` was actually read from. `HOUSE_API_URL` means
+     * this environment is still on the pre-`QL_` name and should migrate.
+     *
+     * Reported rather than printed: this function stays pure (architecture
+     * invariant 1), so the caller owns the deprecation warning.
+     */
+    readonly houseApiUrlSource: typeof HOUSE_API_URL_VAR | typeof LEGACY_HOUSE_API_URL_VAR;
 }
+/** The house-api origin variable, under the `QL_` prefix the rest of the suite uses. */
+export declare const HOUSE_API_URL_VAR = "QL_HOUSE_API_URL";
+/**
+ * The name this variable had before task 020. Still read, because consumers call
+ * the reusable workflow at `@main` and pick up a rename before they have created
+ * the new secret - dropping it outright turns every governed repo's check red at
+ * its next PR. Remove once consumers have migrated.
+ */
+export declare const LEGACY_HOUSE_API_URL_VAR = "HOUSE_API_URL";
 /**
  * Header ql-proxy checks in front of a protected exposure, before the request
  * reaches ql-auth or house-api at all. Matches `expose.protection.header` in
@@ -26,6 +43,7 @@ export declare const PROXY_TOKEN_HEADER = "X-QL-Proxy-Token";
 export declare function proxyFetchFromEnv(env?: NodeJS.ProcessEnv): typeof fetch | undefined;
 /**
  * Reads the four environment variables `govern` needs to reach house-api —
+ * accepting the pre-020 `HOUSE_API_URL` spelling as well as `QL_HOUSE_API_URL` —
  * separate from `createPipelineContext` deliberately: `gate` and the
  * scaffolding commands never touch house-api, so they never have to know
  * these exist or fail because one is unset in an environment that doesn't

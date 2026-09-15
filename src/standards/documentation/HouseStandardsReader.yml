@@ -19,11 +19,11 @@ receptors: []
 
 effectors:
   - kind: http-out
-    target: "{HOUSE_API_URL}/v1/sessions and its expand/advance/house_read follow-ups"
+    target: "{QL_HOUSE_API_URL}/v1/sessions and its expand/advance/house_read follow-ups"
     signal: exists
     effect: opens a session on the doc's review:* (or leftover stage:N) route and walks it looking for the doc, for the sole purpose of answering whether it was found
   - kind: http-out
-    target: "{HOUSE_API_URL}/v1/sessions and its expand/advance/house_read follow-ups"
+    target: "{QL_HOUSE_API_URL}/v1/sessions and its expand/advance/house_read follow-ups"
     signal: read
     effect: opens a session on the doc's review:* (or leftover stage:N) route, walks it, and returns the found document's body
 

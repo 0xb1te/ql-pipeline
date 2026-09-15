@@ -162,7 +162,7 @@ export function runInit(root: string): void {
   console.log('Next steps — none of these can be done for you:');
   console.log('  1. Add repository secrets:');
   console.log('     CURSOR_API_KEY');
-  console.log('     HOUSE_API_URL, QL_AUTH_URL, QL_AUTH_CLIENT_ID, QL_AUTH_CLIENT_SECRET');
+  console.log('     QL_HOUSE_API_URL, QL_AUTH_URL, QL_AUTH_CLIENT_ID, QL_AUTH_CLIENT_SECRET');
   console.log('     (the govern job reads engineering standards from house-api with these;');
   console.log('      skip them only if you set standards.enabled: false)');
   console.log(`  2. Edit ${CONFIG_PATH} — set your real build and test commands`);
@@ -291,7 +291,7 @@ export async function runDoctor(root: string): Promise<boolean> {
 
   const worst = worstStatus(results);
   console.log(
-    '\nNot checkable from here: whether CURSOR_API_KEY, HOUSE_API_URL, QL_AUTH_URL, QL_AUTH_CLIENT_ID, and' +
+    '\nNot checkable from here: whether CURSOR_API_KEY, QL_HOUSE_API_URL, QL_AUTH_URL, QL_AUTH_CLIENT_ID, and' +
       ' QL_AUTH_CLIENT_SECRET are set as repository secrets. Verify those in GitHub settings.',
   );
 

@@ -7,24 +7,33 @@ import {
 } from '../../src/standards/house-credentials.js';
 
 const FULL_ENV = {
-  HOUSE_API_URL: 'https://house.example.com',
+  QL_HOUSE_API_URL: 'https://house.example.com',
   QL_AUTH_URL: 'https://auth.example.com',
   QL_AUTH_CLIENT_ID: 'client-id',
   QL_AUTH_CLIENT_SECRET: 'client-secret',
 };
 
+/** The same environment on the pre-020 spelling of the house-api origin. */
+const LEGACY_ENV = {
+  HOUSE_API_URL: FULL_ENV.QL_HOUSE_API_URL,
+  QL_AUTH_URL: FULL_ENV.QL_AUTH_URL,
+  QL_AUTH_CLIENT_ID: FULL_ENV.QL_AUTH_CLIENT_ID,
+  QL_AUTH_CLIENT_SECRET: FULL_ENV.QL_AUTH_CLIENT_SECRET,
+};
+
 describe('readHouseCredentialsFromEnv', () => {
   it('reads all four variables when every one is set', () => {
     expect(readHouseCredentialsFromEnv(FULL_ENV)).toEqual({
-      houseApiUrl: FULL_ENV.HOUSE_API_URL,
+      houseApiUrl: FULL_ENV.QL_HOUSE_API_URL,
       qlAuthUrl: FULL_ENV.QL_AUTH_URL,
       qlAuthClientId: FULL_ENV.QL_AUTH_CLIENT_ID,
       qlAuthClientSecret: FULL_ENV.QL_AUTH_CLIENT_SECRET,
+      houseApiUrlSource: 'QL_HOUSE_API_URL',
     });
   });
 
   it('names every missing variable at once, not just the first', () => {
-    expect(() => readHouseCredentialsFromEnv({ HOUSE_API_URL: FULL_ENV.HOUSE_API_URL })).toThrow(
+    expect(() => readHouseCredentialsFromEnv({ QL_HOUSE_API_URL: FULL_ENV.QL_HOUSE_API_URL })).toThrow(
       /QL_AUTH_URL.*QL_AUTH_CLIENT_ID.*QL_AUTH_CLIENT_SECRET/,
     );
   });
@@ -36,7 +45,41 @@ describe('readHouseCredentialsFromEnv', () => {
   });
 
   it('fails closed with none set at all', () => {
-    expect(() => readHouseCredentialsFromEnv({})).toThrow(/HOUSE_API_URL/);
+    expect(() => readHouseCredentialsFromEnv({})).toThrow(/QL_HOUSE_API_URL/);
+  });
+
+  // Task 020. A consumer picks the reusable workflow up at @main, so it sees
+  // the rename before it has created the new secret. These four cases are the
+  // whole migration contract.
+  it('still accepts the pre-020 HOUSE_API_URL, and says that is where it came from', () => {
+    expect(readHouseCredentialsFromEnv(LEGACY_ENV)).toEqual({
+      houseApiUrl: FULL_ENV.QL_HOUSE_API_URL,
+      qlAuthUrl: FULL_ENV.QL_AUTH_URL,
+      qlAuthClientId: FULL_ENV.QL_AUTH_CLIENT_ID,
+      qlAuthClientSecret: FULL_ENV.QL_AUTH_CLIENT_SECRET,
+      houseApiUrlSource: 'HOUSE_API_URL',
+    });
+  });
+
+  it('prefers the prefixed name when a half-migrated repo carries both', () => {
+    const both = { ...LEGACY_ENV, QL_HOUSE_API_URL: 'https://prefixed.example.com' };
+    expect(readHouseCredentialsFromEnv(both)).toMatchObject({
+      houseApiUrl: 'https://prefixed.example.com',
+      houseApiUrlSource: 'QL_HOUSE_API_URL',
+    });
+  });
+
+  it('falls back when the prefixed name is set but empty, rather than reading an empty origin', () => {
+    const both = { ...LEGACY_ENV, QL_HOUSE_API_URL: '' };
+    expect(readHouseCredentialsFromEnv(both)).toMatchObject({
+      houseApiUrl: FULL_ENV.QL_HOUSE_API_URL,
+      houseApiUrlSource: 'HOUSE_API_URL',
+    });
+  });
+
+  it('names the current spelling when neither is set, not the deprecated one', () => {
+    const neither = { QL_AUTH_URL: FULL_ENV.QL_AUTH_URL };
+    expect(() => readHouseCredentialsFromEnv(neither)).toThrow(/QL_HOUSE_API_URL/);
   });
 });
 
@@ -121,6 +164,7 @@ describe('createHouseStandardsReader', () => {
         qlAuthUrl: 'https://auth.example.com',
         qlAuthClientId: 'client-id',
         qlAuthClientSecret: 'client-secret',
+        houseApiUrlSource: 'QL_HOUSE_API_URL',
       },
       '/workspace',
       '.standards',

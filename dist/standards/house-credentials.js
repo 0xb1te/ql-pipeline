@@ -2,6 +2,15 @@
 import { HouseClient } from '@0xb1te/house-client';
 import { QlAuthClient } from '@0xb1te/ql-auth-client';
 import { HouseStandardsReader } from './house-standards-reader.js';
+/** The house-api origin variable, under the `QL_` prefix the rest of the suite uses. */
+export const HOUSE_API_URL_VAR = 'QL_HOUSE_API_URL';
+/**
+ * The name this variable had before task 020. Still read, because consumers call
+ * the reusable workflow at `@main` and pick up a rename before they have created
+ * the new secret - dropping it outright turns every governed repo's check red at
+ * its next PR. Remove once consumers have migrated.
+ */
+export const LEGACY_HOUSE_API_URL_VAR = 'HOUSE_API_URL';
 /**
  * Header ql-proxy checks in front of a protected exposure, before the request
  * reaches ql-auth or house-api at all. Matches `expose.protection.header` in
@@ -36,6 +45,7 @@ export function proxyFetchFromEnv(env = process.env) {
 }
 /**
  * Reads the four environment variables `govern` needs to reach house-api —
+ * accepting the pre-020 `HOUSE_API_URL` spelling as well as `QL_HOUSE_API_URL` —
  * separate from `createPipelineContext` deliberately: `gate` and the
  * scaffolding commands never touch house-api, so they never have to know
  * these exist or fail because one is unset in an environment that doesn't
@@ -43,12 +53,19 @@ export function proxyFetchFromEnv(env = process.env) {
  */
 // @signal readHouseCredentialsFromEnv
 export function readHouseCredentialsFromEnv(env = process.env) {
-    const houseApiUrl = env['HOUSE_API_URL'];
+    // The new name wins when both are set, so a half-migrated repo that still
+    // carries the old secret moves over the moment the new one is added.
+    const prefixed = present(env[HOUSE_API_URL_VAR]);
+    const legacy = present(env[LEGACY_HOUSE_API_URL_VAR]);
+    const houseApiUrl = prefixed ?? legacy;
+    const houseApiUrlSource = prefixed !== undefined ? HOUSE_API_URL_VAR : LEGACY_HOUSE_API_URL_VAR;
     const qlAuthUrl = env['QL_AUTH_URL'];
     const qlAuthClientId = env['QL_AUTH_CLIENT_ID'];
     const qlAuthClientSecret = env['QL_AUTH_CLIENT_SECRET'];
     const missing = [
-        ['HOUSE_API_URL', houseApiUrl],
+        // Named under the current spelling: an operator reading this error should
+        // create the variable this project asks for now, not the one it accepts.
+        [HOUSE_API_URL_VAR, houseApiUrl],
         ['QL_AUTH_URL', qlAuthUrl],
         ['QL_AUTH_CLIENT_ID', qlAuthClientId],
         ['QL_AUTH_CLIENT_SECRET', qlAuthClientSecret],
@@ -63,7 +80,12 @@ export function readHouseCredentialsFromEnv(env = process.env) {
         qlAuthUrl: qlAuthUrl,
         qlAuthClientId: qlAuthClientId,
         qlAuthClientSecret: qlAuthClientSecret,
+        houseApiUrlSource,
     };
+}
+/** Undefined for both unset and empty, so an empty secret is never mistaken for a value. */
+function present(value) {
+    return value === undefined || value.length === 0 ? undefined : value;
 }
 /**
  * Decodes (never verifies) a JWT's middle segment. No verification is

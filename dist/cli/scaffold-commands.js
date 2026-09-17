@@ -135,6 +135,15 @@ export function runInit(root) {
     console.log(`\n${created} file(s) written.\n`);
     console.log('Next steps — none of these can be done for you:');
     console.log('  1. Add repository secrets:');
+    // GH_PACKAGES_TOKEN leads because it is the only one whose absence stops every job
+    // rather than degrading one. All three install ql-pipeline before they run anything,
+    // and ql-pipeline depends on two private repositories. Without it the run dies in the
+    // install step saying it could not read a username for github.com, which names neither
+    // ql-pipeline nor the missing secret. Leaving it off this list is what sent the first
+    // real consumer run into exactly that.
+    console.log('     GH_PACKAGES_TOKEN');
+    console.log('     (read access to 0xb1te/ql-docs and 0xb1te/ql-auth — every job installs');
+    console.log('      ql-pipeline before it runs, so without this none of them get started)');
     console.log('     CURSOR_API_KEY');
     console.log('     QL_HOUSE_API_URL, QL_AUTH_URL, QL_AUTH_CLIENT_ID, QL_AUTH_CLIENT_SECRET');
     console.log('     (the govern job reads engineering standards from house-api with these;');
@@ -246,8 +255,8 @@ export async function runDoctor(root) {
         }
     }
     const worst = worstStatus(results);
-    console.log('\nNot checkable from here: whether CURSOR_API_KEY, QL_HOUSE_API_URL, QL_AUTH_URL, QL_AUTH_CLIENT_ID, and' +
-        ' QL_AUTH_CLIENT_SECRET are set as repository secrets. Verify those in GitHub settings.');
+    console.log('\nNot checkable from here: whether GH_PACKAGES_TOKEN, CURSOR_API_KEY, QL_HOUSE_API_URL, QL_AUTH_URL,' +
+        ' QL_AUTH_CLIENT_ID, and QL_AUTH_CLIENT_SECRET are set as repository secrets. Verify those in GitHub settings.');
     if (worst === 'fail') {
         console.log('\nSetup is incomplete — see the FAIL lines above.');
         return false;

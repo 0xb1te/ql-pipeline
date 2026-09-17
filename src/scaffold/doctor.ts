@@ -28,7 +28,7 @@ export interface DoctorInput {
 /**
  * Everything `doctor` can determine without network access or secrets.
  *
- * It deliberately cannot verify that `CURSOR_API_KEY`,
+ * It deliberately cannot verify that `GH_PACKAGES_TOKEN`, `CURSOR_API_KEY`,
  * `QL_PIPELINE_AGENT_API_KEY`, `OPENAI_API_KEY`, `QL_HOUSE_API_URL`,
  * `QL_AUTH_URL`, `QL_AUTH_CLIENT_ID`, or `QL_AUTH_CLIENT_SECRET` are set —
  * those live in GitHub Actions secrets, which a local CLI has no business

@@ -4,33 +4,44 @@ Adopt the pipeline in a repository and keep the files it manages current.
 
 The pipeline **engine** does not need this CLI — consumers reference the reusable workflow by ref, so improvements to routing, review, and fixing reach every repo on their next PR automatically. What does not auto-update is the consumer-side scaffolding: the caller workflow, the config, and the Cursor rules. That is what this CLI installs and maintains.
 
-## Install
+## Running the CLI
 
-`ql-pipeline` is a private package installed straight from its GitHub repository — no registry, no publishing pipeline:
-
-```bash
-pnpm add -D github:0xb1te/ql-pipeline
-```
-
-Pin a commit or tag in production repos so an upstream change never surprises you:
+`ql-pipeline` is a private package, served straight from its GitHub repository — no registry, no publishing pipeline. Run it with `pnpm dlx`, which fetches it into a temporary environment, runs it, and installs nothing into the repository you point it at:
 
 ```bash
-pnpm add -D github:0xb1te/ql-pipeline#v0.1.0
+pnpm dlx github:0xb1te/ql-pipeline init
 ```
 
-`dist/` ships committed in the repository — install never needs to run a build script, just Node 20+ and network access to GitHub. This is deliberate: recent pnpm versions block git-hosted packages from running lifecycle scripts by default (`ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`), which would otherwise break the install entirely. See [docs/011-committed-dist/plan.md](011-committed-dist/plan.md) if you're wondering why a TypeScript repo has compiled JS in git.
+Pin a commit in production repos so an upstream change never surprises you:
+
+```bash
+pnpm dlx github:0xb1te/ql-pipeline#55ca4f1 init
+```
+
+`dist/` ships committed in the repository — fetching never needs to run a build script, just Node 20+ and network access to GitHub. This is deliberate: recent pnpm versions block git-hosted packages from running lifecycle scripts by default (`ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`), which would otherwise break the install entirely. See [docs/011-committed-dist/plan.md](011-committed-dist/plan.md) if you're wondering why a TypeScript repo has compiled JS in git.
+
+`doctor` and `upgrade` run the same way. A pnpm workspace needs nothing special for any of them: `dlx` never writes to a `package.json`, so the root-or-package question `pnpm add` has to ask never comes up.
+
+pnpm caches what `dlx` fetched, so a second run takes under a second where the first takes several. That cache is also the one thing to know about `upgrade`: an unpinned run can refresh your managed files to a version older than today's `main`. `pnpm --config.dlx-cache-max-age=0 dlx …` forces a re-fetch.
+
+### Do not add ql-pipeline to a governed repository's dependencies
+
+A repository governed by the pipeline does not need ql-pipeline installed, and installing it can break that repository's own CI.
+
+**It buys nothing.** The caller workflow `init` scaffolds is a single `uses:` line naming the reusable workflow by ref. Each of that workflow's three jobs checks `0xb1te/ql-pipeline` out into `.ql-pipeline/` and builds it there. Your repository's own `node_modules` is never read by any of them.
+
+**It costs you your lockfile.** ql-pipeline depends on `@0xb1te/house-client` and `@0xb1te/ql-auth-client`, which are `github:` specs pointing into `0xb1te/ql-docs` and `0xb1te/ql-auth` — both private, and owned by an account that is probably not the one that owns your repository. A devDependency writes those two specs into *your* lockfile, and from then on every `pnpm install` in your repository needs git credentials for two foreign private repositories. On a GitHub runner the job's `GITHUB_TOKEN` is scoped to your repository alone and cannot clone either of them, so any workflow of your own that installs dependencies stops working — including a deploy that runs `pnpm install --frozen-lockfile` after it has already applied infrastructure.
+
+If you want the bin on `PATH` anyway — a repository that already gives its jobs credentials for those two repos before they install, and wants the shorter `pnpm ql-pipeline …` — then take it on deliberately:
+
+```bash
+pnpm add -D github:0xb1te/ql-pipeline      # plain repository
+pnpm add -D github:0xb1te/ql-pipeline -w   # pnpm workspace — without -w, pnpm refuses with ERR_PNPM_ADDING_TO_ROOT
+```
+
+Everywhere else, `pnpm dlx` is the answer.
 
 > **Do you need a registry?** Not to start. Move to GitHub Packages later if you want semver ranges (`^0.2.0`) or CI installs without SSH keys; the CLI is unaffected either way.
-
-### In a pnpm workspace (monorepo)
-
-`.github/workflows/` and `.cursor/rules/` belong at the **true repository root**, not inside a workspace package — so if your repo is a pnpm workspace, install at the root explicitly:
-
-```bash
-pnpm add -D github:0xb1te/ql-pipeline -w
-```
-
-Without `-w`, pnpm refuses with `ERR_PNPM_ADDING_TO_ROOT` rather than guess whether you meant the root or the package you're standing in.
 
 ## Commands
 
@@ -39,7 +50,7 @@ Without `-w`, pnpm refuses with `ERR_PNPM_ADDING_TO_ROOT` rather than guess whet
 Scaffolds the repository. Creates only what is missing — running it twice is safe, and running it on a partly-configured repo fills in the gaps without touching anything you already have.
 
 ```bash
-pnpm ql-pipeline init
+pnpm dlx github:0xb1te/ql-pipeline init
 ```
 
 Writes:
@@ -55,10 +66,10 @@ It also appends `.standards/` to `.gitignore` if absent, and prints the steps it
 
 ### `ql-pipeline upgrade`
 
-Refreshes managed files to the installed version.
+Refreshes managed files to the version it fetches and runs.
 
 ```bash
-pnpm update ql-pipeline && pnpm ql-pipeline upgrade
+pnpm dlx github:0xb1te/ql-pipeline upgrade
 ```
 
 **The guarantee: it never silently discards your work.**
@@ -82,7 +93,7 @@ Commit `.ql-pipeline/manifest.json`. Without it every upgrade conservatively ref
 Checks the setup and exits non-zero if anything is broken, so it can run in CI.
 
 ```bash
-pnpm ql-pipeline doctor
+pnpm dlx github:0xb1te/ql-pipeline doctor
 ```
 
 ```
@@ -112,23 +123,25 @@ ql-pipeline govern               # the "ql-pipeline" check
 
 ```bash
 # once, per repository
-pnpm add -D github:0xb1te/ql-pipeline
-pnpm ql-pipeline init
+pnpm dlx github:0xb1te/ql-pipeline init
 # …add secrets, edit gates, open one PR and watch it…
-pnpm ql-pipeline doctor
+pnpm dlx github:0xb1te/ql-pipeline doctor
 
 # whenever ql-pipeline gains something you want
-pnpm update ql-pipeline
-pnpm ql-pipeline upgrade
+pnpm dlx github:0xb1te/ql-pipeline upgrade
 ```
+
+Nothing in that lifecycle installs ql-pipeline into the repository, and nothing needs a separate update step: each `dlx` run fetches the version at the ref you name.
 
 ## MCP: driving `doctor`/`init`/`upgrade` from an agent
 
 `ql-pipeline` ships a second bin, `ql-pipeline-mcp`, alongside the CLI: a stdio MCP server exposing these same three maintenance commands as tools an AI agent can call directly, instead of a person running them from a terminal.
 
 ```bash
-pnpm exec ql-pipeline-mcp
+pnpm dlx --package github:0xb1te/ql-pipeline ql-pipeline-mcp
 ```
+
+`--package` is needed here and nowhere else in this document: `dlx` runs the bin that shares the package's name, and the MCP server is the second one.
 
 It speaks newline-delimited JSON-RPC over stdio (`initialize`, `tools/list`, `tools/call`) — the same shape `house-api`'s own `apps/house-api/mcp/house-mcp.mjs` bridge uses. Point an MCP-capable agent at this command and it will see three tools:
 

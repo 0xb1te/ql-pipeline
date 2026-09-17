@@ -6,15 +6,16 @@ Budget about 20 minutes, most of it waiting for the first run.
 
 ## The fast path
 
-The CLI does steps 2–4 for you:
+The CLI does steps 2–4 for you, and installs nothing into the repository it scaffolds:
 
 ```bash
-pnpm add -D github:0xb1te/ql-pipeline -w   # in a pnpm workspace, add -w — see docs/cli.md
-pnpm ql-pipeline init                      # workflow + config + cursor rules + .gitignore
-pnpm ql-pipeline doctor                    # tells you exactly what is still missing
+pnpm dlx github:0xb1te/ql-pipeline init     # workflow + config + cursor rules + .gitignore
+pnpm dlx github:0xb1te/ql-pipeline doctor   # tells you exactly what is still missing
 ```
 
-Then do step 1 (the secrets — nothing can do that for you), fill in your real build commands, and go to step 4b. Keep it current later with `pnpm update ql-pipeline && pnpm ql-pipeline upgrade` — see [cli.md](cli.md).
+Then do step 1 (the secrets — nothing can do that for you), fill in your real build commands, and go to step 4b. Keep it current later with `pnpm dlx github:0xb1te/ql-pipeline upgrade` — see [cli.md](cli.md).
+
+Do **not** add ql-pipeline to this repository's `package.json`. It gains you nothing — every job in the reusable workflow checks ql-pipeline out for itself — and it writes two private `github:` dependencies into your lockfile that your own runners hold no credentials to clone, which breaks any workflow of yours that installs. [cli.md](cli.md#do-not-add-ql-pipeline-to-a-governed-repositorys-dependencies) has the detail.
 
 The manual steps below are the same thing done by hand, and explain what each file is for.
 

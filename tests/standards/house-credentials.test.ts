@@ -135,6 +135,81 @@ describe('proxyFetchFromEnv', () => {
   });
 });
 
+describe('proxyFetchFromEnv, per hop', () => {
+  const HEADER = PROXY_TOKEN_HEADER.toLowerCase();
+
+  function capture(): Array<Record<string, string>> {
+    const seen: Array<Record<string, string>> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: unknown, init?: RequestInit) => {
+        seen.push(Object.fromEntries(new Headers(init?.headers).entries()));
+        return Promise.resolve(new Response('{}', { status: 200 }));
+      }),
+    );
+    return seen;
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('gives each hop its own secret, because each exposure has one of its own', async () => {
+    // The bug this pins: ql-auth and house-api are separate ql-proxy exposures
+    // holding separate secrets, so one token sent to both is refused by one of
+    // them - surfaced as a 401 that reads like bad client credentials.
+    const env = {
+      QL_AUTH_PROXY_TOKEN: 'auth-secret',
+      QL_HOUSE_PROXY_TOKEN: 'house-secret',
+    };
+    const seen = capture();
+
+    await proxyFetchFromEnv(env, 'auth')!('https://auth.example.com/v1/token');
+    await proxyFetchFromEnv(env, 'house')!('https://house.example.com/v1/here');
+
+    expect(seen[0]?.[HEADER]).toBe('auth-secret');
+    expect(seen[1]?.[HEADER]).toBe('house-secret');
+  });
+
+  it('falls back to the shared token, so a single-exposure fleet is untouched', async () => {
+    const seen = capture();
+
+    await proxyFetchFromEnv({ QL_PROXY_TOKEN: 'shared-secret' }, 'auth')!('https://auth.example.com/v1/token');
+
+    expect(seen[0]?.[HEADER]).toBe('shared-secret');
+  });
+
+  it('lets one hop be overridden while the other keeps the shared token', async () => {
+    // The migration state: an operator adds the secret for the hop that was
+    // failing and leaves the one that already worked alone.
+    const env = { QL_PROXY_TOKEN: 'shared-secret', QL_AUTH_PROXY_TOKEN: 'auth-secret' };
+    const seen = capture();
+
+    await proxyFetchFromEnv(env, 'auth')!('https://auth.example.com/v1/token');
+    await proxyFetchFromEnv(env, 'house')!('https://house.example.com/v1/here');
+
+    expect(seen[0]?.[HEADER]).toBe('auth-secret');
+    expect(seen[1]?.[HEADER]).toBe('shared-secret');
+  });
+
+  it('treats an empty per-hop override as unset rather than as a secret', async () => {
+    // An unset GitHub secret interpolates to the empty string, so this is the
+    // ordinary shape of "not configured" and must not blank out the fallback.
+    const seen = capture();
+
+    await proxyFetchFromEnv({ QL_PROXY_TOKEN: 'shared-secret', QL_AUTH_PROXY_TOKEN: '' }, 'auth')!(
+      'https://auth.example.com/v1/token',
+    );
+
+    expect(seen[0]?.[HEADER]).toBe('shared-secret');
+  });
+
+  it('is undefined when neither the hop nor the shared variable is set', () => {
+    expect(proxyFetchFromEnv({}, 'auth')).toBeUndefined();
+    expect(proxyFetchFromEnv({ QL_AUTH_PROXY_TOKEN: '' }, 'house')).toBeUndefined();
+  });
+});
+
 describe('createHouseStandardsReader', () => {
   afterEach(() => {
     vi.unstubAllGlobals();

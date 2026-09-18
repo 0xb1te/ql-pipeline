@@ -17,6 +17,15 @@ export const LEGACY_HOUSE_API_URL_VAR = 'HOUSE_API_URL';
  * the host's `ql-proxy.yml`.
  */
 export const PROXY_TOKEN_HEADER = 'X-QL-Proxy-Token';
+/** The single-token variable every consumer already sets. */
+export const PROXY_TOKEN_VAR = 'QL_PROXY_TOKEN';
+/** Per-hop overrides, each taking precedence over `PROXY_TOKEN_VAR` for its own address. */
+export const AUTH_PROXY_TOKEN_VAR = 'QL_AUTH_PROXY_TOKEN';
+export const HOUSE_PROXY_TOKEN_VAR = 'QL_HOUSE_PROXY_TOKEN';
+const HOP_TOKEN_VAR = {
+    auth: AUTH_PROXY_TOKEN_VAR,
+    house: HOUSE_PROXY_TOKEN_VAR,
+};
 /**
  * A `fetch` that adds the ql-proxy shared secret to every request, or
  * `undefined` when no secret is configured.
@@ -30,9 +39,13 @@ export const PROXY_TOKEN_HEADER = 'X-QL-Proxy-Token';
  * fleet on a private network has nothing in front of it to satisfy.
  */
 // @signal proxyFetchFromEnv
-export function proxyFetchFromEnv(env = process.env) {
-    const token = env['QL_PROXY_TOKEN'];
-    if (token === undefined || token.length === 0) {
+export function proxyFetchFromEnv(env = process.env, hop) {
+    // The per-hop variable wins and the shared one is the fallback, which is what
+    // keeps this backwards compatible: a fleet whose two services sit behind a
+    // single exposure - or behind a host-wide secret - sets only QL_PROXY_TOKEN
+    // and is unaffected. Omitting the hop is the pre-existing behaviour exactly.
+    const token = (hop === undefined ? undefined : present(env[HOP_TOKEN_VAR[hop]])) ?? present(env[PROXY_TOKEN_VAR]);
+    if (token === undefined) {
         return undefined;
     }
     return (input, init) => {
@@ -109,11 +122,13 @@ function decodeJwtPayload(token) {
  */
 // @signal createHouseStandardsReader
 export async function createHouseStandardsReader(credentials, workspaceRoot, standardsRoot) {
-    // Both hops go through the same exposure, so both carry the same secret.
-    const proxyFetch = proxyFetchFromEnv();
+    // One secret per exposure, so one fetch per hop - see ProxyHop for why sending
+    // the same token to both is what made this 401 at the edge.
+    const authFetch = proxyFetchFromEnv(process.env, 'auth');
+    const houseFetch = proxyFetchFromEnv(process.env, 'house');
     const auth = new QlAuthClient({
         baseUrl: credentials.qlAuthUrl,
-        ...(proxyFetch !== undefined ? { fetch: proxyFetch } : {}),
+        ...(authFetch !== undefined ? { fetch: authFetch } : {}),
     });
     const { access_token: accessToken } = await auth.issueToken({
         grantType: 'client_credentials',
@@ -129,7 +144,7 @@ export async function createHouseStandardsReader(credentials, workspaceRoot, sta
     const client = new HouseClient({
         baseUrl: credentials.houseApiUrl,
         token: accessToken,
-        ...(proxyFetch !== undefined ? { fetch: proxyFetch } : {}),
+        ...(houseFetch !== undefined ? { fetch: houseFetch } : {}),
     });
     return new HouseStandardsReader({ client, workspaceRoot, standardsRoot, projectId });
 }

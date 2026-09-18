@@ -64,6 +64,12 @@ on:
       QL_PROXY_TOKEN:
         description: Shared secret for a ql-proxy exposure published with --protect, sent as X-QL-Proxy-Token in front of both QL_HOUSE_API_URL and QL_AUTH_URL. Omit when those addresses are public or private-network only.
         required: false
+      QL_AUTH_PROXY_TOKEN:
+        description: Secret of the ql-proxy exposure in front of QL_AUTH_URL, when it differs from the one in front of house-api. ql-proxy gives every protected exposure a secret of its own, so two separately published addresses need two secrets. Falls back to QL_PROXY_TOKEN when unset.
+        required: false
+      QL_HOUSE_PROXY_TOKEN:
+        description: Secret of the ql-proxy exposure in front of QL_HOUSE_API_URL, when it differs from the one in front of ql-auth. Falls back to QL_PROXY_TOKEN when unset.
+        required: false
 
 jobs:
   # ---------------------------------------------------------------- 1/3 --
@@ -323,3 +329,9 @@ jobs:
           QL_AUTH_CLIENT_ID: ${{ secrets.QL_AUTH_CLIENT_ID }}
           QL_AUTH_CLIENT_SECRET: ${{ secrets.QL_AUTH_CLIENT_SECRET }}
           QL_PROXY_TOKEN: ${{ secrets.QL_PROXY_TOKEN }}
+          # Each protected exposure holds a secret of its own, so the two hops do
+          # not necessarily share one. Both are forwarded and the code picks per
+          # hop, falling back to QL_PROXY_TOKEN - a fleet behind one exposure
+          # sets neither and is unaffected.
+          QL_AUTH_PROXY_TOKEN: ${{ secrets.QL_AUTH_PROXY_TOKEN }}
+          QL_HOUSE_PROXY_TOKEN: ${{ secrets.QL_HOUSE_PROXY_TOKEN }}

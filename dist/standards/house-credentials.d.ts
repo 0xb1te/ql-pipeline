@@ -28,6 +28,32 @@ export declare const LEGACY_HOUSE_API_URL_VAR = "HOUSE_API_URL";
  * the host's `ql-proxy.yml`.
  */
 export declare const PROXY_TOKEN_HEADER = "X-QL-Proxy-Token";
+/** The single-token variable every consumer already sets. */
+export declare const PROXY_TOKEN_VAR = "QL_PROXY_TOKEN";
+/** Per-hop overrides, each taking precedence over `PROXY_TOKEN_VAR` for its own address. */
+export declare const AUTH_PROXY_TOKEN_VAR = "QL_AUTH_PROXY_TOKEN";
+export declare const HOUSE_PROXY_TOKEN_VAR = "QL_HOUSE_PROXY_TOKEN";
+/**
+ * Which of the two protected addresses a request is going to.
+ *
+ * They are two addresses, not one. `QL_AUTH_URL` and `QL_HOUSE_API_URL` are
+ * separate ql-proxy exposures on any host that publishes them separately, and a
+ * protected exposure carries a secret *of its own* - ql-proxy generates one per
+ * exposure precisely so that a leaked value opens one address rather than every
+ * address at once.
+ *
+ * One token therefore does not open both, and this file used to assume it did:
+ * `govern` sent the same `QL_PROXY_TOKEN` to ql-auth and to house-api, so on a
+ * host where the two exposures hold different secrets the ql-auth hop was
+ * refused at the edge. The error it surfaced was `ql-auth request failed with
+ * status 401`, which reads as a bad client id or secret and sends an operator to
+ * rotate credentials that were never wrong.
+ *
+ * Deliberately not solved by pointing both exposures at ql-proxy's host-wide
+ * `QL_PROXY_PROTECTION_TOKEN`: that is one key for every address, which is the
+ * arrangement per-exposure secrets exist to replace.
+ */
+export type ProxyHop = 'auth' | 'house';
 /**
  * A `fetch` that adds the ql-proxy shared secret to every request, or
  * `undefined` when no secret is configured.
@@ -40,7 +66,7 @@ export declare const PROXY_TOKEN_HEADER = "X-QL-Proxy-Token";
  * Absent means "the exposure is public", not "refuse to run": a self-hosted
  * fleet on a private network has nothing in front of it to satisfy.
  */
-export declare function proxyFetchFromEnv(env?: NodeJS.ProcessEnv): typeof fetch | undefined;
+export declare function proxyFetchFromEnv(env?: NodeJS.ProcessEnv, hop?: ProxyHop): typeof fetch | undefined;
 /**
  * Reads the four environment variables `govern` needs to reach house-api —
  * accepting the pre-020 `HOUSE_API_URL` spelling as well as `QL_HOUSE_API_URL` —

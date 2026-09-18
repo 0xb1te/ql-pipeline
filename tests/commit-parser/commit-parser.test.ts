@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseCommitHeader, parseCommits } from '../../src/commit-parser/commit-parser.js';
+import { AREAS } from '../../src/shared/types.js';
 
 describe('parseCommitHeader', () => {
   it('parses a valid header', () => {
@@ -21,10 +22,19 @@ describe('parseCommitHeader', () => {
   });
 
   it('accepts every documented area', () => {
-    const areas = ['frontend', 'backend', 'mobile', 'ios', 'android', 'infrastructure', 'docs'];
+    const areas = ['frontend', 'backend', 'mobile', 'ios', 'android', 'infrastructure', 'tooling', 'docs'];
     for (const area of areas) {
       expect(parseCommitHeader(`fix(${area}): something`)?.area).toBe(area);
     }
+  });
+
+  it('keeps the area list level with AREAS, so a new area cannot be added without a review pack', () => {
+    // AREAS drives allReviewDocumentPaths, and doctor reports a missing
+    // workflow/review/<kind>/<area>.md against every consumer. Hardcoding the list above
+    // would let one drift ahead of the other silently.
+    expect([...AREAS].sort()).toEqual(
+      ['frontend', 'backend', 'mobile', 'ios', 'android', 'infrastructure', 'tooling', 'docs'].sort(),
+    );
   });
 
   it('rejects an unrecognized type', () => {

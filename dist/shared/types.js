@@ -5,6 +5,7 @@ export const AREAS = [
     'ios',
     'android',
     'infrastructure',
+    'tooling',
     'docs',
 ];
 export const COMMIT_TYPES = [

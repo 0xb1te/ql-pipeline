@@ -13,7 +13,7 @@ An automated pipeline governs every PR. It reads your commit headers to decide w
 <type>(<area>): <description>
 
 type ::= feat | fix | refactor | perf | chore | docs | test | ci | build | revert
-area ::= frontend | backend | mobile | ios | android | infrastructure | docs
+area ::= frontend | backend | mobile | ios | android | infrastructure | tooling | docs
 ```
 
 Rules:
@@ -25,12 +25,31 @@ Rules:
 ```
 ✅ feat(backend): add payments endpoint
 ✅ fix(frontend): stop the toggle resetting on route change
+✅ build(tooling): unbreak the package typecheck
 ❌ Added payments endpoint          → unroutable; the pipeline will reject the PR
 ❌ feat: add payments endpoint      → no area
 ❌ feature(backend): …              → "feature" is not a valid type
+❌ feat(fleet): …                   → a module name is not an area
 ```
 
 **A PR where neither any commit nor the PR title matches this grammar is rejected before review.** The pipeline cannot tell which standards apply, so it fails closed rather than guessing.
+
+## Picking the area, and the type
+
+The area **selects the review checklist**, so it is a claim about what kind of work this is — not about the folder the file sits in. Get it wrong and correct code is judged against the wrong standard.
+
+| What you changed | Area |
+|---|---|
+| Anything a user sees — web UI, Electron **renderer** | `frontend` |
+| Server, service, daemon, CLI, Electron **main process**, library logic | `backend` |
+| Native or cross-platform mobile surface | `mobile` / `ios` / `android` |
+| Provisioning, deployment, environments, runtime secrets, IaC | `infrastructure` |
+| How the repo is built, type-checked, linted or tested — build and compiler config, test harness and fixtures, lockfiles, dev scripts | `tooling` |
+| Prose: READMEs, task folders, guides | `docs` |
+
+`tooling` and `infrastructure` are the pair people confuse. **`infrastructure` is how the product runs somewhere; `tooling` is how the repository is checked here.** A deploy workflow is the first; a `tsconfig` that decides which files get compiled is the second.
+
+The type matters too: `build` and `ci` **skip the build gate**, because rebuilding to validate a build-config change is circular. **A type-check or build failure is a `build`, not a `fix`** — `fix` claims the product behaved wrongly, and a compiler configuration rejecting a legal file is not the product misbehaving.
 
 ## Areas are detected from paths too
 

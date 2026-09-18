@@ -73,7 +73,7 @@ Every PR must have at least one commit — or, failing that, a PR title — matc
 ```
 <type>(<area>): <description>
 type ::= feat | fix | refactor | perf | chore | docs | test | ci | build | revert
-area ::= frontend | backend | mobile | ios | android | infrastructure | docs
+area ::= frontend | backend | mobile | ios | android | infrastructure | tooling | docs
 ```
 
 A PR where neither any commit nor the title matches is unrouteable and fails the check immediately with an explanatory comment — the AI never reviews something it can't route.

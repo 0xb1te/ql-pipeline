@@ -17,9 +17,15 @@ These rules govern how **this repository** (the pipeline itself) is developed �
    ```
    <type>(<area>): <description>
    type ::= feat | fix | refactor | perf | chore | docs | test | ci | build | revert
-   area ::= frontend | backend | mobile | ios | android | infrastructure | docs
+   area ::= frontend | backend | mobile | ios | android | infrastructure | tooling | docs
    ```
-   For work on the pipeline itself, use `infrastructure` (pipeline code, workflows, config) or `docs` (plans, rules, documentation).
+   For work on the pipeline itself: `infrastructure` (pipeline code, workflows, config), `tooling` (this repo's own build, lint, type-check and test harness), or `docs` (plans, rules, documentation).
+
+   The area selects the review checklist, so it is a claim about **what kind of work this is**, not about the folder the file sits in. `infrastructure` is how the product runs somewhere; `tooling` is how the repository is checked here. A deploy workflow is the first; a `tsconfig` deciding which files get compiled is the second.
+
+   The type matters for the same reason — `build` and `ci` skip the build gate, because rebuilding to validate a build-config change is circular. **A type-check or build failure is a `build`, not a `fix`**: `fix` claims the product behaved wrongly, and a compiler configuration rejecting a legal file is not the product misbehaving.
+
+   The full mapping, including which area an Electron main process or a CLI belongs to, is `workflow/workstation/general-rules.md` §GR-02 in ql-docs. That page is the source of truth; this rule restates it for the pipeline's own repository.
 2. **No direct pushes to `main`.** All changes arrive via PR from a feature branch named `task/NNN-short-slug`.
 3. Bot/fix-agent commits carry the `[bot]` suffix in the description and must reference the complaint they resolve.
 4. Commit descriptions are imperative, lowercase, no trailing period.

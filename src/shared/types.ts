@@ -3,6 +3,22 @@
 /**
  * Areas are the second grammar element of the conventional-commit header
  * this pipeline understands: `<type>(<area>): <description>`.
+ *
+ * An area selects which review checklist the PR is judged against, so it is a
+ * claim about what kind of work this is — not about which folder the file sits
+ * in. `tooling` exists because build and type-check configuration had nowhere
+ * honest to go: naming a product area for it does not merely mislabel the
+ * commit, it gets three lines of module resolution judged against the frontend
+ * checklist.
+ *
+ * `infrastructure` is how the product runs somewhere; `tooling` is how the
+ * repository is checked here. A deploy workflow is the first; a `tsconfig` that
+ * decides which files get compiled is the second.
+ *
+ * Adding an area is not free: `allReviewDocumentPaths` requires a pack at
+ * `workflow/review/<kind>/<area>.md` in ql-docs for every review kind, and
+ * `doctor` reports each missing one against every consumer. The packs land
+ * upstream before the area does.
  */
 export type Area =
   | 'frontend'
@@ -11,6 +27,7 @@ export type Area =
   | 'ios'
   | 'android'
   | 'infrastructure'
+  | 'tooling'
   | 'docs';
 
 export const AREAS: readonly Area[] = [
@@ -20,6 +37,7 @@ export const AREAS: readonly Area[] = [
   'ios',
   'android',
   'infrastructure',
+  'tooling',
   'docs',
 ];
 

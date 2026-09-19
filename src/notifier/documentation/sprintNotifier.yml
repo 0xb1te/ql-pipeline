@@ -1,0 +1,71 @@
+cns: "1.0"
+neuron: sprintNotifier
+kind: function
+region: notify
+layer: sprint
+unit: src/notifier/sprint-notifier.ts
+
+responsibility: >
+  Tells ql-sprint what this run decided about a pull request, which is how a verdict reaches the
+  operator in Telegram.
+
+invariants:
+  - >
+    An absent QL_SPRINT_URL is not an error. A repository is governed identically whether anybody
+    is listening or not, and failing a run because nobody is means a fleet that runs no ql-sprint
+    cannot govern anything
+
+excludes:
+  - >
+    Deciding whether a failed notice should fail the run - it throws, and govern catches. A review
+    that has already landed on the pull request must not be undone by the messenger, but that is
+    the caller's judgement to make rather than this module's
+  - The wording of the card a person reads; ql-sprint owns that, from the verdict this sends
+
+receptors: []
+
+effectors:
+  - kind: http-out
+    target: ql-sprint's POST /v1/pipeline/notify, through a protected ql-proxy exposure
+    signal: createSprintNotifier
+    effect: >
+      posts one verdict, carrying two protections that do not replace each other - the sprint
+      hop's own edge secret says who may reach the address, and a freshly minted ql-auth bearer
+      token says what they may do once there
+
+signals:
+  - signal: sprintNotifierCredentialsFromEnv
+    intent: >
+      Everything needed to reach ql-sprint, or undefined when this fleet has not been told about
+      one. Undefined is the ordinary case for most consumers and deliberately not an error. It
+      reuses the ql-auth credentials the standards hop already needs, so a fleet that has those
+      and publishes ql-sprint only has to add QL_SPRINT_URL.
+    accepts: env
+    returns: SprintNotifierCredentials | undefined
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
+  - signal: createSprintNotifier
+    intent: >
+      Posts one verdict to ql-sprint. Mints its own client-credentials token rather than reusing
+      the standards reader's, because the two are not always both present - standards.enabled
+      false means no standards token is ever minted, and a run that still wants to say what it
+      decided should not be stopped by that. Throws on failure rather than swallowing; whether
+      that costs the run is the caller's decision.
+    accepts: "SprintNotifierCredentials, env"
+    returns: SprintNotifier
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent:
+      - to: standards.house.houseCredentials#proxyFetchFromEnv
+        via: direct-call
+        because: the auth hop and the sprint hop each carry the secret of their own exposure, never one shared
+
+provenance:
+  - docs/integration-guide.md
+
+revision: 2026-09-19

@@ -6,12 +6,16 @@ layer: merger
 unit: src/merger/merger.ts
 
 responsibility: >
-  Carries out a MERGE verdict: re-checks the head commit is still the one reviewed, approves
-  with any advisory findings attached as comments, merges (or just labels, in human-approval
-  mode), and deletes the branch if configured to.
+  Carries out a MERGE verdict: re-checks the head commit is still the one reviewed, records the
+  verdict on the PR - approving it where GitHub permits that and commenting where it does not -
+  merges (or just labels, in human-approval mode), and deletes the branch if configured to.
 
 invariants:
-  - The staleness check always runs before approving, and the merge call is pinned to the reviewed head SHA so GitHub itself rejects a merge if a newer commit landed mid-run
+  - The staleness check always runs before the verdict is recorded, and the merge call is pinned to the reviewed head SHA so GitHub itself rejects a merge if a newer commit landed mid-run
+  - >
+    Only a refusal that is both 422 and names the PR's own author degrades to a comment review.
+    Every other failure rethrows, because a review that did not land is a governance run that did
+    not do its job, and a blanket downgrade would hide that behind a comment
 
 receptors: []
 effectors: []
@@ -29,11 +33,31 @@ signals:
         via: direct-call
     efferent: []
 
+  - signal: isSelfApprovalRefusal
+    intent: >
+      Whether GitHub refused a review because the token's owner opened the pull request. Matched
+      on the status and the message together: 422 alone covers several unrelated validation
+      failures - a comment on a line outside the diff, most commonly - and treating one of those
+      as "this is my own PR" would swallow a real error and post a comment review in its place.
+      Reachable only since GH_TOKEN became a person's token; as github-actions[bot] the pipeline
+      authors nothing and may approve anything.
+    accepts: unknown
+    returns: boolean
+    pure: true
+    afferent:
+      - from: merge.merger.merger#executeMergeDecision
+        via: direct-call
+    efferent: []
+
   - signal: executeMergeDecision
     intent: >
-      Re-checks the PR's head commit is unchanged, approves it with any advisory comments, and
-      merges (or labels ready-to-merge without merging, in human-approval mode), deleting the
-      branch if configured to.
+      Re-checks the PR's head commit is unchanged, records the verdict with any advisory comments
+      attached, and merges (or labels ready-to-merge without merging, in human-approval mode),
+      deleting the branch if configured to. The verdict is an approving review where GitHub allows
+      one and a COMMENT review where it does not, because nobody may approve a pull request they
+      opened themselves. MergeExecution carries which of the two happened, so no caller has to
+      infer it from silence - and a COMMENT review cannot satisfy branch protection that requires
+      an approval, which the note it posts says outright.
     accepts: "GithubClient, PullRequestInfo (subset), readonly Finding[], MergeConfig"
     returns: Promise<MergeExecution>
     afferent:
@@ -42,9 +66,12 @@ signals:
     efferent:
       - to: merge.merger.merger#findingToReviewComment
         via: direct-call
-        because: renders each advisory finding as a review comment attached to the approval
+        because: renders each advisory finding as a review comment attached to the verdict
+      - to: merge.merger.merger#isSelfApprovalRefusal
+        via: direct-call
+        because: only that one refusal may degrade an approval to a comment; everything else rethrows
       - to: shared.core.githubClient#createGithubClient
         via: di
-        because: getHeadSha/approveWithComments/addLabels/mergePullRequest/deleteBranch are whatever createGithubClient's Octokit-backed implementation returns
+        because: getHeadSha/approveWithComments/commentReview/addLabels/mergePullRequest/deleteBranch are whatever createGithubClient's Octokit-backed implementation returns
 
-revision: 2026-08-30
+revision: 2026-09-19

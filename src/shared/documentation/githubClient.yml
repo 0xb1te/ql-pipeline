@@ -19,7 +19,7 @@ effectors:
   - kind: http-out
     target: the GitHub REST API, via Octokit
     signal: createGithubClient
-    effect: every GithubClient method (listCommitMessages, listChangedFiles, getPullRequestDetails, addLabels, postComment, approveWithComments, requestChangesWithComments, mergePullRequest, getHeadSha, deleteBranch) is a thin wrapper over one Octokit call
+    effect: every GithubClient method (listCommitMessages, listChangedFiles, getPullRequestDetails, addLabels, postComment, listComments, approveWithComments, commentReview, requestChangesWithComments, replyToReviewComment, listReviewThreads, resolveReviewThread, mergePullRequest, getHeadSha, deleteBranch) is a thin wrapper over one Octokit call - REST for all but listReviewThreads and resolveReviewThread, which are GraphQL because resolving a thread exists only there and takes a node id REST never returns
 
 signals:
   - signal: readPullRequestContext
@@ -35,6 +35,24 @@ signals:
       - code: Error
         when: the event payload has no pull_request (the workflow was not triggered by a pull_request event)
 
+  - signal: stampAutomated
+    intent: >
+      Appends the marker that lets a later run recognise this pipeline's own voice, unless it is
+      already there. Identity cannot do that job: the workflow acts as secrets.GH_TOKEN when one
+      is set, that token belongs to a person, and it is usually the same person who comments on
+      the pull request - so "was this written by a bot?" has no answer and "was this written by
+      me?" would decline the operator's own direction along with the pipeline's chatter. What the
+      two do not share is what they say. Applied inside the client on every write path rather than
+      at each call site, because a body that reaches GitHub unstamped is an endless loop and
+      "remember to stamp it" is not a property a codebase can hold.
+    accepts: body
+    returns: string
+    pure: true
+    afferent:
+      - from: shared.core.githubClient#createGithubClient
+        via: direct-call
+    efferent: []
+
   - signal: createGithubClient
     intent: Builds the Octokit-backed GithubClient every later GitHub call in this pipeline goes through, from a token.
     accepts: token
@@ -48,6 +66,9 @@ signals:
         via: di
       - from: merge.merger.merger#executeMergeDecision
         via: di
-    efferent: []
+    efferent:
+      - to: shared.core.githubClient#stampAutomated
+        via: direct-call
+        because: every comment this pipeline writes has to be recognisable to the run that reads it next
 
-revision: 2026-08-30
+revision: 2026-09-19

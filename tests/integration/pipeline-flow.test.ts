@@ -72,6 +72,8 @@ function fakeGithubClient(): GithubClient {
     mergePullRequest: vi.fn().mockResolvedValue(undefined),
     getHeadSha: vi.fn().mockResolvedValue(PR.headSha),
     deleteBranch: vi.fn().mockResolvedValue(undefined),
+    listReviewThreads: vi.fn().mockResolvedValue([]),
+    resolveReviewThread: vi.fn().mockResolvedValue(undefined),
   };
 }
 

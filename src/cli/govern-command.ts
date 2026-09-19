@@ -44,6 +44,7 @@ import { replyForFinding, type FixAttemptOutcome } from '../reviewer/finding-rep
 import { formatDirection } from '../shared/human-direction.js';
 import { gateFindings, isReviewRequired } from '../verdict/required-checks.js';
 import { decidePipelineOutcome } from '../verdict/verdict.js';
+import { threadsToResolve } from '../reviewer/settled-threads.js';
 import {
   createSprintNotifier,
   sprintNotifierCredentialsFromEnv,
@@ -466,6 +467,29 @@ export async function runGovern(reportsDir: string): Promise<void> {
     }
   };
 
+  /**
+   * Closes the threads this pipeline opened, once a review comes back with nothing to say.
+   *
+   * Best-effort, like the replies and the notification: a thread that stays open is untidy, and a
+   * governance run that failed over untidiness would be worse. It runs only on the no-findings
+   * path, because that is the only evidence that a complaint is actually dealt with rather than
+   * merely written about — see threadsToResolve.
+   */
+  const closeSettledThreads = async (findingsRaised: number): Promise<void> => {
+    try {
+      const threads = await client.listReviewThreads(pr);
+      const ids = threadsToResolve({ threads, findingsRaised });
+      for (const id of ids) {
+        await client.resolveReviewThread(id);
+      }
+      if (ids.length > 0) {
+        logger.info(`resolved ${String(ids.length)} finding thread(s) this review no longer raises`);
+      }
+    } catch (error) {
+      logger.warn(`could not resolve settled finding threads: ${String(error)}`);
+    }
+  };
+
   if (decision.kind === 'MERGE') {
     const execution = await executeMergeDecision(client, pr, decision.advisoryFindings, config.merge);
     if (execution.kind === 'stale') {
@@ -478,6 +502,7 @@ export async function runGovern(reportsDir: string): Promise<void> {
         advisoryFindingCount: decision.advisoryFindings.length,
       });
       // The verdict that most needs to reach a person: nothing else moves until somebody looks.
+      await closeSettledThreads(decision.advisoryFindings.length);
       await notifySprint(
         'awaiting-human',
         'Reviewed and approved. Labelled ready-to-merge — the pipeline will not merge it itself.',
@@ -485,6 +510,7 @@ export async function runGovern(reportsDir: string): Promise<void> {
       return;
     }
     logger.info('merged', { targetBranch, advisoryFindingCount: decision.advisoryFindings.length });
+    await closeSettledThreads(decision.advisoryFindings.length);
     await notifySprint('merge', `Merged into ${targetBranch}.`);
     return;
   }

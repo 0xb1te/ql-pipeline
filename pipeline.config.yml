@@ -74,6 +74,19 @@ merge:
   # findings cannot block is pure cost.
   required_checks: [build, test, ai-review]   # default: all three
 
+  # A MERGE verdict labels the PR `ready-to-merge` and stops. Everything the
+  # pipeline learns still reaches the PR; only the last step is a person's.
+  #
+  # ql-desktop took this in its task 040 after #32 merged itself on that
+  # repo's default branch while nobody was watching. The same reasoning
+  # applies here with more force, not less: task 027 gave the loop a mouth —
+  # a comment now starts a run that can review, fix, push and decide — and
+  # this is the repository every other one calls at `@main`, so a merge here
+  # changes how every governed repo behaves within the minute. An agent that
+  # can both change the code and merge it leaves no moment where a human
+  # sees the result.
+  require_human_approval: true
+
 # Areas are detected from conventional-commit headers, and additionally
 # from the paths a PR touches. Path detection is additive: a commit
 # labelled `feat(frontend)` that also edits `apps/api-backend/` still gets

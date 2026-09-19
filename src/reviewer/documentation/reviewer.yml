@@ -18,6 +18,21 @@ receptors: []
 effectors: []
 
 signals:
+  - signal: standardsBudgetFor
+    intent: >
+      How many bytes of standards this prompt can still carry: the hard prompt ceiling minus what
+      the template costs once every placeholder but the standards is filled in. Measured rather
+      than assumed, because the rest of the prompt grows - human direction, the diff, the gate
+      reports - and a budget guessed from the template alone would overflow exactly when the PR is
+      most worth reviewing carefully.
+    accepts: "template, context"
+    returns: number
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
   - signal: buildReviewPrompt
     intent: Substitutes the AREAS/RULES/STANDARDS/GATE_RESULTS/PR_DESCRIPTION/DIFF placeholders documented in prompts/reviewer.md.
     accepts: "template, ReviewContext"

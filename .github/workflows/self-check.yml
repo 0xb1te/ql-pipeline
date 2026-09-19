@@ -51,6 +51,12 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
+      # ql-pipeline reports other repositories for leaving their neuron docs behind a change.
+      # Five of its own units had drifted before this step existed, two of them in the commit
+      # that taught the reviewer to look for it.
+      - name: Neuron docs match the code
+        run: pnpm run neurons
+
       - name: Build
         run: pnpm run build
 

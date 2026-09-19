@@ -1,0 +1,49 @@
+cns: "1.0"
+neuron: settledThreads
+kind: model
+region: review
+layer: reviewer
+unit: src/reviewer/settled-threads.ts
+
+responsibility: >
+  Decides which finding threads a run should close, given what the current review had to say.
+
+invariants:
+  - >
+    A review that raises findings closes nothing. The fixer works from every finding at once and
+    reports one commit, not a mapping from finding to edit, so a run that just pushed a fix cannot
+    say which complaints it settled - only that it tried
+  - A thread a person opened is never closed; they opened it, it is theirs to close
+
+owns:
+  - >
+    The all-or-none rule. Matching a new review's findings back to an older review's threads means
+    comparing path, line and wording, and a line number moves the moment anybody edits the file
+    above it - a wrong match closes a live complaint, which is worse than leaving a settled one open
+
+excludes:
+  - Reading or resolving anything; it performs no IO. shared.core.githubClient owns both calls
+  - >
+    Deciding whose thread is whose - the caller sets openedByPipeline from the automation marker,
+    because once GH_TOKEN is set the pipeline and the operator are the same GitHub account and
+    authorship answers nothing
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: threadsToResolve
+    intent: >
+      The ids of this pipeline's own open threads, when the review came back with nothing to say,
+      and none otherwise. That is the only moment "dealt with" is evidence rather than a guess:
+      every complaint has been re-examined against the current code and none survived. A finding
+      that persists keeps its thread open, correctly, because it is still true.
+    accepts: "threads, findingsRaised"
+    returns: readonly string[]
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
+revision: 2026-09-19

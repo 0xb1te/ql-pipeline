@@ -70,6 +70,20 @@ signals:
         via: direct-call
     efferent: []
 
+  - signal: describeDroppedSections
+    intent: >
+      Names what a truncation actually cost, in the operator's terms. A document with no `## `
+      headings can still overflow, and saying so beats reporting "0 sections" - which reads as
+      "nothing was lost" when something was. Long lists are elided rather than printed whole,
+      because a log line nobody finishes is a log line nobody reads.
+    accepts: "sections, droppedChars"
+    returns: string
+    pure: true
+    afferent:
+      - from: standards.house.standardsResolver#resolveStandards
+        via: direct-call
+    efferent: []
+
   - signal: resolveStandards
     intent: >
       Loads the review pack for this kind and the matched areas through the given
@@ -103,6 +117,22 @@ signals:
     pure: true
     afferent:
       - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
+  - signal: formatStandard
+    intent: >
+      Renders one resolved document as the reviewer will see it - a header naming the id and the
+      source path, and the citation form findings must use against it. Separate from
+      formatStandardsForPrompt so a caller can measure one document's true rendered cost without
+      building the whole prompt, which is what packing passes by budget needs.
+    accepts: standard
+    returns: string
+    pure: true
+    afferent:
+      - from: standards.house.standardsResolver#formatStandardsForPrompt
+        via: direct-call
+      - from: review.reviewer.reviewPasses#standardCost
         via: direct-call
     efferent: []
 

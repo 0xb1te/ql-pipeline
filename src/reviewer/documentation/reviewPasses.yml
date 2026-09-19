@@ -1,0 +1,82 @@
+cns: "1.0"
+neuron: reviewPasses
+kind: model
+region: review
+layer: reviewer
+unit: src/reviewer/review-passes.ts
+
+responsibility: >
+  Splits the loaded standards across as few review passes as will carry them whole, and collapses
+  the findings those passes come back with.
+
+invariants:
+  - >
+    A set of standards that fits the budget runs in ONE pass, exactly as it did before passes
+    existed. Passes are added only when the alternative is dropping text - a second agent call
+    that buys nothing is a cost with no verdict attached to it
+  - >
+    Documents with no area - the shared checklist - ride in every pass. A pass judged without the
+    review checklist is judged against a different standard than its siblings
+
+owns:
+  - >
+    The dedupe key, which includes the rule id. The same defect can legitimately surface in two
+    passes because a layering mistake is visible from the architecture slice and from the quality
+    slice; but two different rules broken on one line are two findings, and a key of file:line
+    alone would silently swallow the second
+
+excludes:
+  - Running a pass, or talking to any agent - callers own that
+  - Choosing the budget; entrypoint.cli.governCommand measures it from the prompt template
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: standardCost
+    intent: >
+      Bytes this document costs the prompt, rendered exactly as it will appear - including the
+      blank line the join adds, so a plan that fills the budget to the brim still fits once joined.
+    accepts: standard
+    returns: number
+    pure: true
+    afferent:
+      - from: review.reviewer.reviewPasses#planReviewPasses
+        via: direct-call
+    efferent:
+      - to: standards.house.standardsResolver#formatStandard
+        via: direct-call
+        because: a cost measured on anything but the rendered text is a cost for a different prompt
+
+  - signal: planReviewPasses
+    intent: >
+      Packs the standards into passes by budget. Task 017 measured what the single-pass design
+      actually delivered - 48% of frontend.md reached the reviewer, and the half it lost was the
+      engineering half. A verdict formed against half a checklist is not weaker, it is unreadable:
+      "Findings: 0" cannot be told apart from "the rule that would have caught it was never in the
+      prompt".
+    accepts: "standards, budgetBytes"
+    returns: ReviewPass[]
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent:
+      - to: review.reviewer.reviewPasses#standardCost
+        via: direct-call
+        because: packing by budget needs the rendered size of each document
+
+  - signal: dedupeFindings
+    intent: Collapses findings gathered across passes, keyed on file, line and rule together.
+    accepts: findings
+    returns: Finding[]
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
+provenance:
+  - docs/017-sliced-review-passes/plan.md
+
+revision: 2026-09-19

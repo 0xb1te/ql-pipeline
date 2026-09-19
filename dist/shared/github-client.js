@@ -87,13 +87,40 @@ export function createGithubClient(token) {
             });
         },
         async requestChangesWithComments(pr, body, comments) {
-            await octokit.rest.pulls.createReview({
+            const review = await octokit.rest.pulls.createReview({
                 owner: pr.owner,
                 repo: pr.repo,
                 pull_number: pr.number,
                 event: 'REQUEST_CHANGES',
                 body,
                 comments: comments.map((comment) => ({ path: comment.path, line: comment.line, body: comment.body })),
+            });
+            // Listing and filtering by review id is the only exact way to learn which
+            // comments this review created; `createReview` answers with the review
+            // alone. A failure here must not fail the review that already landed -
+            // the complaint is posted either way, and losing the ids only costs the
+            // replies.
+            try {
+                const all = await octokit.paginate(octokit.rest.pulls.listReviewComments, {
+                    owner: pr.owner,
+                    repo: pr.repo,
+                    pull_number: pr.number,
+                });
+                return all
+                    .filter((comment) => comment.pull_request_review_id === review.data.id)
+                    .map((comment) => comment.id);
+            }
+            catch {
+                return [];
+            }
+        },
+        async replyToReviewComment(pr, commentId, body) {
+            await octokit.rest.pulls.createReplyForReviewComment({
+                owner: pr.owner,
+                repo: pr.repo,
+                pull_number: pr.number,
+                comment_id: commentId,
+                body,
             });
         },
         async mergePullRequest(pr, method, expectedHeadSha) {

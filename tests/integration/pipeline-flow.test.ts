@@ -65,7 +65,9 @@ function fakeGithubClient(): GithubClient {
     addLabels: vi.fn().mockResolvedValue(undefined),
     postComment: vi.fn().mockResolvedValue(undefined),
     approveWithComments: vi.fn().mockResolvedValue(undefined),
-    requestChangesWithComments: vi.fn().mockResolvedValue(undefined),
+    // Answers with the ids of the comments it created, so govern can reply in those threads.
+    requestChangesWithComments: vi.fn().mockResolvedValue([]),
+    replyToReviewComment: vi.fn().mockResolvedValue(undefined),
     mergePullRequest: vi.fn().mockResolvedValue(undefined),
     getHeadSha: vi.fn().mockResolvedValue(PR.headSha),
     deleteBranch: vi.fn().mockResolvedValue(undefined),

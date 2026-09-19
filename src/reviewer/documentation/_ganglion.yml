@@ -31,5 +31,8 @@ neurons:
   - id: review.reviewer.responseParser
     file: responseParser.yml
     unit: ../response-parser.ts
+  - id: review.reviewer.findingReply
+    file: findingReply.yml
+    unit: ../finding-reply.ts
 
 revision: 2026-09-07

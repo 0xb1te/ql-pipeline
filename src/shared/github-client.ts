@@ -94,10 +94,31 @@ export interface GithubClient {
     pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>,
     comments: readonly ReviewComment[],
   ) => Promise<void>;
+  /**
+   * Posts the review and hands back the ids of the inline comments it created,
+   * so the run that fixes a finding can answer the very thread that raised it.
+   *
+   * The ids are read back rather than taken from the create response: GitHub's
+   * `createReview` returns the review, not its comments, so the only exact way
+   * to learn them is to list the PR's review comments and keep the ones
+   * belonging to this review.
+   */
   requestChangesWithComments: (
     pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>,
     body: string,
     comments: readonly ReviewComment[],
+  ) => Promise<readonly number[]>;
+  /**
+   * Replies inside one review-comment thread.
+   *
+   * A finding that gets fixed but never answered leaves the thread reading as
+   * an open complaint forever - the PR shows "changes requested" and a comment
+   * nobody responded to, even though a commit addressed it minutes later.
+   */
+  replyToReviewComment: (
+    pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>,
+    commentId: number,
+    body: string,
   ) => Promise<void>;
   /**
    * Merges with `expectedHeadSha` pinned, so GitHub itself rejects the
@@ -186,14 +207,42 @@ export function createGithubClient(token: string): GithubClient {
       });
     },
 
-    async requestChangesWithComments(pr, body, comments): Promise<void> {
-      await octokit.rest.pulls.createReview({
+    async requestChangesWithComments(pr, body, comments): Promise<readonly number[]> {
+      const review = await octokit.rest.pulls.createReview({
         owner: pr.owner,
         repo: pr.repo,
         pull_number: pr.number,
         event: 'REQUEST_CHANGES',
         body,
         comments: comments.map((comment) => ({ path: comment.path, line: comment.line, body: comment.body })),
+      });
+
+      // Listing and filtering by review id is the only exact way to learn which
+      // comments this review created; `createReview` answers with the review
+      // alone. A failure here must not fail the review that already landed -
+      // the complaint is posted either way, and losing the ids only costs the
+      // replies.
+      try {
+        const all = await octokit.paginate(octokit.rest.pulls.listReviewComments, {
+          owner: pr.owner,
+          repo: pr.repo,
+          pull_number: pr.number,
+        });
+        return all
+          .filter((comment) => comment.pull_request_review_id === review.data.id)
+          .map((comment) => comment.id);
+      } catch {
+        return [];
+      }
+    },
+
+    async replyToReviewComment(pr, commentId, body): Promise<void> {
+      await octokit.rest.pulls.createReplyForReviewComment({
+        owner: pr.owner,
+        repo: pr.repo,
+        pull_number: pr.number,
+        comment_id: commentId,
+        body,
       });
     },
 

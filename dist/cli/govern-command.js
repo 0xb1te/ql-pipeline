@@ -19,6 +19,7 @@ import { describeDroppedSections, formatStandardsForPrompt, resolveStandards, st
 import { formatAuditSummary, } from '../shared/audit-summary.js';
 import { mergeGateReports, parseGateReport } from '../shared/gate-report.js';
 import { AREAS } from '../shared/types.js';
+import { replyForFinding } from '../reviewer/finding-reply.js';
 import { gateFindings, isReviewRequired } from '../verdict/required-checks.js';
 import { decidePipelineOutcome } from '../verdict/verdict.js';
 import { createPipelineContext, resolveRouting } from './bootstrap.js';
@@ -320,8 +321,27 @@ export async function runGovern(reportsDir) {
     // FIX and BLOCK both mean something is wrong; post the complaint either
     // way so a human can see exactly what, without digging through CI logs.
     const summary = formatComplaintSummary(decision.findings, attemptNumber, config.fixer.maxFixAttempts);
-    await client.requestChangesWithComments(pr, summary, decision.findings.map(findingToReviewComment));
+    const findingThreads = await client.requestChangesWithComments(pr, summary, decision.findings.map(findingToReviewComment));
+    /**
+     * Answers every thread this review just opened, once the run knows what it did about them.
+     *
+     * Best-effort on purpose: a reply that fails must not turn a completed review, or a fix that is
+     * already pushed, into a failed run. The worst case is a thread left unanswered, which is where
+     * this started.
+     */
+    const answerThreads = async (outcome) => {
+        const body = replyForFinding({ outcome, attemptNumber, maxFixAttempts: config.fixer.maxFixAttempts });
+        for (const commentId of findingThreads) {
+            try {
+                await client.replyToReviewComment(pr, commentId, body);
+            }
+            catch (error) {
+                logger.warn(`could not reply in a finding thread: ${String(error)}`);
+            }
+        }
+    };
     if (decision.kind === 'BLOCK') {
+        await answerThreads({ kind: 'not-attempted', why: `the review blocked this PR (${decision.reason}).` });
         logger.error(`blocked: ${decision.reason}`);
         await client.addLabels(pr, ['needs-human']);
         core.setFailed(`blocked: ${decision.reason}`);
@@ -331,11 +351,19 @@ export async function runGovern(reportsDir) {
     // token cannot push to — review it, complain about it, but never
     // pretend a fix was attempted.
     if (pr.isFork) {
+        await answerThreads({
+            kind: 'not-attempted',
+            why: 'this PR comes from a fork, whose branch this token cannot push to.',
+        });
         await escalateToHuman(client, pr, logger, 'cannot auto-fix a PR from a fork; this needs a human', 'This PR comes from a fork, so the pipeline cannot push a fix commit to its branch. ' +
             'The findings above need to be addressed manually.');
         return;
     }
     if (shouldSkipCursorFixer(config.agent.provider)) {
+        await answerThreads({
+            kind: 'not-attempted',
+            why: 'the review ran against an OpenAI-compatible endpoint and the fixer is Cursor-only.',
+        });
         await escalateToHuman(client, pr, logger, 'review used an OpenAI-compatible endpoint; auto-fix is Cursor-only this round', 'This review ran against an OpenAI-compatible API. The automated fixer still requires ' +
             '`cursor-agent`, so the findings above need a human rather than a pretended HTTP fix.');
         return;
@@ -351,6 +379,13 @@ export async function runGovern(reportsDir) {
         ...(config.agent.fix.model !== null ? { model: config.agent.fix.model } : {}),
     });
     if (fixOutcome.kind === 'committed') {
+        // Answered before the run ends, because this run is about to mark itself superseded - the
+        // push starts a fresh one, and nothing later would know which threads these were.
+        await answerThreads({
+            kind: 'committed',
+            commitMessage: fixOutcome.commitMessage,
+            files: fixOutcome.files,
+        });
         logger.info('fix committed and pushed; the push re-triggers this pipeline', {
             commitMessage: fixOutcome.commitMessage,
             files: fixOutcome.files,
@@ -359,6 +394,7 @@ export async function runGovern(reportsDir) {
         return;
     }
     if (fixOutcome.kind === 'no-changes') {
+        await answerThreads({ kind: 'no-changes' });
         await escalateToHuman(client, pr, logger, 'the fix agent made no usable changes; this needs a human', 'The automated fix agent ran but produced no usable changes (or only touched protected paths, which are ' +
             'always reverted). The findings above need to be addressed manually.');
         return;

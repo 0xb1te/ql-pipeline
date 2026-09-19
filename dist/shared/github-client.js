@@ -88,6 +88,35 @@ export function readPullRequestContext(context, env = process.env) {
         isFork,
     };
 }
+/**
+ * Stamped into every comment this pipeline writes, so a later run can recognise its own voice.
+ *
+ * Identity cannot do this job. The workflow acts as `secrets.GH_TOKEN` when one is set, and that
+ * token belongs to a person — the same person who comments on the pull request. Once `GH_TOKEN`
+ * is configured, the pipeline's comments and the operator's are written by the *same GitHub
+ * account*, so "was this written by a bot?" has no answer, and "was this written by me?" would
+ * decline the operator's own direction along with the pipeline's chatter.
+ *
+ * What the two do not share is what they say. An HTML comment renders as nothing, survives
+ * GitHub's Markdown untouched, and is carried in the webhook payload the trigger reads — so the
+ * guard can ask the one question that still separates them.
+ *
+ * Without this, a `GH_TOKEN` that finally closes the fix loop also makes every verdict comment
+ * start another run that writes another verdict comment, forever.
+ */
+export const AUTOMATION_MARKER = '<!-- ql-pipeline:automated -->';
+/**
+ * Appends the marker, unless it is already there.
+ *
+ * Applied inside the client rather than at each call site on purpose: a body that reaches GitHub
+ * unstamped is a loop, and "remember to stamp it" is not a property a codebase can hold.
+ */
+// @signal stampAutomated
+export function stampAutomated(body) {
+    return body.includes(AUTOMATION_MARKER) ? body : `${body}
+
+${AUTOMATION_MARKER}`;
+}
 /** Thin Octokit wrapper for the two calls this pipeline needs so far. */
 // @signal createGithubClient
 export function createGithubClient(token) {
@@ -142,7 +171,7 @@ export function createGithubClient(token) {
                 owner: pr.owner,
                 repo: pr.repo,
                 issue_number: pr.number,
-                body,
+                body: stampAutomated(body),
             });
         },
         async approveWithComments(pr, comments) {
@@ -151,7 +180,11 @@ export function createGithubClient(token) {
                 repo: pr.repo,
                 pull_number: pr.number,
                 event: 'APPROVE',
-                comments: comments.map((comment) => ({ path: comment.path, line: comment.line, body: comment.body })),
+                comments: comments.map((comment) => ({
+                    path: comment.path,
+                    line: comment.line,
+                    body: stampAutomated(comment.body),
+                })),
             });
         },
         async listComments(pr) {
@@ -200,8 +233,12 @@ export function createGithubClient(token) {
                 repo: pr.repo,
                 pull_number: pr.number,
                 event: 'REQUEST_CHANGES',
-                body,
-                comments: comments.map((comment) => ({ path: comment.path, line: comment.line, body: comment.body })),
+                body: stampAutomated(body),
+                comments: comments.map((comment) => ({
+                    path: comment.path,
+                    line: comment.line,
+                    body: stampAutomated(comment.body),
+                })),
             });
             // Listing and filtering by review id is the only exact way to learn which
             // comments this review created; `createReview` answers with the review
@@ -228,7 +265,7 @@ export function createGithubClient(token) {
                 repo: pr.repo,
                 pull_number: pr.number,
                 comment_id: commentId,
-                body,
+                body: stampAutomated(body),
             });
         },
         async mergePullRequest(pr, method, expectedHeadSha) {

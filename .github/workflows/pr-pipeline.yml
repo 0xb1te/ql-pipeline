@@ -132,12 +132,23 @@ jobs:
               if (context.payload.action === 'deleted') {
                 return decline('the comment was deleted.');
               }
+              const body = String(context.payload.comment?.body ?? '');
+              // The guard that still works once GH_TOKEN is set. The workflow then acts as that
+              // token's owner — a person, and usually the same person who comments here — so its
+              // own verdicts arrive as an ordinary user comment and no identity check can tell
+              // them apart. The marker can: ql-pipeline stamps everything it writes, and nothing
+              // a person types carries it.
+              if (body.includes('<!-- ql-pipeline:automated -->')) {
+                return decline('that comment is one this pipeline wrote, and answering itself would never stop.');
+              }
               const author = context.payload.comment?.user ?? {};
               const login = String(author.login ?? 'an unknown account');
+              // Still worth keeping for every other bot on the repository, and for a pipeline
+              // running without GH_TOKEN, whose comments arrive as github-actions[bot].
               if (author.type === 'Bot' || login.endsWith('[bot]')) {
                 return decline(`${login} is a bot, and a pipeline that replied to itself would never stop.`);
               }
-              if (String(context.payload.comment?.body ?? '').trim() === '') {
+              if (body.trim() === '') {
                 return decline('the comment is empty.');
               }
             }

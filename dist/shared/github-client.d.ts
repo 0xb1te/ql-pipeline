@@ -130,6 +130,15 @@ export interface GithubClient {
     listComments: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>) => Promise<readonly PrComment[]>;
     approveWithComments: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, comments: readonly ReviewComment[]) => Promise<void>;
     /**
+     * Posts the same review as a plain comment rather than an approval.
+     *
+     * GitHub refuses to let anyone approve their own pull request, and once `GH_TOKEN` is a
+     * person's token the pipeline *is* the author of everything that person opens. A COMMENT review
+     * is allowed there and carries the findings and the verdict intact — what it cannot do is
+     * satisfy a branch-protection rule that requires an approving review.
+     */
+    commentReview: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, body: string, comments: readonly ReviewComment[]) => Promise<void>;
+    /**
      * Posts the review and hands back the ids of the inline comments it created,
      * so the run that fixes a finding can answer the very thread that raised it.
      *

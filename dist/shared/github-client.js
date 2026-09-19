@@ -227,6 +227,20 @@ export function createGithubClient(token) {
                 .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
                 .map(({ createdAt: _createdAt, ...comment }) => comment);
         },
+        async commentReview(pr, body, comments) {
+            await octokit.rest.pulls.createReview({
+                owner: pr.owner,
+                repo: pr.repo,
+                pull_number: pr.number,
+                event: 'COMMENT',
+                body: stampAutomated(body),
+                comments: comments.map((comment) => ({
+                    path: comment.path,
+                    line: comment.line,
+                    body: stampAutomated(comment.body),
+                })),
+            });
+        },
         async requestChangesWithComments(pr, body, comments) {
             const review = await octokit.rest.pulls.createReview({
                 owner: pr.owner,

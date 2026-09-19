@@ -4,13 +4,35 @@ import type { Finding, MergeConfig } from '../shared/types.js';
 export declare function findingToReviewComment(finding: Finding): ReviewComment;
 export type MergeExecution = {
     readonly kind: 'merged';
+    readonly approval: ApprovalOutcome;
 } | {
     readonly kind: 'awaiting-human';
+    readonly approval: ApprovalOutcome;
 } | {
     readonly kind: 'stale';
     readonly reviewedSha: string;
     readonly currentSha: string;
 };
+/** How the MERGE verdict was recorded on the pull request. */
+export type ApprovalOutcome = 
+/** A real approving review. */
+'approved'
+/** A COMMENT review, because GitHub will not let anyone approve a PR they opened themselves. */
+ | 'self-authored';
+/**
+ * Whether GitHub refused a review because the token's owner opened the pull request.
+ *
+ * Matched on the status *and* the message: 422 alone covers several unrelated validation
+ * failures, and treating one of those as "this is my own PR" would swallow a real error and post
+ * a comment review in its place.
+ *
+ * This became reachable the moment `GH_TOKEN` was set. Without it the pipeline reviews as
+ * github-actions[bot], which authors nothing and may approve anything; with it, it reviews as a
+ * person, and in a one-maintainer suite that person opened the pull request.
+ */
+export declare function isSelfApprovalRefusal(error: unknown): boolean;
+/** What the comment review says in place of an approval, so the PR still carries the verdict. */
+export declare const SELF_APPROVAL_NOTE: string;
 /** Label applied instead of merging when `merge.require_human_approval` is on. */
 export declare const READY_TO_MERGE_LABEL = "ready-to-merge";
 /**

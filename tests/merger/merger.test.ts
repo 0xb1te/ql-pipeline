@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { executeMergeDecision, findingToReviewComment } from '../../src/merger/merger.js';
+import { isSelfApprovalRefusal, SELF_APPROVAL_NOTE, executeMergeDecision, findingToReviewComment } from '../../src/merger/merger.js';
 import type { GithubClient } from '../../src/shared/github-client.js';
 import type { Finding, MergeConfig } from '../../src/shared/types.js';
 
@@ -40,6 +40,7 @@ function fakeClient(headSha = PR.headSha): GithubClient {
     mergePullRequest: vi.fn().mockResolvedValue(undefined),
     getHeadSha: vi.fn().mockResolvedValue(headSha),
     deleteBranch: vi.fn().mockResolvedValue(undefined),
+    commentReview: vi.fn().mockResolvedValue(undefined),
     listReviewThreads: vi.fn().mockResolvedValue([]),
     resolveReviewThread: vi.fn().mockResolvedValue(undefined),
   };
@@ -78,7 +79,7 @@ describe('executeMergeDecision', () => {
 
     const result = await executeMergeDecision(client, PR, [], mergeConfig);
 
-    expect(result).toEqual({ kind: 'merged' });
+    expect(result).toEqual({ kind: 'merged', approval: 'approved' });
     expect(client.approveWithComments).toHaveBeenCalledWith(PR, []);
     expect(client.mergePullRequest).toHaveBeenCalledWith(PR, 'merge', 'abc123');
     expect(client.deleteBranch).toHaveBeenCalledWith(PR);
@@ -173,7 +174,7 @@ describe('human-approval mode', () => {
 
     const result = await executeMergeDecision(client, PR, [], humanApproval);
 
-    expect(result).toEqual({ kind: 'awaiting-human' });
+    expect(result).toEqual({ kind: 'awaiting-human', approval: 'approved' });
     expect(client.mergePullRequest).not.toHaveBeenCalled();
   });
 
@@ -215,5 +216,62 @@ describe('human-approval mode', () => {
     expect(result.kind).toBe('stale');
     expect(client.approveWithComments).not.toHaveBeenCalled();
     expect(client.addLabels).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * GitHub refuses to let anyone approve their own pull request. Once `GH_TOKEN` is a person's
+ * token the pipeline *is* the author of everything that person opens, so the approve call that
+ * had worked since the beginning started returning 422 and failing the whole governance run.
+ */
+describe('a pull request the pipeline itself opened', () => {
+  const mergeConfig: MergeConfig = {
+    targetBranch: 'main',
+    targetBranchByArea: {},
+    method: 'merge',
+    deleteBranch: true,
+    requiredChecks: ['build', 'test', 'ai-review'],
+    requireHumanApproval: false,
+  };
+
+  function refusing(): { status: number; message: string } {
+    return { status: 422, message: 'Unprocessable Entity: "Review Can not approve your own pull request"' };
+  }
+
+  it('recognises the refusal by status and message together', () => {
+    expect(isSelfApprovalRefusal(refusing())).toBe(true);
+  });
+
+  it('does not mistake other 422s for it — they are real errors and must not be swallowed', () => {
+    expect(isSelfApprovalRefusal({ status: 422, message: 'Validation Failed: line must be part of the diff' })).toBe(
+      false,
+    );
+    expect(isSelfApprovalRefusal({ status: 403, message: 'own pull request' })).toBe(false);
+    expect(isSelfApprovalRefusal(new Error('own pull request'))).toBe(false);
+    expect(isSelfApprovalRefusal(null)).toBe(false);
+  });
+
+  it('records the verdict as a comment review instead of failing the run', async () => {
+    const client = fakeClient();
+    client.approveWithComments = vi.fn().mockRejectedValue(refusing());
+
+    const result = await executeMergeDecision(client, PR, [], { ...mergeConfig, requireHumanApproval: true });
+
+    expect(result).toEqual({ kind: 'awaiting-human', approval: 'self-authored' });
+    expect(client.commentReview).toHaveBeenCalledWith(PR, SELF_APPROVAL_NOTE, []);
+  });
+
+  it('says in the note that a required approval must come from somebody else', () => {
+    // Branch protection that demands an approving review cannot be satisfied by the pipeline at
+    // all here, and a reader of the PR deserves to know that rather than wonder.
+    expect(SELF_APPROVAL_NOTE).toContain('has to come from');
+  });
+
+  it('still rethrows any other failure — a review that did not land is a run that did not work', async () => {
+    const client = fakeClient();
+    client.approveWithComments = vi.fn().mockRejectedValue({ status: 500, message: 'Server Error' });
+
+    await expect(executeMergeDecision(client, PR, [], mergeConfig)).rejects.toMatchObject({ status: 500 });
+    expect(client.commentReview).not.toHaveBeenCalled();
   });
 });

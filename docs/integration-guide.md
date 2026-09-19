@@ -12,9 +12,16 @@ name: PR Governance
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  # Optional, and the subject of "Asking for another pass" below: lets a
+  # comment re-run the pipeline with that comment as direction. The first
+  # covers comments on the PR, the second replies inside a finding's thread.
+  issue_comment:
+    types: [created, edited]
+  pull_request_review_comment:
+    types: [created, edited]
 
 concurrency:
-  group: pr-pipeline-${{ github.event.pull_request.number }}
+  group: pr-pipeline-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
@@ -43,7 +50,7 @@ The `checks /` prefix is your calling job's id — rename the job and the prefix
 - **Pin `@main` to a tag or SHA in production** once ql-pipeline has releases — `@main` tracks the latest commit, which is fine for trying it out but not for a repo whose merges depend on it staying stable.
 - **The `permissions` block is not optional, and its absence is invisible.** A called workflow can never hold more than its caller, and ql-pipeline's jobs declare `contents`/`pull-requests`/`issues` write - they label PRs, comment, push fix commits and merge. GitHub's default `GITHUB_TOKEN` is read-only, so a caller without that block fails at **startup**: no jobs, no annotation, and no reason exposed through the API or the UI. It reads exactly like a missing secret, and has been misdiagnosed as one more than once. Granting it in the caller also keeps the widening to this one workflow - the alternative, flipping the repository-wide **Settings → Actions → General → Workflow permissions** default, hands write to every other workflow in the repo too.
 - **One thing a caller cannot grant itself:** approving pull requests. **Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests"** is repository-level only, and a MERGE verdict calls the approve API. Without it the pipeline reviews and decides correctly, then fails at the last step.
-- **The `concurrency` block is your responsibility, not ql-pipeline's.** A new commit pushed to a PR should cancel the in-flight run for the old one (including a stale fix-loop attempt) — the reusable workflow doesn't declare this for you since it's a property of *your* workflow, not the called one.
+- **The `concurrency` block is your responsibility, not ql-pipeline's.** A new commit pushed to a PR should cancel the in-flight run for the old one (including a stale fix-loop attempt) — the reusable workflow doesn't declare this for you since it's a property of *your* workflow, not the called one. Key it on `pull_request.number || issue.number` if you take the comment trigger: the two events describe the same PR with different fields, and a group that reads only the first collapses every comment-triggered run in the repo into one.
 - **Required secret for every job:** `GH_PACKAGES_TOKEN` — a token with read access to `0xb1te/ql-docs` and `0xb1te/ql-auth`. ql-pipeline installs `@0xb1te/house-client` and `@0xb1te/ql-auth-client` directly from those two private repositories, and your repo's `GITHUB_TOKEN` cannot read them: it is scoped to your repository alone. All three jobs install ql-pipeline, so all three need it. The workflow rewrites only those two repository URLs, so the token is never offered to any other `github.com` fetch. A read-only fine-grained PAT is enough.
 - **Secret for the default Cursor provider:** `CURSOR_API_KEY`, used by both the reviewer and the fixer when `agent.provider` is `cursor` (the default). The workflow still installs the Cursor CLI on the runner — the fixer remains Cursor-only even if review uses another endpoint.
 - **Secrets for `agent.provider: openai_compatible`:** `QL_PIPELINE_AGENT_API_KEY` (preferred) or `OPENAI_API_KEY` (fallback). These are bearer tokens for `POST {base_url}/chat/completions`. Never put them in `pipeline.config.yml`. A FIX verdict then escalates to a human instead of running the Cursor fixer.
@@ -56,9 +63,22 @@ The `checks /` prefix is your calling job's id — rename the job and the prefix
   **When the two addresses are separate exposures, they do not share a secret.** ql-proxy gives every protected exposure a secret of its own, so that a leaked value opens one address rather than all of them - which means a single `QL_PROXY_TOKEN` is refused at whichever of the two hops it does not belong to. The refusal surfaces as `ql-auth request failed with status 401`, which reads like a bad client id and is not. Set **`QL_AUTH_PROXY_TOKEN`** and **`QL_HOUSE_PROXY_TOKEN`** to the respective exposure secrets (`ql-proxy` reveals them per exposure); each falls back to `QL_PROXY_TOKEN`, so a fleet behind a single exposure sets neither and is unaffected. Omit it for a public or private-network address: an absent token means "nothing in front to satisfy", not "refuse to run". Note this is edge protection, *not* a replacement for the `ql-auth` client credentials — it gates who may reach the address, while the minted JWT still decides what they may read.
 - **Optional secret:** `GH_TOKEN`. Omit it and the workflow falls back to the default `GITHUB_TOKEN` — but note the consequence: **commits pushed with the default token do not trigger new workflow runs**, so an auto-fix commit will not re-run the pipeline on its own. For the fix loop to close automatically (fix → re-review → merge), supply a PAT or GitHub App token as `GH_TOKEN`. With the default token the fix still lands on the PR; it just waits for the next push or a manual re-run to be re-reviewed.
 
+### Asking for another pass
+
+Add the comment triggers and **a comment re-runs all three checks**. That is the conversational half of the loop: the pipeline reviews, complains, fixes what it can and answers each thread it opened; you read the result and say what to do differently, and it goes again.
+
+Two events, because GitHub files the two kinds of comment separately — `issue_comment` for a comment on the PR, `pull_request_review_comment` for a reply inside the thread of a particular finding. Take both and either place works; take neither and the pipeline only ever runs on a push.
+
+- **Only people can ask.** Comments written by a bot — `github-actions[bot]`, an App, ql-pipeline's own verdicts and its replies inside finding threads — are declined before anything is checked out. Without that guard the pipeline's answer to a finding would start the run that produced the next answer, and the PR would never come to rest. The guard runs ahead of everything else, on both events: `pull_request_review_comment` arrives carrying a full pull request, so a check placed any later would never see those replies.
+- **The comment is not read as a command.** There is no `/fix` syntax and no keyword to learn. The run happens because you spoke; *what* you said reaches the reviewer and the fixer as direction (task 026).
+- **`issue_comment` also fires for comments on plain issues, and either event can land on a closed PR.** All of those are declined in the `resolve` job, which posts a one-line notice saying which and leaves the PR's checks untouched. A declined run is green and empty, not a failure.
+- **`issue_comment` always runs the copy of your caller workflow that is on the default branch.** Never the copy on the PR branch — so adding this trigger does nothing until it is merged, and you cannot test the change to it on the PR that makes it. This surprises everyone once.
+
 ### Fork pull requests
 
-PRs from forks are routed, gated, and reviewed, but **never auto-fixed** — a fork's branch lives in another repository that the base repo's token cannot push to. Such a PR gets its complaint and a `needs-human` label instead of a fix commit.
+PRs from forks are routed, gated, and reviewed, but **never auto-fixed** — a fork's branch lives in another repository that the base repo's token cannot push to. Such a PR gets its complaint and a `needs-human` label instead of a fix commit. This holds for a comment-triggered pass as well: the resolve job carries the fork flag through, so commenting on a fork PR re-reviews it and still never pushes.
+
+A PR whose fork was **deleted** has no branch left to check out, so the run declines outright rather than failing three checks that never had a chance.
 
 ## 2. Branch protection
 

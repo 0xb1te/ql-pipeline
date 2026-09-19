@@ -44,6 +44,11 @@ import { replyForFinding, type FixAttemptOutcome } from '../reviewer/finding-rep
 import { formatDirection } from '../shared/human-direction.js';
 import { gateFindings, isReviewRequired } from '../verdict/required-checks.js';
 import { decidePipelineOutcome } from '../verdict/verdict.js';
+import {
+  createSprintNotifier,
+  sprintNotifierCredentialsFromEnv,
+  type SprintVerdict,
+} from '../notifier/sprint-notifier.js';
 import { createPipelineContext, resolveRouting } from './bootstrap.js';
 
 // dist/cli/govern-command.js -> ql-pipeline's own checkout root is two
@@ -435,6 +440,32 @@ export async function runGovern(reportsDir: string): Promise<void> {
     }),
   );
 
+  /**
+   * Tells ql-sprint what this run decided, so it reaches Telegram.
+   *
+   * Best-effort, exactly like `answerThreads` below and for the same reason: the review has
+   * already landed on the pull request by the time this is called, and a messenger that cannot
+   * deliver must not undo it. A fleet with no ql-sprint configured does nothing here at all, which
+   * is the ordinary case rather than a misconfiguration.
+   */
+  const notifySprint = async (verdict: SprintVerdict, summaryText: string): Promise<void> => {
+    const credentials = sprintNotifierCredentialsFromEnv();
+    if (credentials === undefined) return;
+    try {
+      await createSprintNotifier(credentials)({
+        repo: `${pr.owner}/${pr.repo}`,
+        prNumber: pr.number,
+        verdict,
+        title: pr.title,
+        summary: summaryText,
+        url: `https://github.com/${pr.owner}/${pr.repo}/pull/${String(pr.number)}`,
+        ...(verdict === 'fix' ? { attempt: { number: attemptNumber, of: config.fixer.maxFixAttempts } } : {}),
+      });
+    } catch (error) {
+      logger.warn(`could not tell ql-sprint what this run decided: ${String(error)}`);
+    }
+  };
+
   if (decision.kind === 'MERGE') {
     const execution = await executeMergeDecision(client, pr, decision.advisoryFindings, config.merge);
     if (execution.kind === 'stale') {
@@ -446,9 +477,15 @@ export async function runGovern(reportsDir: string): Promise<void> {
         targetBranch,
         advisoryFindingCount: decision.advisoryFindings.length,
       });
+      // The verdict that most needs to reach a person: nothing else moves until somebody looks.
+      await notifySprint(
+        'awaiting-human',
+        'Reviewed and approved. Labelled ready-to-merge — the pipeline will not merge it itself.',
+      );
       return;
     }
     logger.info('merged', { targetBranch, advisoryFindingCount: decision.advisoryFindings.length });
+    await notifySprint('merge', `Merged into ${targetBranch}.`);
     return;
   }
 
@@ -483,6 +520,7 @@ export async function runGovern(reportsDir: string): Promise<void> {
     await answerThreads({ kind: 'not-attempted', why: `the review blocked this PR (${decision.reason}).` });
     logger.error(`blocked: ${decision.reason}`);
     await client.addLabels(pr, ['needs-human']);
+    await notifySprint('block', decision.reason);
     core.setFailed(`blocked: ${decision.reason}`);
     return;
   }
@@ -503,6 +541,7 @@ export async function runGovern(reportsDir: string): Promise<void> {
       'This PR comes from a fork, so the pipeline cannot push a fix commit to its branch. ' +
         'The findings above need to be addressed manually.',
     );
+    await notifySprint('block', 'Changes requested, and this PR comes from a fork — no fix can be pushed to it.');
     return;
   }
 
@@ -519,6 +558,7 @@ export async function runGovern(reportsDir: string): Promise<void> {
       'This review ran against an OpenAI-compatible API. The automated fixer still requires ' +
         '`cursor-agent`, so the findings above need a human rather than a pretended HTTP fix.',
     );
+    await notifySprint('block', 'Changes requested, and auto-fix is Cursor-only — this review did not use it.');
     return;
   }
 
@@ -546,6 +586,7 @@ export async function runGovern(reportsDir: string): Promise<void> {
       commitMessage: fixOutcome.commitMessage,
       files: fixOutcome.files,
     });
+    await notifySprint('fix', `Pushed ${fixOutcome.commitMessage}. The next review decides whether it settled the findings.`);
     core.setFailed(
       'the pipeline pushed a fix commit; this run is superseded by the one that commit triggers',
     );
@@ -562,6 +603,7 @@ export async function runGovern(reportsDir: string): Promise<void> {
       'The automated fix agent ran but produced no usable changes (or only touched protected paths, which are ' +
         'always reverted). The findings above need to be addressed manually.',
     );
+    await notifySprint('fix', 'The fix agent ran and produced no usable change, so the findings stand.');
     return;
   }
 
@@ -572,4 +614,5 @@ export async function runGovern(reportsDir: string): Promise<void> {
     `fix attempt failed: ${fixOutcome.reason}`,
     `**The automated fix attempt failed.**\n\n> ${fixOutcome.reason}`,
   );
+  await notifySprint('fix', `The fix attempt failed: ${fixOutcome.reason}`);
 }

@@ -171,6 +171,32 @@ describe('proxyFetchFromEnv, per hop', () => {
     expect(seen[1]?.[HEADER]).toBe('house-secret');
   });
 
+  it('gives the sprint hop a secret of its own too, alongside the other two', async () => {
+    // ql-sprint is a third exposure, published separately from ql-auth and house-api, so it holds
+    // a third secret. Sending house's to it would be refused at the edge for the same reason
+    // sending auth's to house was.
+    const env = {
+      QL_AUTH_PROXY_TOKEN: 'auth-secret',
+      QL_HOUSE_PROXY_TOKEN: 'house-secret',
+      QL_SPRINT_PROXY_TOKEN: 'sprint-secret',
+    };
+    const seen = capture();
+
+    await proxyFetchFromEnv(env, 'sprint')!('https://sprint.example.com/v1/pipeline/notify');
+
+    expect(seen[0]?.[HEADER]).toBe('sprint-secret');
+  });
+
+  it('leaves the sprint hop unconfigured when only the other two are set', () => {
+    // A fleet that governs pull requests but never publishes ql-sprint sets no sprint token, and
+    // must not have house's silently sent to an address it does not belong to.
+    const seen = capture();
+    const env = { QL_AUTH_PROXY_TOKEN: 'auth-secret', QL_HOUSE_PROXY_TOKEN: 'house-secret' };
+
+    expect(proxyFetchFromEnv(env, 'sprint')).toBeUndefined();
+    expect(seen).toHaveLength(0);
+  });
+
   it('falls back to the shared token, so a single-exposure fleet is untouched', async () => {
     const seen = capture();
 

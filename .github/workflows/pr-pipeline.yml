@@ -70,6 +70,12 @@ on:
       QL_HOUSE_PROXY_TOKEN:
         description: Secret of the ql-proxy exposure in front of QL_HOUSE_API_URL, when it differs from the one in front of ql-auth. Falls back to QL_PROXY_TOKEN when unset.
         required: false
+      QL_SPRINT_URL:
+        description: Origin ql-sprint is reachable at (e.g. https://sprint.example.com). Set it and this pipeline tells ql-sprint what it decided about each PR, which reaches the operator in Telegram. Omit it entirely on a fleet that runs no ql-sprint - governance is unaffected either way.
+        required: false
+      QL_SPRINT_PROXY_TOKEN:
+        description: Secret of the ql-proxy exposure in front of QL_SPRINT_URL. A third exposure holds a third secret; falls back to QL_PROXY_TOKEN when unset, and is simply absent when ql-sprint is published unprotected.
+        required: false
 
 jobs:
   # ---------------------------------------------------------------- 0/3 --
@@ -465,3 +471,7 @@ jobs:
           # sets neither and is unaffected.
           QL_AUTH_PROXY_TOKEN: ${{ secrets.QL_AUTH_PROXY_TOKEN }}
           QL_HOUSE_PROXY_TOKEN: ${{ secrets.QL_HOUSE_PROXY_TOKEN }}
+          # Only the govern step tells anybody what it decided; the gates have no verdict yet.
+          # Both absent is the ordinary case for a fleet with no ql-sprint, and nothing fails.
+          QL_SPRINT_URL: ${{ secrets.QL_SPRINT_URL }}
+          QL_SPRINT_PROXY_TOKEN: ${{ secrets.QL_SPRINT_PROXY_TOKEN }}

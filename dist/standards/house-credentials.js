@@ -22,9 +22,14 @@ export const PROXY_TOKEN_VAR = 'QL_PROXY_TOKEN';
 /** Per-hop overrides, each taking precedence over `PROXY_TOKEN_VAR` for its own address. */
 export const AUTH_PROXY_TOKEN_VAR = 'QL_AUTH_PROXY_TOKEN';
 export const HOUSE_PROXY_TOKEN_VAR = 'QL_HOUSE_PROXY_TOKEN';
+export const SPRINT_PROXY_TOKEN_VAR = 'QL_SPRINT_PROXY_TOKEN';
 const HOP_TOKEN_VAR = {
     auth: AUTH_PROXY_TOKEN_VAR,
     house: HOUSE_PROXY_TOKEN_VAR,
+    // The sprint hop is outbound-only and optional: a fleet that never publishes
+    // ql-sprint simply never calls it, and an absent token here means the same as
+    // it does for the other two - "nothing in front to satisfy", not "refuse".
+    sprint: SPRINT_PROXY_TOKEN_VAR,
 };
 /**
  * A `fetch` that adds the ql-proxy shared secret to every request, or

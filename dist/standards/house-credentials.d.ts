@@ -33,14 +33,15 @@ export declare const PROXY_TOKEN_VAR = "QL_PROXY_TOKEN";
 /** Per-hop overrides, each taking precedence over `PROXY_TOKEN_VAR` for its own address. */
 export declare const AUTH_PROXY_TOKEN_VAR = "QL_AUTH_PROXY_TOKEN";
 export declare const HOUSE_PROXY_TOKEN_VAR = "QL_HOUSE_PROXY_TOKEN";
+export declare const SPRINT_PROXY_TOKEN_VAR = "QL_SPRINT_PROXY_TOKEN";
 /**
- * Which of the two protected addresses a request is going to.
+ * Which of the protected addresses a request is going to.
  *
- * They are two addresses, not one. `QL_AUTH_URL` and `QL_HOUSE_API_URL` are
- * separate ql-proxy exposures on any host that publishes them separately, and a
- * protected exposure carries a secret *of its own* - ql-proxy generates one per
- * exposure precisely so that a leaked value opens one address rather than every
- * address at once.
+ * They are separate addresses, not one. `QL_AUTH_URL`, `QL_HOUSE_API_URL` and
+ * `QL_SPRINT_URL` are separate ql-proxy exposures on any host that publishes
+ * them separately, and a protected exposure carries a secret *of its own* -
+ * ql-proxy generates one per exposure precisely so that a leaked value opens
+ * one address rather than every address at once.
  *
  * One token therefore does not open both, and this file used to assume it did:
  * `govern` sent the same `QL_PROXY_TOKEN` to ql-auth and to house-api, so on a
@@ -53,7 +54,7 @@ export declare const HOUSE_PROXY_TOKEN_VAR = "QL_HOUSE_PROXY_TOKEN";
  * `QL_PROXY_PROTECTION_TOKEN`: that is one key for every address, which is the
  * arrangement per-exposure secrets exist to replace.
  */
-export type ProxyHop = 'auth' | 'house';
+export type ProxyHop = 'auth' | 'house' | 'sprint';
 /**
  * A `fetch` that adds the ql-proxy shared secret to every request, or
  * `undefined` when no secret is configured.

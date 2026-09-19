@@ -21,6 +21,13 @@ export interface RunFixOptions {
   readonly protectedPaths: readonly string[];
   readonly attemptNumber: number;
   readonly maxFixAttempts: number;
+  /**
+   * What people said on the PR, already filtered of the pipeline's own comments.
+   *
+   * The reviewer sees this too, but the fixer is the one that writes code - an instruction like
+   * "use the existing helper" only changes anything if it reaches the agent doing the editing.
+   */
+  readonly humanDirection?: string;
   readonly model?: string;
   readonly agentRunner?: CursorAgentRunner;
   readonly commandExecutor?: CommandExecutor;
@@ -54,7 +61,13 @@ export async function runFix(
     return { kind: 'agent-error', reason: 'could not read the working tree state before running the fix agent' };
   }
 
-  const prompt = buildFixerPrompt(promptTemplate, findings, options.attemptNumber, options.maxFixAttempts);
+  const prompt = buildFixerPrompt(
+    promptTemplate,
+    findings,
+    options.attemptNumber,
+    options.maxFixAttempts,
+    options.humanDirection ?? '',
+  );
   const invocation = await agentRunner(prompt, {
     cwd: options.cwd,
     mode: 'agent',

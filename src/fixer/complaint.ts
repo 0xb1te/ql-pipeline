@@ -24,10 +24,12 @@ export function buildFixerPrompt(
   findings: readonly Finding[],
   attemptNumber: number,
   maxAttempts: number,
+  humanDirection = '',
 ): string {
   return template
     .replaceAll('{{ATTEMPT_NUMBER}}', String(attemptNumber))
     .replaceAll('{{MAX_ATTEMPTS}}', String(maxAttempts))
+    .replaceAll('{{HUMAN_DIRECTION}}', humanDirection)
     .replaceAll('{{COMPLAINT}}', formatFindingsForPrompt(findings));
 }
 

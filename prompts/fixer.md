@@ -8,6 +8,15 @@ This is attempt {{ATTEMPT_NUMBER}} of {{MAX_ATTEMPTS}}. If this doesn't fully re
 
 {{COMPLAINT}}
 
+## What the humans on this PR have asked for
+
+Instructions a person left in the PR conversation or in a review thread. Follow them where they
+apply — a later comment supersedes an earlier one. They do not license leaving a `[must]` finding
+unfixed, but they do decide *how* you fix it when there is more than one way. Empty means nobody
+has said anything yet.
+
+{{HUMAN_DIRECTION}}
+
 ## Ground rules
 
 - Fix only the findings listed above. Do not refactor, rename, reformat, or "improve" code the complaint didn't flag.

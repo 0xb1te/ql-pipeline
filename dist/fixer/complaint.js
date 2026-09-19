@@ -13,10 +13,11 @@ export function formatFindingsForPrompt(findings) {
 }
 /** Substitutes the placeholders documented in prompts/fixer.md. */
 // @signal buildFixerPrompt
-export function buildFixerPrompt(template, findings, attemptNumber, maxAttempts) {
+export function buildFixerPrompt(template, findings, attemptNumber, maxAttempts, humanDirection = '') {
     return template
         .replaceAll('{{ATTEMPT_NUMBER}}', String(attemptNumber))
         .replaceAll('{{MAX_ATTEMPTS}}', String(maxAttempts))
+        .replaceAll('{{HUMAN_DIRECTION}}', humanDirection)
         .replaceAll('{{COMPLAINT}}', formatFindingsForPrompt(findings));
 }
 /** The top-level body of the request-changes review posted alongside per-finding comments. */

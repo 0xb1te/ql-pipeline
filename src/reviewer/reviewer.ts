@@ -16,6 +16,13 @@ export interface ReviewContext {
   readonly standardsText: string;
   readonly gateOutcomes: readonly GateOutcome[];
   readonly prDescription: string;
+  /**
+   * What people said on the PR, already filtered of the pipeline's own comments.
+   *
+   * Empty when nobody has spoken. It is direction, never authority: a comment cannot
+   * license breaking a `[must]` rule, but where a rule leaves room it says which way to go.
+   */
+  readonly humanDirection: string;
   readonly diff: string;
 }
 
@@ -41,6 +48,7 @@ function substitute(template: string, context: ReviewContext, standardsText: str
     .replaceAll('{{STANDARDS}}', standardsText)
     .replaceAll('{{GATE_RESULTS}}', formatGateResults(context.gateOutcomes))
     .replaceAll('{{PR_DESCRIPTION}}', context.prDescription)
+    .replaceAll('{{HUMAN_DIRECTION}}', context.humanDirection)
     .replaceAll('{{DIFF}}', context.diff);
 }
 

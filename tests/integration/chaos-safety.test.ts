@@ -64,7 +64,7 @@ describe('chaos safety: reviewer JSON garbage', () => {
     });
 
     const result = await runReview(
-      { areas: ['backend'], ruleFiles: ['_common.rules'], rulesText: '', standardsText: '', gateOutcomes: [], prDescription: '', diff: '' },
+      { areas: ['backend'], ruleFiles: ['_common.rules'], rulesText: '', standardsText: '', gateOutcomes: [], prDescription: '', humanDirection: '', diff: '' },
       'template',
       { cwd: '/repo', agentRunner, commandExecutor: cleanGitExecutor() },
     );
@@ -80,7 +80,7 @@ describe('chaos safety: reviewer JSON garbage', () => {
     });
 
     const result = await runReview(
-      { areas: ['backend'], ruleFiles: ['_common.rules'], rulesText: '', standardsText: '', gateOutcomes: [], prDescription: '', diff: '' },
+      { areas: ['backend'], ruleFiles: ['_common.rules'], rulesText: '', standardsText: '', gateOutcomes: [], prDescription: '', humanDirection: '', diff: '' },
       'template',
       { cwd: '/repo', agentRunner, commandExecutor: cleanGitExecutor() },
     );
@@ -102,7 +102,7 @@ describe('chaos safety: reviewer JSON garbage', () => {
       .mockResolvedValueOnce({ stdout: ' M src/sneaky.ts\n', stderr: '' });
 
     const result = await runReview(
-      { areas: ['backend'], ruleFiles: ['_common.rules'], rulesText: '', standardsText: '', gateOutcomes: [], prDescription: '', diff: '' },
+      { areas: ['backend'], ruleFiles: ['_common.rules'], rulesText: '', standardsText: '', gateOutcomes: [], prDescription: '', humanDirection: '', diff: '' },
       'template',
       { cwd: '/repo', agentRunner, commandExecutor: dirtyExec },
     );

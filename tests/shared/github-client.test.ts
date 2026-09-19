@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { readPullRequestContext, type ActionsEventContext } from '../../src/shared/github-client.js';
+import {
+  AUTOMATION_MARKER,
+  readPullRequestContext,
+  stampAutomated,
+  type ActionsEventContext,
+} from '../../src/shared/github-client.js';
 
 function context(overrides: Partial<ActionsEventContext['payload']['pull_request']> = {}): ActionsEventContext {
   return {
@@ -118,5 +123,39 @@ describe('readPullRequestContext, on an event that carries no pull request', () 
 
     expect(readPullRequestContext(context(), stale).number).toBe(42);
     expect(readPullRequestContext(context(), stale).headSha).toBe('abc123');
+  });
+});
+
+/**
+ * Once `GH_TOKEN` is set the workflow acts as that token's owner — a person, and usually the same
+ * person who comments on the pull request. Its verdicts then arrive as an ordinary user comment,
+ * and no identity check can separate them from direction. What still separates them is the marker.
+ */
+describe('stampAutomated', () => {
+  it('marks a body so a later run can recognise its own voice', () => {
+    expect(stampAutomated('Merged into main.')).toContain(AUTOMATION_MARKER);
+  });
+
+  it('keeps the original text intact, since a person reads it', () => {
+    expect(stampAutomated('Merged into main.')).toContain('Merged into main.');
+  });
+
+  it('renders as nothing — the marker is an HTML comment, not visible prose', () => {
+    expect(AUTOMATION_MARKER.startsWith('<!--')).toBe(true);
+    expect(AUTOMATION_MARKER.endsWith('-->')).toBe(true);
+  });
+
+  it('does not stamp twice, so a body that round-trips stays clean', () => {
+    const once = stampAutomated('hello');
+    const twice = stampAutomated(once);
+
+    expect(twice).toBe(once);
+    expect(twice.split(AUTOMATION_MARKER)).toHaveLength(2);
+  });
+
+  it('leaves a person’s own words unmarked, which is the whole point', () => {
+    // Nothing a human types carries this, so the trigger can decline the pipeline's comments
+    // without declining theirs — even when both are written by the same GitHub account.
+    expect('please also rename the variable'.includes(AUTOMATION_MARKER)).toBe(false);
   });
 });

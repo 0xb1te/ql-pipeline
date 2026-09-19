@@ -99,6 +99,7 @@ function context(standardsText: string, diff = 'diff body'): ReviewContext {
     standardsText,
     gateOutcomes: [],
     prDescription: 'description',
+    humanDirection: '',
     diff,
   };
 }

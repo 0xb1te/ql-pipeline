@@ -1,0 +1,58 @@
+cns: "1.0"
+neuron: humanDirection
+kind: function
+region: shared
+layer: core
+unit: src/shared/human-direction.ts
+
+responsibility: >
+  Turns what people said on a pull request into the block of direction an agent is given, with
+  everything the pipeline itself wrote removed.
+
+owns:
+  - Dropping bot comments, which is the loop guard and not tidiness - the pipeline comments on every run, and feeding those back would have it answering itself and, on a comment-triggered workflow, re-triggering on its own writing forever
+  - Returning the empty string when nobody has spoken, so a caller never renders a heading with nothing under it for an agent to explain
+  - Oldest first, because a conversation reads forwards and a later instruction is meant to override an earlier one
+  - Dropping the oldest when there is more than fits, since the most recent word is the one a person expects to be followed
+  - Saying where a line comment was made, so an agent can find what "this" refers to
+
+excludes:
+  - Fetching anything - see shared.core.githubClient#listComments, which knows GitHub's two comment endpoints
+  - Deciding what weight direction carries against a rule; the prompts say that, because it is a judgement the agent makes
+  - Detecting bots; the client asks GitHub for the author's type rather than guessing from a name
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: humanComments
+    intent: >
+      The comments a person actually wrote: bot authors and empty bodies removed. Separate from
+      formatting so the filter can be tested as the loop guard it is.
+    accepts: readonly PrComment[]
+    returns: readonly PrComment[]
+    pure: true
+    afferent:
+      - from: shared.core.humanDirection#formatDirection
+        via: direct-call
+    efferent: []
+
+  - signal: formatDirection
+    intent: >
+      Those comments as a prompt block, oldest first, or the empty string when there are none.
+      Truncates from the old end so the newest instruction always survives.
+    accepts: readonly PrComment[]
+    returns: string
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent:
+      - to: shared.core.humanDirection#humanComments
+        via: direct-call
+        because: what counts as a person's comment is one decision, made in one place
+
+provenance:
+  - docs/features/026-comments-as-direction/plan.md
+
+revision: 2026-09-19

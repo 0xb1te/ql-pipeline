@@ -22,6 +22,14 @@ You are the automated code reviewer for a DevOps pipeline that gates pull reques
 
 {{PR_DESCRIPTION}}
 
+**What the humans on this PR have asked for:**
+
+Instructions a person left in the PR conversation or in a review thread. They are not standards
+and they do not override a `[must]` rule, but where a rule leaves room they say which way to go —
+and a later comment supersedes an earlier one. Empty means nobody has said anything yet.
+
+{{HUMAN_DIRECTION}}
+
 **Diff under review:**
 
 {{DIFF}}

@@ -1,5 +1,6 @@
 // @neuron shared.core.githubClient
 import { getOctokit } from '@actions/github';
+import type { PrComment } from './human-direction.js';
 import type { MergeMethod } from './types.js';
 
 export interface PullRequestInfo {
@@ -169,6 +170,17 @@ export interface GithubClient {
   getPullRequestDetails: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>) => Promise<PullRequestDetails>;
   addLabels: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, labels: readonly string[]) => Promise<void>;
   postComment: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, body: string) => Promise<void>;
+  /**
+   * Everything said on the PR - the conversation and the inline threads - with
+   * each author marked as a bot or not, so the caller can drop what the
+   * pipeline itself wrote before handing the rest to an agent.
+   *
+   * Both kinds are fetched because they mean the same thing to a reader: an
+   * instruction typed into a finding's thread is as much direction as one left
+   * at the bottom of the page, and honouring only one would make the answer
+   * depend on where somebody happened to click.
+   */
+  listComments: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>) => Promise<readonly PrComment[]>;
   approveWithComments: (
     pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>,
     comments: readonly ReviewComment[],
@@ -284,6 +296,48 @@ export function createGithubClient(token: string): GithubClient {
         event: 'APPROVE',
         comments: comments.map((comment) => ({ path: comment.path, line: comment.line, body: comment.body })),
       });
+    },
+
+    async listComments(pr): Promise<readonly PrComment[]> {
+      const [conversation, inline] = await Promise.all([
+        octokit.paginate(octokit.rest.issues.listComments, {
+          owner: pr.owner,
+          repo: pr.repo,
+          issue_number: pr.number,
+        }),
+        octokit.paginate(octokit.rest.pulls.listReviewComments, {
+          owner: pr.owner,
+          repo: pr.repo,
+          pull_number: pr.number,
+        }),
+      ]);
+
+      // `type: 'Bot'` is GitHub's own answer, rather than sniffing for a `[bot]`
+      // suffix a person could put in their display name.
+      const isBot = (user: { readonly type?: string } | null): boolean => user?.type === 'Bot';
+      // `createdAt` is carried only to sort by, then dropped: PrComment is what an agent reads,
+      // and a timestamp there is noise it would have to ignore.
+      const all: (PrComment & { readonly createdAt: string })[] = [
+        ...conversation.map((comment) => ({
+          author: comment.user?.login ?? 'unknown',
+          isBot: isBot(comment.user),
+          body: comment.body ?? '',
+          createdAt: comment.created_at,
+        })),
+        ...inline.map((comment) => ({
+          author: comment.user.login,
+          isBot: isBot(comment.user),
+          body: comment.body,
+          createdAt: comment.created_at,
+          path: comment.path,
+          ...(comment.line === null || comment.line === undefined ? {} : { line: comment.line }),
+        })),
+      ];
+      // One conversation, in the order it happened - the two endpoints are
+      // separate only because GitHub stores them apart.
+      return all
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        .map(({ createdAt: _createdAt, ...comment }) => comment);
     },
 
     async requestChangesWithComments(pr, body, comments): Promise<readonly number[]> {

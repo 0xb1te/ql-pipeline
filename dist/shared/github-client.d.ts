@@ -1,3 +1,4 @@
+import type { PrComment } from './human-direction.js';
 import type { MergeMethod } from './types.js';
 export interface PullRequestInfo {
     readonly owner: string;
@@ -91,6 +92,17 @@ export interface GithubClient {
     getPullRequestDetails: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>) => Promise<PullRequestDetails>;
     addLabels: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, labels: readonly string[]) => Promise<void>;
     postComment: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, body: string) => Promise<void>;
+    /**
+     * Everything said on the PR - the conversation and the inline threads - with
+     * each author marked as a bot or not, so the caller can drop what the
+     * pipeline itself wrote before handing the rest to an agent.
+     *
+     * Both kinds are fetched because they mean the same thing to a reader: an
+     * instruction typed into a finding's thread is as much direction as one left
+     * at the bottom of the page, and honouring only one would make the answer
+     * depend on where somebody happened to click.
+     */
+    listComments: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>) => Promise<readonly PrComment[]>;
     approveWithComments: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, comments: readonly ReviewComment[]) => Promise<void>;
     /**
      * Posts the review and hands back the ids of the inline comments it created,

@@ -1,4 +1,5 @@
 import type { PrComment } from './human-direction.js';
+import type { ReviewThread } from '../reviewer/settled-threads.js';
 import type { MergeMethod } from './types.js';
 export interface PullRequestInfo {
     readonly owner: string;
@@ -146,6 +147,16 @@ export interface GithubClient {
      * nobody responded to, even though a commit addressed it minutes later.
      */
     replyToReviewComment: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, commentId: number, body: string) => Promise<void>;
+    /**
+     * Every review thread on the PR, with the pipeline's own marked.
+     *
+     * GraphQL rather than REST: resolving a thread is a GraphQL-only mutation, and it takes a
+     * thread node id that REST never returns — the REST comment ids the review hands back are a
+     * different identifier for a different object.
+     */
+    listReviewThreads: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>) => Promise<readonly ReviewThread[]>;
+    /** Closes one thread. Resolving an already-resolved thread is accepted by GitHub as a no-op. */
+    resolveReviewThread: (threadId: string) => Promise<void>;
     /**
      * Merges with `expectedHeadSha` pinned, so GitHub itself rejects the
      * merge if another commit landed while this run was working — the

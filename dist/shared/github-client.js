@@ -268,6 +268,29 @@ export function createGithubClient(token) {
                 body: stampAutomated(body),
             });
         },
+        async listReviewThreads(pr) {
+            const query = `query($owner:String!,$repo:String!,$number:Int!){
+        repository(owner:$owner,name:$repo){
+          pullRequest(number:$number){
+            reviewThreads(first:100){
+              nodes { id isResolved comments(first:1){ nodes { body } } }
+            }
+          }
+        }
+      }`;
+            const response = await octokit.graphql(query, { owner: pr.owner, repo: pr.repo, number: pr.number });
+            return response.repository.pullRequest.reviewThreads.nodes.map((node) => ({
+                id: node.id,
+                isResolved: node.isResolved,
+                // The thread's *first* comment is the finding itself. A later reply carries the marker
+                // too, so reading any other comment would call a person's thread the pipeline's as soon
+                // as the pipeline answered in it.
+                openedByPipeline: (node.comments.nodes[0]?.body ?? '').includes(AUTOMATION_MARKER),
+            }));
+        },
+        async resolveReviewThread(threadId) {
+            await octokit.graphql(`mutation($threadId:ID!){ resolveReviewThread(input:{threadId:$threadId}){ thread { id } } }`, { threadId });
+        },
         async mergePullRequest(pr, method, expectedHeadSha) {
             await octokit.rest.pulls.merge({
                 owner: pr.owner,

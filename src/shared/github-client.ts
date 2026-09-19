@@ -1,6 +1,7 @@
 // @neuron shared.core.githubClient
 import { getOctokit } from '@actions/github';
 import type { PrComment } from './human-direction.js';
+import type { ReviewThread } from '../reviewer/settled-threads.js';
 import type { MergeMethod } from './types.js';
 
 export interface PullRequestInfo {
@@ -243,6 +244,16 @@ export interface GithubClient {
     body: string,
   ) => Promise<void>;
   /**
+   * Every review thread on the PR, with the pipeline's own marked.
+   *
+   * GraphQL rather than REST: resolving a thread is a GraphQL-only mutation, and it takes a
+   * thread node id that REST never returns — the REST comment ids the review hands back are a
+   * different identifier for a different object.
+   */
+  listReviewThreads: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>) => Promise<readonly ReviewThread[]>;
+  /** Closes one thread. Resolving an already-resolved thread is accepted by GitHub as a no-op. */
+  resolveReviewThread: (threadId: string) => Promise<void>;
+  /**
    * Merges with `expectedHeadSha` pinned, so GitHub itself rejects the
    * merge if another commit landed while this run was working — the
    * pipeline never merges a revision it didn't actually review.
@@ -416,6 +427,43 @@ export function createGithubClient(token: string): GithubClient {
         comment_id: commentId,
         body: stampAutomated(body),
       });
+    },
+
+    async listReviewThreads(pr): Promise<readonly ReviewThread[]> {
+      const query = `query($owner:String!,$repo:String!,$number:Int!){
+        repository(owner:$owner,name:$repo){
+          pullRequest(number:$number){
+            reviewThreads(first:100){
+              nodes { id isResolved comments(first:1){ nodes { body } } }
+            }
+          }
+        }
+      }`;
+      const response = await octokit.graphql<{
+        repository: {
+          pullRequest: {
+            reviewThreads: {
+              nodes: { id: string; isResolved: boolean; comments: { nodes: { body: string }[] } }[];
+            };
+          };
+        };
+      }>(query, { owner: pr.owner, repo: pr.repo, number: pr.number });
+
+      return response.repository.pullRequest.reviewThreads.nodes.map((node) => ({
+        id: node.id,
+        isResolved: node.isResolved,
+        // The thread's *first* comment is the finding itself. A later reply carries the marker
+        // too, so reading any other comment would call a person's thread the pipeline's as soon
+        // as the pipeline answered in it.
+        openedByPipeline: (node.comments.nodes[0]?.body ?? '').includes(AUTOMATION_MARKER),
+      }));
+    },
+
+    async resolveReviewThread(threadId): Promise<void> {
+      await octokit.graphql(
+        `mutation($threadId:ID!){ resolveReviewThread(input:{threadId:$threadId}){ thread { id } } }`,
+        { threadId },
+      );
     },
 
     async mergePullRequest(pr, method, expectedHeadSha): Promise<void> {

@@ -32,6 +32,9 @@ neurons:
   - id: shared.core.githubClient
     file: githubClient.yml
     unit: ../github-client.ts
+  - id: shared.core.humanDirection
+    file: humanDirection.yml
+    unit: ../human-direction.ts
   - id: shared.core.gateReport
     file: gateReport.yml
     unit: ../gate-report.ts

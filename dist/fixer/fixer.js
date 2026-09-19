@@ -29,7 +29,7 @@ export async function runFix(findings, promptTemplate, area, options) {
     if (before === null) {
         return { kind: 'agent-error', reason: 'could not read the working tree state before running the fix agent' };
     }
-    const prompt = buildFixerPrompt(promptTemplate, findings, options.attemptNumber, options.maxFixAttempts);
+    const prompt = buildFixerPrompt(promptTemplate, findings, options.attemptNumber, options.maxFixAttempts, options.humanDirection ?? '');
     const invocation = await agentRunner(prompt, {
         cwd: options.cwd,
         mode: 'agent',

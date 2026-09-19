@@ -41,6 +41,7 @@ import type { GithubClient, PullRequestInfo } from '../shared/github-client.js';
 import type { Logger } from '../shared/logger.js';
 import { AREAS, type AgentProvider, type Finding, type GateOutcome, type PipelineConfig } from '../shared/types.js';
 import { replyForFinding, type FixAttemptOutcome } from '../reviewer/finding-reply.js';
+import { formatDirection } from '../shared/human-direction.js';
 import { gateFindings, isReviewRequired } from '../verdict/required-checks.js';
 import { decidePipelineOutcome } from '../verdict/verdict.js';
 import { createPipelineContext, resolveRouting } from './bootstrap.js';
@@ -203,6 +204,9 @@ export async function runGovern(reportsDir: string): Promise<void> {
 
   let findings: readonly Finding[] = findingsFromGates;
   let reviewRan = false;
+  // Out here for the same reason as `reviewRan`: it is gathered in the review's inner block and
+  // read again by the fixer, which runs well after that block has closed.
+  let direction = '';
   // Declared out here for the same reason as `reviewRan`: the review runs in
   // an inner block, and the audit summary is rendered after it.
   const standardsCoverage: StandardsCoverage[] = [];
@@ -323,8 +327,17 @@ export async function runGovern(reportsDir: string): Promise<void> {
       `agent: provider=${config.agent.provider} review model=${config.agent.review.model ?? '(provider default)'}`,
     );
     const promptTemplate = loadPromptTemplate('reviewer.md');
+    // What people have said on this PR, with everything the pipeline itself wrote removed - see
+    // shared.core.humanDirection for why that filter is the loop guard and not just tidiness.
+    // Read once and reused by the fixer: the agent that writes the code is the one an instruction
+    // like "use the existing helper" has to reach.
+    direction = formatDirection(await client.listComments(pr).catch(() => []));
+    if (direction !== '') {
+      logger.info('review: carrying direction from the PR conversation');
+    }
     const reviewBase = {
       areas: reviewAreas,
+      humanDirection: direction,
       ruleFiles: [...ruleFileIds(resolvedRules), ...standardsIds(standards)],
       rulesText: formatRulesForPrompt(resolvedRules),
       gateOutcomes,
@@ -517,6 +530,7 @@ export async function runGovern(reportsDir: string): Promise<void> {
     protectedPaths: config.fixer.protectedPaths,
     attemptNumber,
     maxFixAttempts: config.fixer.maxFixAttempts,
+    humanDirection: direction,
     ...(config.agent.fix.model !== null ? { model: config.agent.fix.model } : {}),
   });
 

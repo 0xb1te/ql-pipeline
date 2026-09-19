@@ -26,6 +26,7 @@ function substitute(template, context, standardsText) {
         .replaceAll('{{STANDARDS}}', standardsText)
         .replaceAll('{{GATE_RESULTS}}', formatGateResults(context.gateOutcomes))
         .replaceAll('{{PR_DESCRIPTION}}', context.prDescription)
+        .replaceAll('{{HUMAN_DIRECTION}}', context.humanDirection)
         .replaceAll('{{DIFF}}', context.diff);
 }
 const NO_PROMPT_TRUNCATION = {

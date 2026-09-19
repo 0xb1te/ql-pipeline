@@ -23,6 +23,7 @@ function context(overrides: Partial<ReviewContext> = {}): ReviewContext {
     standardsText: '(no engineering standards are configured for the areas this PR touches)',
     gateOutcomes: [],
     prDescription: 'adds a payments endpoint',
+    humanDirection: '',
     diff: 'diff --git a/x b/x\n+++ b/x\n@@ -0,0 +1,1 @@\n+const x = 1;\n',
     ...overrides,
   };
@@ -88,6 +89,7 @@ describe('buildReviewPrompt size ceiling', () => {
       standardsText,
       gateOutcomes: [],
       prDescription: 'desc',
+      humanDirection: '',
       diff,
     };
   }

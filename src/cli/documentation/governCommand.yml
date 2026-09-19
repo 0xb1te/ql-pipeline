@@ -61,6 +61,9 @@ signals:
       - from: entrypoint.main.main#main
         via: direct-call
     efferent:
+      - to: shared.core.humanDirection#formatDirection
+        via: direct-call
+        because: the reviewer and the fixer both read what people said on the PR, and the pipeline's own comments must be filtered out before either does
       - to: review.reviewer.findingReply#replyForFinding
         via: direct-call
         because: a finding that is fixed but never answered leaves its thread reading as an open complaint

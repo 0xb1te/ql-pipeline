@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_DIRECTION_CHARS, formatDirection, humanComments } from '../../src/shared/human-direction.js';
+import {
+  MAX_DIRECTION_CHARS,
+  formatDirection,
+  humanComments,
+  type PrComment,
+} from '../../src/shared/human-direction.js';
 
-const human = (body: string, extra: Record<string, unknown> = {}) => ({
+const human = (body: string, extra: Record<string, unknown> = {}): PrComment => ({
   author: '0xb1te',
   isBot: false,
   body,

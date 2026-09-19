@@ -17,6 +17,13 @@ export interface RunFixOptions {
     readonly protectedPaths: readonly string[];
     readonly attemptNumber: number;
     readonly maxFixAttempts: number;
+    /**
+     * What people said on the PR, already filtered of the pipeline's own comments.
+     *
+     * The reviewer sees this too, but the fixer is the one that writes code - an instruction like
+     * "use the existing helper" only changes anything if it reaches the agent doing the editing.
+     */
+    readonly humanDirection?: string;
     readonly model?: string;
     readonly agentRunner?: CursorAgentRunner;
     readonly commandExecutor?: CommandExecutor;

@@ -9,12 +9,33 @@ name: Dogfood
 # The calling job is named `checks`, so the three checks it contributes to
 # a PR appear as `checks / test`, `checks / build`, and
 # `checks / ql-pipeline`.
+#
+# The two comment events are how a person asks for another pass: say what to
+# do differently — on the PR, or as a reply inside the thread of the finding
+# it concerns — and the same three checks run again with that comment read as
+# direction. `issue_comment` arrives without a head ref, which is why the
+# reusable workflow resolves the PR itself before checking anything out.
+# Comments written by bots are declined there, so the pipeline's own verdicts
+# and thread replies cannot start a run.
+#
+# Two things about `issue_comment` are easy to lose an afternoon to: it fires
+# for comments on plain issues as well (declined in `resolve`), and it always
+# runs the copy of this file on the DEFAULT branch — never the one on the PR.
+# Editing this trigger on a branch does nothing until it is merged.
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created, edited]
+  pull_request_review_comment:
+    types: [created, edited]
 
 concurrency:
-  group: pr-pipeline-${{ github.event.pull_request.number }}
+  # `issue_comment` carries `issue.number`, `pull_request` carries
+  # `pull_request.number`, and they are the same number for the same PR — so
+  # one group per PR covers both, and a comment during a run supersedes it
+  # rather than racing it.
+  group: pr-pipeline-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: true
 
 # A called workflow can never hold more than its caller. ql-pipeline's jobs

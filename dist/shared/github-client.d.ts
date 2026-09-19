@@ -48,7 +48,34 @@ export interface ActionsEventContext {
         } | undefined;
     };
 }
-export declare function readPullRequestContext(context: ActionsEventContext): PullRequestInfo;
+/**
+ * Where the workflow puts a PR it had to look up, because the event that
+ * started the run did not carry one.
+ *
+ * A `pull_request` event describes its PR in the payload. An `issue_comment`
+ * — which is how a person asks for another pass by writing on the PR — does
+ * not: GitHub sends it with an `issue`, so there is no head ref, no head sha
+ * and no base branch until somebody asks the API. The workflow's `resolve`
+ * job asks once, and hands the answer down through these.
+ */
+export declare const RESOLVED_PR_VARS: {
+    readonly number: "QL_PIPELINE_PR_NUMBER";
+    readonly title: "QL_PIPELINE_PR_TITLE";
+    readonly headRef: "QL_PIPELINE_PR_HEAD_REF";
+    readonly headSha: "QL_PIPELINE_PR_HEAD_SHA";
+    readonly baseRef: "QL_PIPELINE_PR_BASE_REF";
+    readonly isFork: "QL_PIPELINE_PR_IS_FORK";
+};
+/** The slice of the process environment this module reads. */
+export type EventEnv = Readonly<Record<string, string | undefined>>;
+/**
+ * The PR this run is about.
+ *
+ * The payload wins whenever it has one, so a `pull_request` run behaves
+ * exactly as it did before any of this existed; the resolved variables are
+ * only consulted for the events that carry no PR of their own.
+ */
+export declare function readPullRequestContext(context: ActionsEventContext, env?: EventEnv): PullRequestInfo;
 export interface ReviewComment {
     readonly path: string;
     readonly line: number;

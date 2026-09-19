@@ -1,0 +1,44 @@
+cns: "1.0"
+neuron: findingReply
+kind: function
+region: review
+layer: reviewer
+unit: src/reviewer/finding-reply.ts
+
+responsibility: >
+  Writes the reply that goes back into a finding's own review thread once the run has done what
+  it can about it.
+
+owns:
+  - Refusing to claim a specific finding was resolved - the fixer works from every finding at once and reports one commit, not a mapping from finding to edit, so "fixed" would be a guess dressed as a fact
+  - Saying what was actually attempted and what landed, and leaving the verdict to the next review
+  - Distinguishing "the agent ran and changed nothing" from "no fix was attempted", which need different things from a person
+  - Carrying the attempt number, so a thread shows how much fix budget is left
+  - Naming the PR comment box as the way to redirect the agent, because that is the channel the reader is already in
+
+excludes:
+  - Posting anything - see shared.core.GithubClient#replyToReviewComment
+  - Deciding whether a fix happened - that is entrypoint.cli.governCommand, which owns the flow
+  - Resolving or dismissing threads; this answers them, and a finding that survives is raised again by the next review
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: replyForFinding
+    intent: >
+      The reply for one finding thread, given what this run did about the findings as a whole.
+      Never asserts that this particular finding is settled: it names the commit, says the next
+      review decides, and points out that a surviving finding will be raised here again.
+    accepts: FindingReplyContext
+    returns: string
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
+provenance:
+  - docs/features/025-answer-the-findings/plan.md
+
+revision: 2026-09-19

@@ -65,7 +65,24 @@ export interface GithubClient {
     addLabels: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, labels: readonly string[]) => Promise<void>;
     postComment: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, body: string) => Promise<void>;
     approveWithComments: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, comments: readonly ReviewComment[]) => Promise<void>;
-    requestChangesWithComments: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, body: string, comments: readonly ReviewComment[]) => Promise<void>;
+    /**
+     * Posts the review and hands back the ids of the inline comments it created,
+     * so the run that fixes a finding can answer the very thread that raised it.
+     *
+     * The ids are read back rather than taken from the create response: GitHub's
+     * `createReview` returns the review, not its comments, so the only exact way
+     * to learn them is to list the PR's review comments and keep the ones
+     * belonging to this review.
+     */
+    requestChangesWithComments: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, body: string, comments: readonly ReviewComment[]) => Promise<readonly number[]>;
+    /**
+     * Replies inside one review-comment thread.
+     *
+     * A finding that gets fixed but never answered leaves the thread reading as
+     * an open complaint forever - the PR shows "changes requested" and a comment
+     * nobody responded to, even though a commit addressed it minutes later.
+     */
+    replyToReviewComment: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, commentId: number, body: string) => Promise<void>;
     /**
      * Merges with `expectedHeadSha` pinned, so GitHub itself rejects the
      * merge if another commit landed while this run was working — the

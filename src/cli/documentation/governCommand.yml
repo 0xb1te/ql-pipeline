@@ -58,7 +58,7 @@ signals:
       had been written, for the approval path, and the blocking path simply did not use it.
       Returning both together means the findings left out of the comments are reported in the
       summary by construction rather than by a caller remembering to pass them.
-    accepts: "readonly Finding[], attemptNumber, maxFixAttempts"
+    accepts: "readonly Finding[], attemptNumber, maxFixAttempts, readonly Finding[]"
     returns: "summary and comments"
     pure: true
     afferent:

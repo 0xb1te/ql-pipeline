@@ -34,13 +34,18 @@ export function buildFixerPrompt(template, findings, attemptNumber, maxAttempts,
  * margin.
  */
 // @signal formatComplaintSummary
-export function formatComplaintSummary(findings, attemptNumber, maxAttempts, unanchored = []) {
+export function formatComplaintSummary(findings, attemptNumber, maxAttempts, unanchored = [], advisoryCount = 0) {
     const attemptsLeft = attemptNumber < maxAttempts;
     const nextStep = attemptsLeft
         ? 'An automated fix attempt will follow.'
         : `Max fix attempts (${maxAttempts}) reached — this needs a human.`;
+    // `findings` is the blocking set, so "must be resolved" stays literally true. The advisory ones
+    // are counted separately rather than added in: a number that mixes the two says neither.
+    const advisory = advisoryCount > 0
+        ? `\n\n${advisoryCount} further finding(s) are advisory and do not block; they are reported alongside.`
+        : '';
     const head = `**Automated review found ${findings.length} issue(s) that must be resolved before this PR can merge.**\n\n` +
-        `Attempt ${attemptNumber} of ${maxAttempts}. ${nextStep}`;
+        `Attempt ${attemptNumber} of ${maxAttempts}. ${nextStep}${advisory}`;
     if (unanchored.length === 0)
         return head;
     const rendered = unanchored.map((finding) => {

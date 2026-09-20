@@ -224,3 +224,53 @@ describe('complaintReview', () => {
     expect(review.summary).toContain('needs a human');
   });
 });
+
+describe('complaintReview with advisory findings', () => {
+  function advisoryFinding(overrides: Partial<Finding> = {}): Finding {
+    return {
+      severity: 'should',
+      rule: 'frontend.rules#prefer-composition',
+      file: 'src/components/Widget.tsx',
+      line: 7,
+      problem: 'consider composition here',
+      suggestedFix: null,
+      autoFixable: false,
+      ...overrides,
+    };
+  }
+
+  it('reports them, because nothing else on a blocking verdict does', () => {
+    // executeMergeDecision posts advisory findings, and it is only called on MERGE. On FIX and
+    // BLOCK they had nowhere to go at all.
+    const review = complaintReview([blockingFinding()], 1, 3, [advisoryFinding()]);
+
+    expect(review.comments.map((comment) => comment.path)).toEqual([
+      'src/api/payments.ts',
+      'src/components/Widget.tsx',
+    ]);
+  });
+
+  it('counts them apart, so "must be resolved" stays literally true', () => {
+    const review = complaintReview([blockingFinding()], 1, 3, [advisoryFinding(), advisoryFinding()]);
+
+    expect(review.summary).toContain('found 1 issue(s) that must be resolved');
+    expect(review.summary).toContain('2 further finding(s) are advisory and do not block');
+  });
+
+  it('says nothing about advisories when there are none', () => {
+    const review = complaintReview([blockingFinding()], 1, 3, []);
+
+    expect(review.summary).not.toContain('advisory');
+    expect(review.summary).toBe(complaintReview([blockingFinding()], 1, 3).summary);
+  });
+
+  it('puts an advisory finding with nowhere to point in the body, like any other', () => {
+    const review = complaintReview([blockingFinding()], 1, 3, [
+      advisoryFinding({ rule: 'task#provenance', file: '(task)', problem: 'no task answers for this PR' }),
+    ]);
+
+    expect(review.comments).toHaveLength(1);
+    expect(review.summary).toContain('no task answers for this PR');
+    expect(review.summary).toContain('About this pull request rather than a line in it');
+  });
+});

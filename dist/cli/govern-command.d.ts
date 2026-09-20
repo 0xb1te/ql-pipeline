@@ -50,7 +50,7 @@ export declare function taskProvenanceFindings(pr: Pick<PullRequestInfo, 'number
  * Returning both together means the findings left out of `comments` are reported in `summary` by
  * construction, rather than by a caller remembering to pass them.
  */
-export declare function complaintReview(findings: readonly Finding[], attemptNumber: number, maxFixAttempts: number): {
+export declare function complaintReview(findings: readonly Finding[], attemptNumber: number, maxFixAttempts: number, advisoryFindings?: readonly Finding[]): {
     readonly summary: string;
     readonly comments: readonly ReviewComment[];
 };

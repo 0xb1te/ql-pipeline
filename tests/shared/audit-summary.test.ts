@@ -49,9 +49,9 @@ describe('formatAuditSummary', () => {
 
   it('includes the reason as a blockquote for BLOCK, and only for BLOCK', () => {
     const blocked = formatAuditSummary(
-      input({ decision: { kind: 'BLOCK', reason: 'not auto-fixable', findings: [] }, attemptNumber: 3 }),
+      input({ decision: { kind: 'BLOCK', reason: 'not auto-fixable', findings: [], advisoryFindings: [] }, attemptNumber: 3 }),
     );
-    const fixed = formatAuditSummary(input({ decision: { kind: 'FIX', findings: [] } }));
+    const fixed = formatAuditSummary(input({ decision: { kind: 'FIX', findings: [], advisoryFindings: [] } }));
 
     expect(blocked).toContain('> not auto-fixable');
     expect(fixed).not.toContain('>');

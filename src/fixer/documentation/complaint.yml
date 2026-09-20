@@ -44,7 +44,7 @@ signals:
       most often a failed gate, carries a pseudo-path GitHub will not accept an inline comment on,
       and unlike the approval path a blocking review posts one message. The count stays the count of
       everything; it answers how much is wrong, not how much fitted in a margin.
-    accepts: "readonly Finding[], attemptNumber, maxAttempts, readonly Finding[]"
+    accepts: "readonly Finding[], attemptNumber, maxAttempts, readonly Finding[], advisoryCount"
     returns: string
     pure: true
     afferent:

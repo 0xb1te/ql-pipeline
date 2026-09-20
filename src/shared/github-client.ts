@@ -254,6 +254,21 @@ export interface GithubClient {
     comments: readonly ReviewComment[],
   ) => Promise<readonly number[]>;
   /**
+   * The same review, posted as a comment rather than as a refusal to approve.
+   *
+   * GitHub will not let anyone request changes on their own pull request, and once `GH_TOKEN` is a
+   * person's token the pipeline *is* the author of everything that person opens - the same
+   * restriction `commentReview` already exists for on the approving side. The threads are still
+   * created and still answerable, so the fix loop is unaffected; what is lost is the
+   * `REQUEST_CHANGES` state, which in this repository was never what blocked the merge. The failing
+   * check is.
+   */
+  commentReviewWithThreads: (
+    pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>,
+    body: string,
+    comments: readonly ReviewComment[],
+  ) => Promise<readonly number[]>;
+  /**
    * Replies inside one review-comment thread.
    *
    * A finding that gets fixed but never answered leaves the thread reading as
@@ -293,6 +308,49 @@ export interface GithubClient {
 // @signal createGithubClient
 export function createGithubClient(token: string): GithubClient {
   const octokit = getOctokit(token);
+
+  /**
+   * Posts one review and hands back the ids of the inline comments it created.
+   *
+   * Shared by the two events that carry findings, so the id read-back cannot drift between them.
+   *
+   * Listing and filtering by review id is the only exact way to learn which comments this review
+   * created; `createReview` answers with the review alone. A failure there must not fail the review
+   * that already landed - the complaint is posted either way, and losing the ids only costs the
+   * replies.
+   */
+  const postReviewWithThreads = async (
+    pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>,
+    event: 'REQUEST_CHANGES' | 'COMMENT',
+    body: string,
+    comments: readonly ReviewComment[],
+  ): Promise<readonly number[]> => {
+    const review = await octokit.rest.pulls.createReview({
+      owner: pr.owner,
+      repo: pr.repo,
+      pull_number: pr.number,
+      event,
+      body: stampAutomated(body),
+      comments: comments.map((comment) => ({
+        path: comment.path,
+        line: comment.line,
+        body: stampAutomated(comment.body),
+      })),
+    });
+
+    try {
+      const all = await octokit.paginate(octokit.rest.pulls.listReviewComments, {
+        owner: pr.owner,
+        repo: pr.repo,
+        pull_number: pr.number,
+      });
+      return all
+        .filter((comment) => comment.pull_request_review_id === review.data.id)
+        .map((comment) => comment.id);
+    } catch {
+      return [];
+    }
+  };
 
   return {
     async listCommitMessages(pr): Promise<string[]> {
@@ -439,36 +497,11 @@ export function createGithubClient(token: string): GithubClient {
     },
 
     async requestChangesWithComments(pr, body, comments): Promise<readonly number[]> {
-      const review = await octokit.rest.pulls.createReview({
-        owner: pr.owner,
-        repo: pr.repo,
-        pull_number: pr.number,
-        event: 'REQUEST_CHANGES',
-        body: stampAutomated(body),
-        comments: comments.map((comment) => ({
-          path: comment.path,
-          line: comment.line,
-          body: stampAutomated(comment.body),
-        })),
-      });
+      return postReviewWithThreads(pr, 'REQUEST_CHANGES', body, comments);
+    },
 
-      // Listing and filtering by review id is the only exact way to learn which
-      // comments this review created; `createReview` answers with the review
-      // alone. A failure here must not fail the review that already landed -
-      // the complaint is posted either way, and losing the ids only costs the
-      // replies.
-      try {
-        const all = await octokit.paginate(octokit.rest.pulls.listReviewComments, {
-          owner: pr.owner,
-          repo: pr.repo,
-          pull_number: pr.number,
-        });
-        return all
-          .filter((comment) => comment.pull_request_review_id === review.data.id)
-          .map((comment) => comment.id);
-      } catch {
-        return [];
-      }
+    async commentReviewWithThreads(pr, body, comments): Promise<readonly number[]> {
+      return postReviewWithThreads(pr, 'COMMENT', body, comments);
     },
 
     async replyToReviewComment(pr, commentId, body): Promise<void> {

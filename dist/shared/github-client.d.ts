@@ -158,6 +158,17 @@ export interface GithubClient {
      */
     requestChangesWithComments: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, body: string, comments: readonly ReviewComment[]) => Promise<readonly number[]>;
     /**
+     * The same review, posted as a comment rather than as a refusal to approve.
+     *
+     * GitHub will not let anyone request changes on their own pull request, and once `GH_TOKEN` is a
+     * person's token the pipeline *is* the author of everything that person opens - the same
+     * restriction `commentReview` already exists for on the approving side. The threads are still
+     * created and still answerable, so the fix loop is unaffected; what is lost is the
+     * `REQUEST_CHANGES` state, which in this repository was never what blocked the merge. The failing
+     * check is.
+     */
+    commentReviewWithThreads: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, body: string, comments: readonly ReviewComment[]) => Promise<readonly number[]>;
+    /**
      * Replies inside one review-comment thread.
      *
      * A finding that gets fixed but never answered leaves the thread reading as

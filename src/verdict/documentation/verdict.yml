@@ -19,7 +19,11 @@ signals:
   - signal: decidePipelineOutcome
     intent: >
       Decides MERGE (no blocking findings), FIX (every blocking finding is auto-fixable and
-      attempts remain), or BLOCK (a finding needs a human, or attempts are exhausted).
+      attempts remain), or BLOCK (a finding needs a human, or attempts are exhausted). Every kind
+      now carries advisoryFindings beside the blocking set. The decision itself is unchanged - a
+      should-severity finding still weighs nothing - but FIX and BLOCK used to discard them
+      outright, so a finding could be computed, counted in the audit comment and posted on no path
+      but MERGE. findings stays the blocking set alone because it is what the fixer is handed.
     accepts: VerdictInput
     returns: PipelineDecision
     pure: true

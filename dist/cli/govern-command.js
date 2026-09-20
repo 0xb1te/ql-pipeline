@@ -126,10 +126,15 @@ export async function taskProvenanceFindings(pr, logger, env = process.env, read
  * construction, rather than by a caller remembering to pass them.
  */
 // @signal complaintReview
-export function complaintReview(findings, attemptNumber, maxFixAttempts) {
+export function complaintReview(findings, attemptNumber, maxFixAttempts, advisoryFindings = []) {
+    // Reported together, weighed apart. The advisory findings appear in this review because nothing
+    // else on a FIX or BLOCK verdict ever shows them - `executeMergeDecision`, which posts them on
+    // the merge path, is not called here - but they are counted separately and they are never handed
+    // to the fixer, which is given `decision.findings` alone.
+    const all = [...findings, ...advisoryFindings];
     return {
-        summary: formatComplaintSummary(findings, attemptNumber, maxFixAttempts, unanchoredFindings(findings)),
-        comments: inlineComments(findings),
+        summary: formatComplaintSummary(findings, attemptNumber, maxFixAttempts, unanchoredFindings(all), advisoryFindings.length),
+        comments: inlineComments(all),
     };
 }
 async function escalateToHuman(client, pr, logger, reason, comment) {
@@ -451,7 +456,7 @@ export async function runGovern(reportsDir) {
     }
     // FIX and BLOCK both mean something is wrong; post the complaint either
     // way so a human can see exactly what, without digging through CI logs.
-    const { summary, comments } = complaintReview(decision.findings, attemptNumber, config.fixer.maxFixAttempts);
+    const { summary, comments } = complaintReview(decision.findings, attemptNumber, config.fixer.maxFixAttempts, decision.advisoryFindings);
     const complaint = await recordComplaint(client, pr, summary, comments);
     const findingThreads = complaint.threads;
     if (complaint.outcome === 'self-authored') {

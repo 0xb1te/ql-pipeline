@@ -16,4 +16,4 @@ export declare function buildFixerPrompt(template: string, findings: readonly Fi
  * The count stays the count of everything. It answers how much is wrong, not how much fitted in a
  * margin.
  */
-export declare function formatComplaintSummary(findings: readonly Finding[], attemptNumber: number, maxAttempts: number, unanchored?: readonly Finding[]): string;
+export declare function formatComplaintSummary(findings: readonly Finding[], attemptNumber: number, maxAttempts: number, unanchored?: readonly Finding[], advisoryCount?: number): string;

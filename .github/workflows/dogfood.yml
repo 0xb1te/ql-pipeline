@@ -32,10 +32,17 @@ on:
 
 concurrency:
   # `issue_comment` carries `issue.number`, `pull_request` carries
-  # `pull_request.number`, and they are the same number for the same PR — so
-  # one group per PR covers both, and a comment during a run supersedes it
-  # rather than racing it.
-  group: pr-pipeline-${{ github.event.pull_request.number || github.event.issue.number }}
+  # `pull_request.number`, and they are the same number for the same PR — so the
+  # number alone covers both events for one PR.
+  # The event belongs in the key as much as the number does. Without it the
+  # pipeline's own verdict comment queues a run in this very group, and
+  # `cancel-in-progress` kills the run that is posting it - concurrency is
+  # evaluated before any job, so the marker guard in `resolve` declines the new
+  # run seconds after it has already killed its parent. What that looks like is a
+  # red `checks / ql-pipeline` on a pull request the engine approved.
+  group: >-
+    pr-pipeline-${{ github.event.pull_request.number || github.event.issue.number }}-${{
+    github.event_name == 'pull_request' && 'commit' || 'comment' }}
   cancel-in-progress: true
 
 # A called workflow can never hold more than its caller. ql-pipeline's jobs

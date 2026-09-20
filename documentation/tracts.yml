@@ -77,6 +77,20 @@ tracts:
     effectors:
       - filesystem:git checkout --
 
+  - tract: check-a-pull-request-has-a-task
+    stimulus: process start (node dist/main.js govern)
+    response: >
+      ql-sprint's tracked task list is read and matched against this PR's head branch and number;
+      a PR that answers to no task is reported as one advisory finding, and an unreachable
+      ql-sprint is reported as nothing at all
+    path:
+      - entrypoint.cli.governCommand#runGovern
+      - entrypoint.cli.governCommand#taskProvenanceFindings
+      - notify.sprint.sprintTasks#readSprintTasks
+      - verdict.decision.taskProvenance#decideTaskProvenance
+    effectors:
+      - http-out:ql-sprint GET /v1/tasks
+
   - tract: carry-out-a-merge-verdict
     stimulus: process start (node dist/main.js govern)
     response: the PR's head commit is re-checked against staleness, approved, and merged (or labelled ready-to-merge, in human-approval mode)
@@ -146,4 +160,4 @@ tracts:
     effectors:
       - filesystem:the already-built dist/main.js
 
-revision: 2026-09-07
+revision: 2026-09-20

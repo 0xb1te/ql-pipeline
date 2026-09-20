@@ -72,7 +72,9 @@ regions:
 
   - region: verdict
     purpose: >
-      Turns gate outcomes and review findings into one MERGE/FIX/BLOCK decision.
+      Turns gate outcomes and review findings into one MERGE/FIX/BLOCK decision, and holds the
+      pure checks that manufacture findings rather than weigh them - a failed gate, and a pull
+      request that answers to no ql-sprint task.
     ganglia:
       - id: verdict.decision
         file: src/verdict/documentation/_ganglion.yml
@@ -92,6 +94,15 @@ regions:
     ganglia:
       - id: merge.merger
         file: src/merger/documentation/_ganglion.yml
+
+  - region: notify
+    purpose: >
+      Everything this pipeline says to, and asks of, ql-sprint - it posts what a governance run
+      decided so the verdict reaches the operator in Telegram, and reads the tracked task list so
+      a run can tell whether the pull request in front of it is work anybody planned.
+    ganglia:
+      - id: notify.sprint
+        file: src/notifier/documentation/_ganglion.yml
 
   - region: scaffold
     purpose: >
@@ -119,4 +130,4 @@ regions:
 
 excluded: []
 
-revision: 2026-08-30
+revision: 2026-09-20

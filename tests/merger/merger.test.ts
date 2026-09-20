@@ -4,6 +4,7 @@ import {
   SELF_APPROVAL_NOTE,
   executeMergeDecision,
   findingToReviewComment,
+  isDiffAnchored,
   recordVerdictLabel,
   NEEDS_HUMAN_LABEL,
   READY_TO_MERGE_LABEL,
@@ -120,6 +121,54 @@ describe('executeMergeDecision', () => {
     await executeMergeDecision(client, PR, advisory, mergeConfig);
 
     expect(client.approveWithComments).toHaveBeenCalledWith(PR, [findingToReviewComment(advisory[0]!)]);
+  });
+
+  it('does not send a finding with no line to sit on as an inline comment', async () => {
+    // GitHub rejects a review comment whose path is not in the diff with a 422, and
+    // recordApproval rethrows anything that is not the self-approval refusal - so this would
+    // have failed a run that had otherwise passed, over a finding that may not block.
+    const client = fakeClient();
+
+    await executeMergeDecision(client, PR, [finding({ file: '(task)' })], mergeConfig);
+
+    expect(client.approveWithComments).toHaveBeenCalledWith(PR, []);
+  });
+
+  it('reports it as an ordinary pull-request comment instead, so it is still said', async () => {
+    const client = fakeClient();
+
+    await executeMergeDecision(client, PR, [finding({ file: '(gate)', rule: 'gate#backend-test' })], mergeConfig);
+
+    expect(client.postComment).toHaveBeenCalledWith(PR, expect.stringContaining('gate#backend-test'));
+  });
+
+  it('posts nothing extra when every advisory finding has a real line', async () => {
+    const client = fakeClient();
+
+    await executeMergeDecision(client, PR, [finding()], mergeConfig);
+
+    expect(client.postComment).not.toHaveBeenCalled();
+  });
+
+  it('still merges when an advisory finding has nowhere to point', async () => {
+    const client = fakeClient();
+
+    const result = await executeMergeDecision(client, PR, [finding({ file: '(task)' })], mergeConfig);
+
+    expect(result).toEqual({ kind: 'merged', approval: 'approved' });
+    expect(client.mergePullRequest).toHaveBeenCalledWith(PR, 'merge', PR.headSha);
+  });
+
+  it('reports an unanchored advisory in human-approval mode too', async () => {
+    const client = fakeClient();
+
+    await executeMergeDecision(client, PR, [finding({ file: '(task)' })], {
+      ...mergeConfig,
+      requireHumanApproval: true,
+    });
+
+    expect(client.postComment).toHaveBeenCalledWith(PR, expect.stringContaining('Advisory findings'));
+    expect(client.mergePullRequest).not.toHaveBeenCalled();
   });
 
   it('uses the configured merge method', async () => {
@@ -380,5 +429,24 @@ describe('recordVerdictLabel', () => {
 
     expect(client.addLabels).toHaveBeenCalledWith(PR, [READY_TO_MERGE_LABEL]);
     expect(client.removeLabel).toHaveBeenCalledWith(PR, NEEDS_HUMAN_LABEL);
+  });
+});
+
+describe('isDiffAnchored', () => {
+  it('accepts a finding that names a real file', () => {
+    expect(isDiffAnchored(finding({ file: 'src/components/Widget.tsx' }))).toBe(true);
+  });
+
+  it('rejects the pseudo-paths used for a finding about the PR rather than a line in it', () => {
+    expect(isDiffAnchored(finding({ file: '(gate)' }))).toBe(false);
+    expect(isDiffAnchored(finding({ file: '(task)' }))).toBe(false);
+  });
+
+  it('does not mistake a real path that merely contains parentheses', () => {
+    expect(isDiffAnchored(finding({ file: 'src/(group)/page.tsx' }))).toBe(true);
+  });
+
+  it('treats an empty pair of parentheses as a real path, having no marker in it', () => {
+    expect(isDiffAnchored(finding({ file: '()' }))).toBe(true);
   });
 });

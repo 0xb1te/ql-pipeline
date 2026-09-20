@@ -1,0 +1,92 @@
+cns: "1.0"
+neuron: taskProvenance
+kind: function
+region: verdict
+layer: decision
+unit: src/verdict/task-provenance.ts
+
+responsibility: >
+  Answers whether an open pull request corresponds to a real ql-sprint/Notion task or is work
+  somebody invented outside that flow, and turns a "no" into one advisory finding.
+
+owns:
+  - >
+    The reproduction of ql-sprint's branch-suffix derivation - the first six hex characters of a
+    task's Notion page id - which is what lets a branch be traced back to a task that has not yet
+    recorded a branch or a PR number of its own
+
+invariants:
+  - >
+    The answer is advisory and can never refuse a pull request. Legitimate work starts outside
+    ql-sprint every day - a hotfix at 2am, a dependency bump, a contributor who has never heard of
+    Notion - and a pipeline that blocked it would be enforcing a process the repository never
+    agreed to
+  - >
+    A pull request is only ever called taskless on evidence. This module is given the list
+    ql-sprint actually returned; it is never given an empty list to stand in for a list that could
+    not be read, and notify.sprint.sprintTasks keeps those two apart so it cannot be
+
+excludes:
+  - >
+    Reaching ql-sprint. This is pure and takes the task list as an argument, so the question "does
+    this pull request have a task" is answerable in a test without a network
+  - >
+    Deciding what a missing task costs. It returns a `should` finding; verdict.decision.verdict is
+    what knows that `should` never blocks
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: taskSuffixOf
+    intent: >
+      Reads the six-hex task-id suffix off a branch name, or null when it carries none. A branch
+      ending in words rather than hex - bugfixes/077-a-comment-cancels-the-verdict - was not cut by
+      ql-sprint, and that is the signal. Six hex characters is a small alphabet and an English word
+      can look like one (facade is six valid hex digits), which costs nothing - a suffix is only
+      ever a lookup key, and identifies a task solely when a real task's id begins with it.
+    accepts: headRef
+    returns: string | null
+    pure: true
+    afferent:
+      - from: verdict.decision.taskProvenance#decideTaskProvenance
+        via: direct-call
+    efferent: []
+
+  - signal: decideTaskProvenance
+    intent: >
+      Matches a pull request to a task three ways, strongest evidence first, because they fail
+      differently. prNumber is ql-sprint's own record of which pull request a task opened and is
+      the only match that survives a branch rename or force-push. An exact branch match is exact
+      but goes stale the moment anybody renames the branch. The six-hex suffix is derived rather
+      than recorded, so it still answers during the window between ql-sprint creating a task and
+      the run that opens its pull request, when branch and prNumber are both still null. A branch
+      with no suffix at all gets a different sentence from one whose suffix matches nothing - the
+      first was never ql-sprint's, the second may be a task this caller could not see.
+    accepts: "{ headRef, prNumber, tasks }"
+    returns: TaskProvenance
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#taskProvenanceFindings
+        via: direct-call
+    efferent:
+      - to: verdict.decision.taskProvenance#taskSuffixOf
+        via: direct-call
+        because: the third and weakest match needs the id ql-sprint encoded in the branch name
+
+  - signal: taskProvenanceFinding
+    intent: >
+      Renders a no-task answer as one `should` finding, or null when the pull request has a task.
+      Never `must` - see this neuron's first invariant. autoFixable is false because no fix agent
+      can invent a Notion task, and claiming otherwise would spend an attempt discovering that. The
+      pseudo-path follows the one requiredChecks#gateFindings already uses for a finding that is
+      about the pull request rather than about a line of code in it.
+    accepts: TaskProvenance
+    returns: Finding | null
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#taskProvenanceFindings
+        via: direct-call
+    efferent: []
+
+revision: 2026-09-20

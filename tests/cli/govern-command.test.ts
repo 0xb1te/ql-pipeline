@@ -1,5 +1,11 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
-import { readGateReports, shouldSkipCursorFixer, taskProvenanceFindings } from '../../src/cli/govern-command.js';
+import {
+  complaintReview,
+  readGateReports,
+  shouldSkipCursorFixer,
+  taskProvenanceFindings,
+} from '../../src/cli/govern-command.js';
+import type { Finding } from '../../src/shared/types.js';
 import { serializeGateReport } from '../../src/shared/gate-report.js';
 
 function reader(files: Record<string, string>): {
@@ -150,5 +156,71 @@ describe('taskProvenanceFindings', () => {
     const findings = await taskProvenanceFindings(PR, logger(), SPRINT_ENV, read);
 
     expect(findings.every((finding) => finding.severity === 'should')).toBe(true);
+  });
+});
+
+function blockingFinding(overrides: Partial<Finding> = {}): Finding {
+  return {
+    severity: 'must',
+    rule: 'backend.rules#no-any',
+    file: 'src/api/payments.ts',
+    line: 12,
+    problem: 'an any leaks through the boundary',
+    suggestedFix: 'name the type',
+    autoFixable: true,
+    ...overrides,
+  };
+}
+
+describe('complaintReview', () => {
+  it('never sends a finding GitHub would refuse a comment on', () => {
+    // The defect this exists for. A failed *required* gate is a `must` finding on the pseudo-path
+    // `(gate)`, and the blocking path posted it as an inline comment - a 422 that threw out of
+    // requestChangesWithComments and killed the review that was reporting the gate failure. The
+    // filter existed; only the approval path used it.
+    const review = complaintReview(
+      [
+        blockingFinding({ rule: 'gate#backend-test', file: '(gate)', line: 1 }),
+        blockingFinding(),
+      ],
+      1,
+      3,
+    );
+
+    expect(review.comments.map((comment) => comment.path)).toEqual(['src/api/payments.ts']);
+  });
+
+  it('reports in the body exactly what it kept out of the comments', () => {
+    // Filtering alone would have been a worse bug than the 422: a blocking review posts one
+    // message, so a finding in neither place is one the pull request never mentions.
+    const review = complaintReview(
+      [blockingFinding({ rule: 'gate#backend-test', file: '(gate)', problem: '3 tests failing' })],
+      1,
+      3,
+    );
+
+    expect(review.comments).toEqual([]);
+    expect(review.summary).toContain('gate#backend-test');
+    expect(review.summary).toContain('3 tests failing');
+  });
+
+  it('leaves an ordinary review untouched', () => {
+    const review = complaintReview([blockingFinding()], 2, 3);
+
+    expect(review.comments).toHaveLength(1);
+    expect(review.summary).toContain('found 1 issue(s)');
+    expect(review.summary).not.toContain('About this pull request rather than a line in it');
+  });
+
+  it('survives a review in which nothing can be commented on at all', () => {
+    const review = complaintReview(
+      [blockingFinding({ file: '(gate)' }), blockingFinding({ severity: 'should', file: '(task)' })],
+      3,
+      3,
+    );
+
+    expect(review.comments).toEqual([]);
+    expect(review.summary).toContain('found 2 issue(s)');
+    expect(review.summary).toContain('needs a human');
   });
 });

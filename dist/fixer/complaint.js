@@ -20,14 +20,41 @@ export function buildFixerPrompt(template, findings, attemptNumber, maxAttempts,
         .replaceAll('{{HUMAN_DIRECTION}}', humanDirection)
         .replaceAll('{{COMPLAINT}}', formatFindingsForPrompt(findings));
 }
-/** The top-level body of the request-changes review posted alongside per-finding comments. */
+/**
+ * The top-level body of the request-changes review posted alongside per-finding comments.
+ *
+ * `unanchored` is rendered in full here because this body is the only place it can appear. A
+ * finding about the pull request itself - a failed gate, most often - carries a pseudo-path that
+ * GitHub will not accept an inline comment on, so it is left out of the comments; and unlike the
+ * approval path, which posts a separate advisory comment afterwards, a blocking review has one
+ * message and this is it. Dropping the text would leave `found 3 issue(s)` above two comments and
+ * no way to learn what the third one was.
+ *
+ * The count stays the count of everything. It answers how much is wrong, not how much fitted in a
+ * margin.
+ */
 // @signal formatComplaintSummary
-export function formatComplaintSummary(findings, attemptNumber, maxAttempts) {
+export function formatComplaintSummary(findings, attemptNumber, maxAttempts, unanchored = []) {
     const attemptsLeft = attemptNumber < maxAttempts;
     const nextStep = attemptsLeft
         ? 'An automated fix attempt will follow.'
         : `Max fix attempts (${maxAttempts}) reached — this needs a human.`;
-    return (`**Automated review found ${findings.length} issue(s) that must be resolved before this PR can merge.**\n\n` +
-        `Attempt ${attemptNumber} of ${maxAttempts}. ${nextStep}`);
+    const head = `**Automated review found ${findings.length} issue(s) that must be resolved before this PR can merge.**\n\n` +
+        `Attempt ${attemptNumber} of ${maxAttempts}. ${nextStep}`;
+    if (unanchored.length === 0)
+        return head;
+    const rendered = unanchored.map((finding) => {
+        const suggestion = finding.suggestedFix !== null ? `\n\nSuggested fix: ${finding.suggestedFix}` : '';
+        return `**[${finding.severity}] ${finding.rule}**\n\n${finding.problem}${suggestion}`;
+    });
+    return [
+        head,
+        '',
+        '### About this pull request rather than a line in it',
+        '',
+        'No inline comment can point at these, so they are reported here.',
+        '',
+        rendered.join('\n\n---\n\n'),
+    ].join('\n');
 }
 //# sourceMappingURL=complaint.js.map

@@ -37,7 +37,7 @@ signals:
       finding is about a line of code - a failed gate carries the pseudo-path `(gate)` and a pull
       request that answers to no ql-sprint task carries `(task)`, because what they are about is
       the pull request itself. GitHub rejects a review comment whose path is not in the diff with a
-      422, and isSelfApprovalRefusal deliberately rethrows it, so one advisory finding with nowhere
+      422, and isSelfReviewRefusal deliberately rethrows it, so one advisory finding with nowhere
       to point would fail a run that had otherwise passed - the exact opposite of what `should`
       severity means. The parenthesised spelling is the marker because it cannot collide with a
       real path.
@@ -95,21 +95,50 @@ signals:
         via: direct-call
         because: the same rule, read the other way round
 
-  - signal: isSelfApprovalRefusal
+  - signal: isSelfReviewRefusal
     intent: >
       Whether GitHub refused a review because the token's owner opened the pull request. Matched
       on the status and the message together: 422 alone covers several unrelated validation
       failures - a comment on a line outside the diff, most commonly - and treating one of those
       as "this is my own PR" would swallow a real error and post a comment review in its place.
       Reachable only since GH_TOKEN became a person's token; as github-actions[bot] the pipeline
-      authors nothing and may approve anything.
+      authors nothing and may approve anything. Named for the review rather than the approval
+      because GitHub refuses both halves the same way - approving your own pull request and
+      requesting changes on it - and for a long time only the approving half consulted this.
     accepts: unknown
     returns: boolean
     pure: true
     afferent:
       - from: merge.merger.merger#executeMergeDecision
         via: direct-call
+      - from: merge.merger.merger#recordComplaint
+        via: direct-call
     efferent: []
+
+  - signal: recordComplaint
+    intent: >
+      Posts the FIX or BLOCK complaint, requesting changes where GitHub permits it and commenting
+      where it does not. The exact shape of the approval path's fallback, and for the exact same
+      reason - which is the point. GitHub refuses both self-reviews with one 422, only the
+      approving half was ever caught, and so every FIX and BLOCK verdict on a pull request the
+      token's owner had opened threw out of requestChangesWithComments before posting anything.
+      The check went red by crashing rather than by deciding, leaving no findings on the pull
+      request, no threads for the fixer to answer, and a summary comment reporting findings nobody
+      could read. The threads come back either way, so the fix loop is untouched, and the merge is
+      still blocked by this run failing its own required check rather than by the review state.
+    accepts: "GithubClient, PullRequestInfo, body, readonly ReviewComment[]"
+    returns: "threads and outcome"
+    pure: false
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent:
+      - to: merge.merger.merger#isSelfReviewRefusal
+        via: direct-call
+        because: only that one refusal may degrade the complaint to a comment; everything else rethrows
+      - to: shared.core.githubClient#createGithubClient
+        via: di
+        because: requestChangesWithComments and commentReviewWithThreads are whatever createGithubClient's Octokit-backed implementation returns
 
   - signal: recordVerdictLabel
     intent: >
@@ -153,7 +182,7 @@ signals:
       - to: merge.merger.merger#isDiffAnchored
         via: direct-call
         because: a finding about the pull request rather than a line in it is posted as an ordinary comment, because sent inline it is a 422 that would cost the approval it was riding along on
-      - to: merge.merger.merger#isSelfApprovalRefusal
+      - to: merge.merger.merger#isSelfReviewRefusal
         via: direct-call
         because: only that one refusal may degrade an approval to a comment; everything else rethrows
       - to: merge.merger.merger#recordVerdictLabel

@@ -9,6 +9,7 @@ import { runFix } from '../fixer/fixer.js';
 import {
   executeMergeDecision,
   inlineComments,
+  recordComplaint,
   recordVerdictLabel,
   unanchoredFindings,
   NEEDS_HUMAN_LABEL,
@@ -604,7 +605,11 @@ export async function runGovern(reportsDir: string): Promise<void> {
   // FIX and BLOCK both mean something is wrong; post the complaint either
   // way so a human can see exactly what, without digging through CI logs.
   const { summary, comments } = complaintReview(decision.findings, attemptNumber, config.fixer.maxFixAttempts);
-  const findingThreads = await client.requestChangesWithComments(pr, summary, comments);
+  const complaint = await recordComplaint(client, pr, summary, comments);
+  const findingThreads = complaint.threads;
+  if (complaint.outcome === 'self-authored') {
+    logger.info('recorded the findings as a comment review; GitHub refuses a self-requested change');
+  }
 
   /**
    * Answers every thread this review just opened, once the run knows what it did about them.

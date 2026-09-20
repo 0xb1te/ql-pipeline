@@ -97,8 +97,8 @@ export type ApprovalOutcome =
  * github-actions[bot], which authors nothing and may approve anything; with it, it reviews as a
  * person, and in a one-maintainer suite that person opened the pull request.
  */
-// @signal isSelfApprovalRefusal
-export function isSelfApprovalRefusal(error: unknown): boolean {
+// @signal isSelfReviewRefusal
+export function isSelfReviewRefusal(error: unknown): boolean {
   const shaped = error as { status?: unknown; message?: unknown } | null;
   if (shaped?.status !== 422) return false;
   // Only a string is read: octokit's errors carry one, and anything else here is not the message
@@ -135,11 +135,54 @@ async function recordApproval(
     await client.approveWithComments(pr, comments);
     return 'approved';
   } catch (error) {
-    if (!isSelfApprovalRefusal(error)) throw error;
+    if (!isSelfReviewRefusal(error)) throw error;
     await client.commentReview(pr, SELF_APPROVAL_NOTE, comments);
     return 'self-authored';
   }
 }
+
+/** What the comment review says in place of a refusal to approve, so the PR still carries it. */
+export const SELF_REVIEW_NOTE = [
+  'These findings are recorded as a comment rather than as requested changes because GitHub does',
+  'not allow requesting changes on your own pull request, and this pipeline is authenticated as',
+  'the account that opened it.',
+  '',
+  'Nothing about the verdict changes. The merge is blocked by this run failing its own required',
+  'check, which it does either way - the review state was never what held the pull request.',
+].join(' ');
+
+/**
+ * Posts the complaint, refusing to approve where GitHub permits it and commenting where it does
+ * not.
+ *
+ * The exact shape of recordApproval, and for the exact same reason - which is the point. GitHub
+ * refuses *both* self-reviews, the approving one and the changes-requesting one, with the same 422.
+ * Only the approving half was ever caught, so every FIX and BLOCK verdict on a pull request the
+ * token's owner had opened threw out of `requestChangesWithComments` before posting anything. The
+ * check went red by crashing rather than by deciding: no findings on the pull request, no threads
+ * for the fixer to answer, and a summary comment saying four findings had been made that nobody
+ * could read.
+ *
+ * The threads come back either way, so the fix loop is untouched.
+ */
+// @signal recordComplaint
+export async function recordComplaint(
+  client: Pick<GithubClient, 'requestChangesWithComments' | 'commentReviewWithThreads'>,
+  pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>,
+  body: string,
+  comments: readonly ReviewComment[],
+): Promise<{ readonly threads: readonly number[]; readonly outcome: ComplaintOutcome }> {
+  try {
+    return { threads: await client.requestChangesWithComments(pr, body, comments), outcome: 'changes-requested' };
+  } catch (error) {
+    if (!isSelfReviewRefusal(error)) throw error;
+    const threads = await client.commentReviewWithThreads(pr, `${body}\n\n${SELF_REVIEW_NOTE}`, comments);
+    return { threads, outcome: 'self-authored' };
+  }
+}
+
+/** How the complaint was recorded on the pull request. */
+export type ComplaintOutcome = 'changes-requested' | 'self-authored';
 
 /** Label applied instead of merging when `merge.require_human_approval` is on. */
 export const READY_TO_MERGE_LABEL = 'ready-to-merge';

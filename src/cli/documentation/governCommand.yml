@@ -171,6 +171,9 @@ signals:
       - to: entrypoint.cli.governCommand#complaintReview
         via: direct-call
         because: builds the whole request-changes review at once, so the body and the comments cannot disagree about which findings were reported
+      - to: merge.merger.merger#recordComplaint
+        via: direct-call
+        because: posts that review, falling back to a comment when GitHub refuses a self-requested change rather than throwing the run away
       - to: fix.fixer.fixer#runFix
         via: direct-call
         because: runs the automated fix attempt for a FIX verdict on a non-fork PR when the provider is still cursor

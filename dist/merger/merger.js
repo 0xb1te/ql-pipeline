@@ -61,6 +61,32 @@ async function recordApproval(client, pr, comments) {
 }
 /** Label applied instead of merging when `merge.require_human_approval` is on. */
 export const READY_TO_MERGE_LABEL = 'ready-to-merge';
+/** Label applied when the pipeline stops and asks for a person. */
+export const NEEDS_HUMAN_LABEL = 'needs-human';
+/**
+ * Puts the verdict this run reached on the pull request, and takes off the one
+ * it did not.
+ *
+ * The two labels are the pipeline's whole vocabulary for "what happened here",
+ * and they were only ever added. A pull request could therefore end a run
+ * wearing both — which is not a richer answer, it is two answers, one of them
+ * false. ql-desktop#72 finished with `needs-human, ready-to-merge` after an
+ * early run escalated over a protected path and a later run, once that path was
+ * narrowed, approved it.
+ *
+ * Both readers downstream are misled by it in opposite directions: a "waiting on
+ * a human" count includes a pull request the engine has approved, and a check
+ * that tells an escalation from a breakage by looking for `needs-human` reads a
+ * stale one as a fresh verdict.
+ *
+ * Removing first and adding second would leave a window with neither, so the
+ * order is deliberate: the true label goes on before the false one comes off.
+ */
+// @signal recordVerdictLabel
+export async function recordVerdictLabel(client, pr, verdict) {
+    await client.addLabels(pr, [verdict]);
+    await client.removeLabel(pr, verdict === NEEDS_HUMAN_LABEL ? READY_TO_MERGE_LABEL : NEEDS_HUMAN_LABEL);
+}
 /**
  * Carries out a MERGE verdict: re-check that the head commit is still the
  * one that was reviewed, approve the PR (attaching any advisory `should`
@@ -88,9 +114,13 @@ export async function executeMergeDecision(client, pr, advisoryFindings, mergeCo
     // staleness check and the approval so the only difference between the two
     // modes is whether the merge API is called at all.
     if (mergeConfig.requireHumanApproval) {
-        await client.addLabels(pr, [READY_TO_MERGE_LABEL]);
+        await recordVerdictLabel(client, pr, READY_TO_MERGE_LABEL);
         return { kind: 'awaiting-human', approval };
     }
+    // Before the merge, not after: `deleteBranch` below can make the pull request
+    // unavailable to label, and a merged pull request still wearing `needs-human`
+    // is a false answer sitting in anybody's history.
+    await client.removeLabel(pr, NEEDS_HUMAN_LABEL);
     await client.mergePullRequest(pr, mergeConfig.method, pr.headSha);
     if (mergeConfig.deleteBranch) {
         await client.deleteBranch(pr);

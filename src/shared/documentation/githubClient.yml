@@ -54,7 +54,11 @@ signals:
     efferent: []
 
   - signal: createGithubClient
-    intent: Builds the Octokit-backed GithubClient every later GitHub call in this pipeline goes through, from a token.
+    intent: >
+      Builds the Octokit-backed GithubClient every later GitHub call in this pipeline goes through,
+      from a token. Its removeLabel treats a 404 as success, because GitHub answers that both for a
+      label the pull request never carried and for one the repository does not define - and the only
+      caller removes the verdict it did not reach, where absence is the state being asked for.
     accepts: token
     returns: GithubClient
     afferent:
@@ -71,4 +75,4 @@ signals:
         via: direct-call
         because: every comment this pipeline writes has to be recognisable to the run that reads it next
 
-revision: 2026-09-19
+revision: 2026-09-20

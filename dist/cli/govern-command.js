@@ -6,7 +6,7 @@ import * as core from '@actions/core';
 import { countFixAttempts } from '../fixer/attempt-counter.js';
 import { formatComplaintSummary } from '../fixer/complaint.js';
 import { runFix } from '../fixer/fixer.js';
-import { executeMergeDecision, findingToReviewComment } from '../merger/merger.js';
+import { executeMergeDecision, findingToReviewComment, recordVerdictLabel, NEEDS_HUMAN_LABEL, } from '../merger/merger.js';
 import { createOpenAiCompatibleReviewer, readAgentApiKeyFromEnv, } from '../reviewer/openai-compatible-runner.js';
 import { runReview, standardsBudgetFor } from '../reviewer/reviewer.js';
 import { dedupeFindings, planReviewPasses } from '../reviewer/review-passes.js';
@@ -76,7 +76,7 @@ export function readGateReports(reportsDir, reader = {
 }
 async function escalateToHuman(client, pr, logger, reason, comment) {
     logger.error(reason);
-    await client.addLabels(pr, ['needs-human']);
+    await recordVerdictLabel(client, pr, NEEDS_HUMAN_LABEL);
     await client.postComment(pr, comment);
     core.setFailed(reason);
 }
@@ -413,7 +413,7 @@ export async function runGovern(reportsDir) {
     if (decision.kind === 'BLOCK') {
         await answerThreads({ kind: 'not-attempted', why: `the review blocked this PR (${decision.reason}).` });
         logger.error(`blocked: ${decision.reason}`);
-        await client.addLabels(pr, ['needs-human']);
+        await recordVerdictLabel(client, pr, NEEDS_HUMAN_LABEL);
         await notifySprint('block', decision.reason);
         core.setFailed(`blocked: ${decision.reason}`);
         return;

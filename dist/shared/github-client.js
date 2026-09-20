@@ -166,6 +166,22 @@ export function createGithubClient(token) {
                 labels: [...labels],
             });
         },
+        async removeLabel(pr, label) {
+            try {
+                await octokit.rest.issues.removeLabel({
+                    owner: pr.owner,
+                    repo: pr.repo,
+                    issue_number: pr.number,
+                    name: label,
+                });
+            }
+            catch (error) {
+                // A label that is not on the PR is the state this asks for, so a 404 is
+                // the desired outcome arriving as an exception. Anything else is real.
+                if (error.status !== 404)
+                    throw error;
+            }
+        },
         async postComment(pr, body) {
             await octokit.rest.issues.createComment({
                 owner: pr.owner,

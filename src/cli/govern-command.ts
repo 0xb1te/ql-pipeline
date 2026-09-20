@@ -6,7 +6,12 @@ import * as core from '@actions/core';
 import { countFixAttempts } from '../fixer/attempt-counter.js';
 import { formatComplaintSummary } from '../fixer/complaint.js';
 import { runFix } from '../fixer/fixer.js';
-import { executeMergeDecision, findingToReviewComment } from '../merger/merger.js';
+import {
+  executeMergeDecision,
+  findingToReviewComment,
+  recordVerdictLabel,
+  NEEDS_HUMAN_LABEL,
+} from '../merger/merger.js';
 import {
   createOpenAiCompatibleReviewer,
   readAgentApiKeyFromEnv,
@@ -120,7 +125,7 @@ async function escalateToHuman(
   comment: string,
 ): Promise<void> {
   logger.error(reason);
-  await client.addLabels(pr, ['needs-human']);
+  await recordVerdictLabel(client, pr, NEEDS_HUMAN_LABEL);
   await client.postComment(pr, comment);
   core.setFailed(reason);
 }
@@ -545,7 +550,7 @@ export async function runGovern(reportsDir: string): Promise<void> {
   if (decision.kind === 'BLOCK') {
     await answerThreads({ kind: 'not-attempted', why: `the review blocked this PR (${decision.reason}).` });
     logger.error(`blocked: ${decision.reason}`);
-    await client.addLabels(pr, ['needs-human']);
+    await recordVerdictLabel(client, pr, NEEDS_HUMAN_LABEL);
     await notifySprint('block', decision.reason);
     core.setFailed(`blocked: ${decision.reason}`);
     return;

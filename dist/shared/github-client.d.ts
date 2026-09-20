@@ -116,6 +116,15 @@ export interface GithubClient {
     listChangedFiles: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>) => Promise<string[]>;
     getPullRequestDetails: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>) => Promise<PullRequestDetails>;
     addLabels: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, labels: readonly string[]) => Promise<void>;
+    /**
+     * Takes one label off, and treats "it was not there" as success.
+     *
+     * GitHub answers 404 both for a label this PR never carried and for a label
+     * that does not exist in the repository at all. Neither is a failure for the
+     * only caller there is: it removes the verdict it did not reach, and the
+     * common case is that the PR never carried it.
+     */
+    removeLabel: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, label: string) => Promise<void>;
     postComment: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, body: string) => Promise<void>;
     /**
      * Everything said on the PR - the conversation and the inline threads - with

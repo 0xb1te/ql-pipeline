@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import { isSelfApprovalRefusal, SELF_APPROVAL_NOTE, executeMergeDecision, findingToReviewComment } from '../../src/merger/merger.js';
+import {
+  isSelfApprovalRefusal,
+  SELF_APPROVAL_NOTE,
+  executeMergeDecision,
+  findingToReviewComment,
+  recordVerdictLabel,
+  NEEDS_HUMAN_LABEL,
+  READY_TO_MERGE_LABEL,
+} from '../../src/merger/merger.js';
 import type { GithubClient } from '../../src/shared/github-client.js';
 import type { Finding, MergeConfig } from '../../src/shared/types.js';
 
@@ -31,6 +39,7 @@ function fakeClient(headSha = PR.headSha): GithubClient {
     listChangedFiles: vi.fn().mockResolvedValue([]),
     getPullRequestDetails: vi.fn().mockResolvedValue({ description: '', diff: '' }),
     addLabels: vi.fn().mockResolvedValue(undefined),
+    removeLabel: vi.fn().mockResolvedValue(undefined),
     postComment: vi.fn().mockResolvedValue(undefined),
     approveWithComments: vi.fn().mockResolvedValue(undefined),
     // Answers with the ids of the comments it created, so govern can reply in those threads.
@@ -273,5 +282,103 @@ describe('a pull request the pipeline itself opened', () => {
 
     await expect(executeMergeDecision(client, PR, [], mergeConfig)).rejects.toMatchObject({ status: 500 });
     expect(client.commentReview).not.toHaveBeenCalled();
+  });
+});
+
+describe('verdict labels', () => {
+  const mergeConfig: MergeConfig = {
+    targetBranch: 'main',
+    targetBranchByArea: {},
+    method: 'merge',
+    deleteBranch: true,
+    requiredChecks: ['build', 'test', 'ai-review'],
+    requireHumanApproval: true,
+  };
+
+  it('takes needs-human off the pull request it has just approved', async () => {
+    // The bug. ql-desktop#72 ended a run wearing `needs-human, ready-to-merge`: an early run
+    // escalated over a protected path, a later run approved once that path was narrowed, and
+    // nothing ever removed the first verdict. Two answers, one of them false.
+    const client = fakeClient();
+
+    await executeMergeDecision(client, PR, [], mergeConfig);
+
+    expect(client.addLabels).toHaveBeenCalledWith(PR, [READY_TO_MERGE_LABEL]);
+    expect(client.removeLabel).toHaveBeenCalledWith(PR, NEEDS_HUMAN_LABEL);
+  });
+
+  it('adds the verdict it reached before removing the one it did not', async () => {
+    // Removing first would leave a window in which the pull request carries no verdict at all,
+    // and anything reading labels in that window sees a run that decided nothing.
+    const client = fakeClient();
+    const order: string[] = [];
+    client.addLabels = vi.fn().mockImplementation(() => {
+      order.push('add');
+      return Promise.resolve();
+    });
+    client.removeLabel = vi.fn().mockImplementation(() => {
+      order.push('remove');
+      return Promise.resolve();
+    });
+
+    await executeMergeDecision(client, PR, [], mergeConfig);
+
+    expect(order).toEqual(['add', 'remove']);
+  });
+
+  it('clears needs-human on a pull request it merges outright', async () => {
+    // A merged pull request still wearing `needs-human` is a false answer sitting in anybody's
+    // history, and the merge path never added `ready-to-merge` to overwrite it.
+    const client = fakeClient();
+
+    await executeMergeDecision(client, PR, [], { ...mergeConfig, requireHumanApproval: false });
+
+    expect(client.removeLabel).toHaveBeenCalledWith(PR, NEEDS_HUMAN_LABEL);
+  });
+
+  it('clears it before the branch is deleted, while the pull request is still there to label', async () => {
+    const client = fakeClient();
+    const order: string[] = [];
+    client.removeLabel = vi.fn().mockImplementation(() => {
+      order.push('remove');
+      return Promise.resolve();
+    });
+    client.deleteBranch = vi.fn().mockImplementation(() => {
+      order.push('delete');
+      return Promise.resolve();
+    });
+
+    await executeMergeDecision(client, PR, [], { ...mergeConfig, requireHumanApproval: false });
+
+    expect(order).toEqual(['remove', 'delete']);
+  });
+
+  it('does not touch labels on a stale head, because no verdict was reached', async () => {
+    const client = fakeClient('def456');
+
+    await executeMergeDecision(client, PR, [], mergeConfig);
+
+    expect(client.addLabels).not.toHaveBeenCalled();
+    expect(client.removeLabel).not.toHaveBeenCalled();
+  });
+});
+
+describe('recordVerdictLabel', () => {
+  it('puts on the escalation and takes off the approval', async () => {
+    const client = fakeClient();
+
+    await recordVerdictLabel(client, PR, NEEDS_HUMAN_LABEL);
+
+    expect(client.addLabels).toHaveBeenCalledWith(PR, [NEEDS_HUMAN_LABEL]);
+    expect(client.removeLabel).toHaveBeenCalledWith(PR, READY_TO_MERGE_LABEL);
+  });
+
+  it('puts on the approval and takes off the escalation', async () => {
+    const client = fakeClient();
+
+    await recordVerdictLabel(client, PR, READY_TO_MERGE_LABEL);
+
+    expect(client.addLabels).toHaveBeenCalledWith(PR, [READY_TO_MERGE_LABEL]);
+    expect(client.removeLabel).toHaveBeenCalledWith(PR, NEEDS_HUMAN_LABEL);
   });
 });

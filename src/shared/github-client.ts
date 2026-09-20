@@ -201,6 +201,15 @@ export interface GithubClient {
   listChangedFiles: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>) => Promise<string[]>;
   getPullRequestDetails: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>) => Promise<PullRequestDetails>;
   addLabels: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, labels: readonly string[]) => Promise<void>;
+  /**
+   * Takes one label off, and treats "it was not there" as success.
+   *
+   * GitHub answers 404 both for a label this PR never carried and for a label
+   * that does not exist in the repository at all. Neither is a failure for the
+   * only caller there is: it removes the verdict it did not reach, and the
+   * common case is that the PR never carried it.
+   */
+  removeLabel: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, label: string) => Promise<void>;
   postComment: (pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, body: string) => Promise<void>;
   /**
    * Everything said on the PR - the conversation and the inline threads - with
@@ -332,6 +341,21 @@ export function createGithubClient(token: string): GithubClient {
         issue_number: pr.number,
         labels: [...labels],
       });
+    },
+
+    async removeLabel(pr, label): Promise<void> {
+      try {
+        await octokit.rest.issues.removeLabel({
+          owner: pr.owner,
+          repo: pr.repo,
+          issue_number: pr.number,
+          name: label,
+        });
+      } catch (error) {
+        // A label that is not on the PR is the state this asks for, so a 404 is
+        // the desired outcome arriving as an exception. Anything else is real.
+        if ((error as { status?: number }).status !== 404) throw error;
+      }
     },
 
     async postComment(pr, body): Promise<void> {

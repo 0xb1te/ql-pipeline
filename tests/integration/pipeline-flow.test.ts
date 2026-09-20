@@ -63,6 +63,7 @@ function fakeGithubClient(): GithubClient {
       .fn()
       .mockResolvedValue({ description: 'Adds a dark-mode toggle component.', diff: CLEAN_DIFF }),
     addLabels: vi.fn().mockResolvedValue(undefined),
+    removeLabel: vi.fn().mockResolvedValue(undefined),
     postComment: vi.fn().mockResolvedValue(undefined),
     approveWithComments: vi.fn().mockResolvedValue(undefined),
     // Answers with the ids of the comments it created, so govern can reply in those threads.

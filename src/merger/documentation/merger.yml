@@ -49,6 +49,27 @@ signals:
         via: direct-call
     efferent: []
 
+  - signal: recordVerdictLabel
+    intent: >
+      Puts the verdict a run reached on the pull request and takes off the one it did not, so the two
+      labels this pipeline uses for "what happened here" stay mutually exclusive. They were only ever
+      added, so a pull request could end a run wearing both - not a richer answer but two answers, one
+      of them false. ql-desktop#72 finished with needs-human and ready-to-merge together, after an
+      early run escalated over a protected path and a later run approved once that path was narrowed.
+      Adds before it removes, deliberately: the other order leaves a window in which the pull request
+      carries no verdict at all.
+    accepts: "GithubClient (subset), PullRequestInfo (subset), verdict label"
+    returns: Promise<void>
+    afferent:
+      - from: merge.merger.merger#executeMergeDecision
+        via: direct-call
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent:
+      - to: shared.core.githubClient#createGithubClient
+        via: di
+        because: addLabels and removeLabel are whatever createGithubClient's Octokit-backed implementation returns
+
   - signal: executeMergeDecision
     intent: >
       Re-checks the PR's head commit is unchanged, records the verdict with any advisory comments
@@ -70,8 +91,11 @@ signals:
       - to: merge.merger.merger#isSelfApprovalRefusal
         via: direct-call
         because: only that one refusal may degrade an approval to a comment; everything else rethrows
+      - to: merge.merger.merger#recordVerdictLabel
+        via: direct-call
+        because: a run that approves has to take off an earlier escalation, or the pull request carries both verdicts at once
       - to: shared.core.githubClient#createGithubClient
         via: di
         because: getHeadSha/approveWithComments/commentReview/addLabels/mergePullRequest/deleteBranch are whatever createGithubClient's Octokit-backed implementation returns
 
-revision: 2026-09-19
+revision: 2026-09-20

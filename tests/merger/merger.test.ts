@@ -4,8 +4,10 @@ import {
   SELF_APPROVAL_NOTE,
   executeMergeDecision,
   findingToReviewComment,
+  inlineComments,
   isDiffAnchored,
   recordVerdictLabel,
+  unanchoredFindings,
   NEEDS_HUMAN_LABEL,
   READY_TO_MERGE_LABEL,
 } from '../../src/merger/merger.js';
@@ -448,5 +450,48 @@ describe('isDiffAnchored', () => {
 
   it('treats an empty pair of parentheses as a real path, having no marker in it', () => {
     expect(isDiffAnchored(finding({ file: '()' }))).toBe(true);
+  });
+});
+
+describe('inlineComments', () => {
+  it('drops a blocking gate finding, which is the case that used to 422 the run', () => {
+    // A failed *required* gate is `must`, not `should`, so it never went near the approval path
+    // where isDiffAnchored was applied. It went to requestChangesWithComments unfiltered, and
+    // GitHub refused a comment on `(gate)` - killing the review that existed to explain it.
+    const comments = inlineComments([
+      finding({ severity: 'must', rule: 'gate#backend-test', file: '(gate)' }),
+      finding({ severity: 'must', file: 'src/api/payments.ts', line: 12 }),
+    ]);
+
+    expect(comments).toHaveLength(1);
+    expect(comments[0]?.path).toBe('src/api/payments.ts');
+  });
+
+  it('keeps every finding that names a real file, whatever its severity', () => {
+    const comments = inlineComments([
+      finding({ severity: 'security', file: 'a.ts' }),
+      finding({ severity: 'must', file: 'b.ts' }),
+      finding({ severity: 'should', file: 'c.ts' }),
+    ]);
+
+    expect(comments.map((comment) => comment.path)).toEqual(['a.ts', 'b.ts', 'c.ts']);
+  });
+
+  it('returns nothing rather than throwing when every finding is about the PR itself', () => {
+    expect(inlineComments([finding({ file: '(gate)' }), finding({ file: '(task)' })])).toEqual([]);
+  });
+});
+
+describe('unanchoredFindings', () => {
+  it('is the exact complement of what inlineComments keeps, so nothing falls between them', () => {
+    // The two are only safe as a pair. A finding in neither list is one the PR never hears about.
+    const findings = [
+      finding({ file: '(gate)' }),
+      finding({ file: 'src/a.ts' }),
+      finding({ file: '(task)' }),
+    ];
+
+    expect(inlineComments(findings).length + unanchoredFindings(findings).length).toBe(findings.length);
+    expect(unanchoredFindings(findings).map((entry) => entry.file)).toEqual(['(gate)', '(task)']);
   });
 });

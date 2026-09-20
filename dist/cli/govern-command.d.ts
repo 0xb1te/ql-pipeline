@@ -1,4 +1,4 @@
-import type { PullRequestInfo } from '../shared/github-client.js';
+import type { PullRequestInfo, ReviewComment } from '../shared/github-client.js';
 import type { Logger } from '../shared/logger.js';
 import { type AgentProvider, type Finding, type GateOutcome } from '../shared/types.js';
 import { readSprintTasks, type SprintTaskList } from '../notifier/sprint-tasks.js';
@@ -39,6 +39,21 @@ export declare function readGateReports(reportsDir: string, reader?: {
  * the only defensible severity for it.
  */
 export declare function taskProvenanceFindings(pr: Pick<PullRequestInfo, 'number' | 'headRef'>, logger: Pick<Logger, 'info' | 'warn'>, env?: NodeJS.ProcessEnv, readTasks?: (credentials: Parameters<typeof readSprintTasks>[0], env?: NodeJS.ProcessEnv) => Promise<SprintTaskList>): Promise<Finding[]>;
+/**
+ * The whole request-changes review: the body, and the comments GitHub will actually accept.
+ *
+ * One function rather than two calls, because the two have to agree and once did not. A `must`
+ * finding on a pseudo-path - which is what every failed *required* gate is - was sent to
+ * `requestChangesWithComments` unfiltered and 422'd the run that existed to explain it. The filter
+ * had been written, for the approval path, and the blocking path simply did not use it.
+ *
+ * Returning both together means the findings left out of `comments` are reported in `summary` by
+ * construction, rather than by a caller remembering to pass them.
+ */
+export declare function complaintReview(findings: readonly Finding[], attemptNumber: number, maxFixAttempts: number): {
+    readonly summary: string;
+    readonly comments: readonly ReviewComment[];
+};
 /**
  * The pipeline check: everything after the gates. Runs even when a gate
  * job failed, because a broken build is a finding the fix agent can repair

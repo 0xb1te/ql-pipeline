@@ -49,6 +49,32 @@ signals:
         via: direct-call
         because: combines every stage's reports into one outcome list, test before build
 
+  - signal: complaintReview
+    intent: >
+      The whole request-changes review - the body, and the comments GitHub will actually accept.
+      One function rather than two calls, because the two have to agree and once did not. A `must`
+      finding on a pseudo-path, which is what every failed required gate is, was sent to
+      requestChangesWithComments unfiltered and 422'd the run that existed to explain it. The filter
+      had been written, for the approval path, and the blocking path simply did not use it.
+      Returning both together means the findings left out of the comments are reported in the
+      summary by construction rather than by a caller remembering to pass them.
+    accepts: "readonly Finding[], attemptNumber, maxFixAttempts"
+    returns: "summary and comments"
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent:
+      - to: fix.fixer.complaint#formatComplaintSummary
+        via: direct-call
+        because: renders the body, including in full the findings that have nowhere to point
+      - to: merge.merger.merger#inlineComments
+        via: direct-call
+        because: the one rule for which findings GitHub will accept a comment on
+      - to: merge.merger.merger#unanchoredFindings
+        via: direct-call
+        because: the complement, handed to the body so nothing is dropped
+
   - signal: runGovern
     intent: >
       Runs the pipeline check end to end: routes the PR, checks for protected-path edits, reads
@@ -142,12 +168,9 @@ signals:
       - to: merge.merger.merger#executeMergeDecision
         via: direct-call
         because: carries out a MERGE verdict against GitHub
-      - to: merge.merger.merger#findingToReviewComment
+      - to: entrypoint.cli.governCommand#complaintReview
         via: direct-call
-        because: renders each blocking finding as a request-changes review comment
-      - to: fix.fixer.complaint#formatComplaintSummary
-        via: direct-call
-        because: renders the top-level body of the request-changes review posted for a FIX or BLOCK verdict
+        because: builds the whole request-changes review at once, so the body and the comments cannot disagree about which findings were reported
       - to: fix.fixer.fixer#runFix
         via: direct-call
         because: runs the automated fix attempt for a FIX verdict on a non-fork PR when the provider is still cursor

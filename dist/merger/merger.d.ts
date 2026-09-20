@@ -16,6 +16,21 @@ export declare function findingToReviewComment(finding: Finding): ReviewComment;
  * in a repository is named `(gate)`, and git would have to be talked into it if one were.
  */
 export declare function isDiffAnchored(finding: Finding): boolean;
+/**
+ * The findings that can be inline comments, as inline comments.
+ *
+ * Both review paths post comments and both must apply the same rule, so the rule lives here rather
+ * than at each call site. It was written for the approval path and not applied to the blocking one,
+ * which is how a failed *required* gate - `must` severity, pseudo-path `(gate)` - reached
+ * `requestChangesWithComments` and 422'd the run it was supposed to be explaining. That is the worst
+ * possible moment to throw: the complaint is the only thing the pull request was going to get.
+ *
+ * Callers are responsible for reporting what this drops. It returns comments, not a verdict, and a
+ * finding silently missing from both the inline comments and the body would be worse than the 422.
+ */
+export declare function inlineComments(findings: readonly Finding[]): ReviewComment[];
+/** The findings this pull request cannot carry as inline comments. */
+export declare function unanchoredFindings(findings: readonly Finding[]): Finding[];
 export type MergeExecution = {
     readonly kind: 'merged';
     readonly approval: ApprovalOutcome;

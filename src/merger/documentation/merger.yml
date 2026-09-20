@@ -27,9 +27,7 @@ signals:
     returns: ReviewComment
     pure: true
     afferent:
-      - from: merge.merger.merger#executeMergeDecision
-        via: direct-call
-      - from: entrypoint.cli.governCommand#runGovern
+      - from: merge.merger.merger#inlineComments
         via: direct-call
     efferent: []
 
@@ -47,9 +45,55 @@ signals:
     returns: boolean
     pure: true
     afferent:
-      - from: merge.merger.merger#executeMergeDecision
+      - from: merge.merger.merger#inlineComments
+        via: direct-call
+      - from: merge.merger.merger#unanchoredFindings
         via: direct-call
     efferent: []
+
+  - signal: inlineComments
+    intent: >
+      The findings that can be inline comments, as inline comments. Both review paths post comments
+      and both must apply the same rule, so the rule lives here rather than at each call site. It
+      was written for the approval path and not applied to the blocking one, which is how a failed
+      required gate - `must` severity, pseudo-path `(gate)` - reached requestChangesWithComments and
+      422'd the run it was supposed to be explaining. That is the worst possible moment to throw,
+      because the complaint is the only thing the pull request was going to get. Callers are
+      responsible for reporting what this drops; it returns comments rather than a verdict, and a
+      finding missing from both the comments and the body would be worse than the 422.
+    accepts: "readonly Finding[]"
+    returns: "ReviewComment[]"
+    pure: true
+    afferent:
+      - from: merge.merger.merger#executeMergeDecision
+        via: direct-call
+      - from: entrypoint.cli.governCommand#complaintReview
+        via: direct-call
+    efferent:
+      - to: merge.merger.merger#isDiffAnchored
+        via: direct-call
+        because: the one rule for whether GitHub will accept a comment on this finding's path
+      - to: merge.merger.merger#findingToReviewComment
+        via: direct-call
+        because: renders each surviving finding as the review comment it will be posted as
+
+  - signal: unanchoredFindings
+    intent: >
+      The findings this pull request cannot carry as inline comments, so a caller can report them
+      somewhere a reader will still see. Exactly the complement of inlineComments - a finding in
+      neither is one the pull request never mentions at all.
+    accepts: "readonly Finding[]"
+    returns: "Finding[]"
+    pure: true
+    afferent:
+      - from: merge.merger.merger#executeMergeDecision
+        via: direct-call
+      - from: entrypoint.cli.governCommand#complaintReview
+        via: direct-call
+    efferent:
+      - to: merge.merger.merger#isDiffAnchored
+        via: direct-call
+        because: the same rule, read the other way round
 
   - signal: isSelfApprovalRefusal
     intent: >

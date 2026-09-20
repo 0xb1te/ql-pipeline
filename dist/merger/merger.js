@@ -26,6 +26,27 @@ export function isDiffAnchored(finding) {
     return !/^\(.+\)$/.test(finding.file);
 }
 /**
+ * The findings that can be inline comments, as inline comments.
+ *
+ * Both review paths post comments and both must apply the same rule, so the rule lives here rather
+ * than at each call site. It was written for the approval path and not applied to the blocking one,
+ * which is how a failed *required* gate - `must` severity, pseudo-path `(gate)` - reached
+ * `requestChangesWithComments` and 422'd the run it was supposed to be explaining. That is the worst
+ * possible moment to throw: the complaint is the only thing the pull request was going to get.
+ *
+ * Callers are responsible for reporting what this drops. It returns comments, not a verdict, and a
+ * finding silently missing from both the inline comments and the body would be worse than the 422.
+ */
+// @signal inlineComments
+export function inlineComments(findings) {
+    return findings.filter(isDiffAnchored).map(findingToReviewComment);
+}
+/** The findings this pull request cannot carry as inline comments. */
+// @signal unanchoredFindings
+export function unanchoredFindings(findings) {
+    return findings.filter((finding) => !isDiffAnchored(finding));
+}
+/**
  * Renders the advisory findings that have no line to sit on as one ordinary pull-request comment.
  *
  * They are still reported, just not as inline comments - a finding about the pull request as a
@@ -145,9 +166,9 @@ export async function executeMergeDecision(client, pr, advisoryFindings, mergeCo
     // Split before approving, not after: a finding with a pseudo-path sent as an inline comment is
     // a 422 that recordApproval rethrows, and an advisory finding must never cost the approval it
     // was riding along on.
-    const comments = advisoryFindings.filter(isDiffAnchored).map(findingToReviewComment);
+    const comments = inlineComments(advisoryFindings);
     const approval = await recordApproval(client, pr, comments);
-    const unanchored = advisoryFindings.filter((finding) => !isDiffAnchored(finding));
+    const unanchored = unanchoredFindings(advisoryFindings);
     if (unanchored.length > 0) {
         await client.postComment(pr, formatUnanchoredAdvisories(unanchored));
     }

@@ -6,7 +6,7 @@ import * as core from '@actions/core';
 import { countFixAttempts } from '../fixer/attempt-counter.js';
 import { formatComplaintSummary } from '../fixer/complaint.js';
 import { runFix } from '../fixer/fixer.js';
-import { executeMergeDecision, findingToReviewComment, recordVerdictLabel, NEEDS_HUMAN_LABEL, } from '../merger/merger.js';
+import { executeMergeDecision, inlineComments, recordVerdictLabel, unanchoredFindings, NEEDS_HUMAN_LABEL, } from '../merger/merger.js';
 import { createOpenAiCompatibleReviewer, readAgentApiKeyFromEnv, } from '../reviewer/openai-compatible-runner.js';
 import { runReview, standardsBudgetFor } from '../reviewer/reviewer.js';
 import { dedupeFindings, planReviewPasses } from '../reviewer/review-passes.js';
@@ -113,6 +113,24 @@ export async function taskProvenanceFindings(pr, logger, env = process.env, read
     logger.info(`task: none - ${provenance.reason}`);
     const finding = taskProvenanceFinding(provenance);
     return finding === null ? [] : [finding];
+}
+/**
+ * The whole request-changes review: the body, and the comments GitHub will actually accept.
+ *
+ * One function rather than two calls, because the two have to agree and once did not. A `must`
+ * finding on a pseudo-path - which is what every failed *required* gate is - was sent to
+ * `requestChangesWithComments` unfiltered and 422'd the run that existed to explain it. The filter
+ * had been written, for the approval path, and the blocking path simply did not use it.
+ *
+ * Returning both together means the findings left out of `comments` are reported in `summary` by
+ * construction, rather than by a caller remembering to pass them.
+ */
+// @signal complaintReview
+export function complaintReview(findings, attemptNumber, maxFixAttempts) {
+    return {
+        summary: formatComplaintSummary(findings, attemptNumber, maxFixAttempts, unanchoredFindings(findings)),
+        comments: inlineComments(findings),
+    };
 }
 async function escalateToHuman(client, pr, logger, reason, comment) {
     logger.error(reason);
@@ -433,8 +451,8 @@ export async function runGovern(reportsDir) {
     }
     // FIX and BLOCK both mean something is wrong; post the complaint either
     // way so a human can see exactly what, without digging through CI logs.
-    const summary = formatComplaintSummary(decision.findings, attemptNumber, config.fixer.maxFixAttempts);
-    const findingThreads = await client.requestChangesWithComments(pr, summary, decision.findings.map(findingToReviewComment));
+    const { summary, comments } = complaintReview(decision.findings, attemptNumber, config.fixer.maxFixAttempts);
+    const findingThreads = await client.requestChangesWithComments(pr, summary, comments);
     /**
      * Answers every thread this review just opened, once the run knows what it did about them.
      *

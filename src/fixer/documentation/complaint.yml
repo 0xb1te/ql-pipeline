@@ -37,12 +37,18 @@ signals:
         because: renders the COMPLAINT block the rest of the template is substituted around
 
   - signal: formatComplaintSummary
-    intent: Renders the top-level body of the request-changes review, naming how many issues were found and whether another fix attempt will follow.
-    accepts: "readonly Finding[], attemptNumber, maxAttempts"
+    intent: >
+      Renders the top-level body of the request-changes review, naming how many issues were found
+      and whether another fix attempt will follow. The unanchored findings are rendered in full here
+      because this body is the only place they can appear - a finding about the pull request itself,
+      most often a failed gate, carries a pseudo-path GitHub will not accept an inline comment on,
+      and unlike the approval path a blocking review posts one message. The count stays the count of
+      everything; it answers how much is wrong, not how much fitted in a margin.
+    accepts: "readonly Finding[], attemptNumber, maxAttempts, readonly Finding[]"
     returns: string
     pure: true
     afferent:
-      - from: entrypoint.cli.governCommand#runGovern
+      - from: entrypoint.cli.governCommand#complaintReview
         via: direct-call
     efferent: []
 

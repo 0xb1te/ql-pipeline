@@ -8,8 +8,9 @@ import { formatComplaintSummary } from '../fixer/complaint.js';
 import { runFix } from '../fixer/fixer.js';
 import {
   executeMergeDecision,
-  findingToReviewComment,
+  inlineComments,
   recordVerdictLabel,
+  unanchoredFindings,
   NEEDS_HUMAN_LABEL,
 } from '../merger/merger.js';
 import {
@@ -42,7 +43,7 @@ import {
   type StandardsCoverage,
 } from '../shared/audit-summary.js';
 import { mergeGateReports, parseGateReport, type GateReport } from '../shared/gate-report.js';
-import type { GithubClient, PullRequestInfo } from '../shared/github-client.js';
+import type { GithubClient, PullRequestInfo, ReviewComment } from '../shared/github-client.js';
 import type { Logger } from '../shared/logger.js';
 import { AREAS, type AgentProvider, type Finding, type GateOutcome, type PipelineConfig } from '../shared/types.js';
 import { replyForFinding, type FixAttemptOutcome } from '../reviewer/finding-reply.js';
@@ -168,6 +169,29 @@ export async function taskProvenanceFindings(
   logger.info(`task: none - ${provenance.reason}`);
   const finding = taskProvenanceFinding(provenance);
   return finding === null ? [] : [finding];
+}
+
+/**
+ * The whole request-changes review: the body, and the comments GitHub will actually accept.
+ *
+ * One function rather than two calls, because the two have to agree and once did not. A `must`
+ * finding on a pseudo-path - which is what every failed *required* gate is - was sent to
+ * `requestChangesWithComments` unfiltered and 422'd the run that existed to explain it. The filter
+ * had been written, for the approval path, and the blocking path simply did not use it.
+ *
+ * Returning both together means the findings left out of `comments` are reported in `summary` by
+ * construction, rather than by a caller remembering to pass them.
+ */
+// @signal complaintReview
+export function complaintReview(
+  findings: readonly Finding[],
+  attemptNumber: number,
+  maxFixAttempts: number,
+): { readonly summary: string; readonly comments: readonly ReviewComment[] } {
+  return {
+    summary: formatComplaintSummary(findings, attemptNumber, maxFixAttempts, unanchoredFindings(findings)),
+    comments: inlineComments(findings),
+  };
 }
 
 async function escalateToHuman(
@@ -579,12 +603,8 @@ export async function runGovern(reportsDir: string): Promise<void> {
 
   // FIX and BLOCK both mean something is wrong; post the complaint either
   // way so a human can see exactly what, without digging through CI logs.
-  const summary = formatComplaintSummary(decision.findings, attemptNumber, config.fixer.maxFixAttempts);
-  const findingThreads = await client.requestChangesWithComments(
-    pr,
-    summary,
-    decision.findings.map(findingToReviewComment),
-  );
+  const { summary, comments } = complaintReview(decision.findings, attemptNumber, config.fixer.maxFixAttempts);
+  const findingThreads = await client.requestChangesWithComments(pr, summary, comments);
 
   /**
    * Answers every thread this review just opened, once the run knows what it did about them.

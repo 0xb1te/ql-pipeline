@@ -2,6 +2,20 @@ import type { GithubClient, PullRequestInfo, ReviewComment } from '../shared/git
 import type { Finding, MergeConfig } from '../shared/types.js';
 /** Renders a `should`-severity finding as an advisory PR review comment. */
 export declare function findingToReviewComment(finding: Finding): ReviewComment;
+/**
+ * Whether a finding points at a line GitHub will accept an inline review comment on.
+ *
+ * Not every finding is about a line of code. A failed gate carries the pseudo-path `(gate)` and a
+ * pull request that answers to no ql-sprint task carries `(task)`, because what they are about is
+ * the pull request itself. GitHub rejects a review comment whose path is not in the diff with a
+ * 422, and `recordApproval` deliberately rethrows anything that is not the self-approval refusal
+ * — so one advisory finding with nowhere to point would fail a run that had otherwise passed,
+ * which is the exact opposite of what `should` severity means.
+ *
+ * The parenthesised spelling is the marker because it cannot collide with a real path - no file
+ * in a repository is named `(gate)`, and git would have to be talked into it if one were.
+ */
+export declare function isDiffAnchored(finding: Finding): boolean;
 export type MergeExecution = {
     readonly kind: 'merged';
     readonly approval: ApprovalOutcome;

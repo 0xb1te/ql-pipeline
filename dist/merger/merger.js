@@ -9,6 +9,42 @@ export function findingToReviewComment(finding) {
     };
 }
 /**
+ * Whether a finding points at a line GitHub will accept an inline review comment on.
+ *
+ * Not every finding is about a line of code. A failed gate carries the pseudo-path `(gate)` and a
+ * pull request that answers to no ql-sprint task carries `(task)`, because what they are about is
+ * the pull request itself. GitHub rejects a review comment whose path is not in the diff with a
+ * 422, and `recordApproval` deliberately rethrows anything that is not the self-approval refusal
+ * — so one advisory finding with nowhere to point would fail a run that had otherwise passed,
+ * which is the exact opposite of what `should` severity means.
+ *
+ * The parenthesised spelling is the marker because it cannot collide with a real path - no file
+ * in a repository is named `(gate)`, and git would have to be talked into it if one were.
+ */
+// @signal isDiffAnchored
+export function isDiffAnchored(finding) {
+    return !/^\(.+\)$/.test(finding.file);
+}
+/**
+ * Renders the advisory findings that have no line to sit on as one ordinary pull-request comment.
+ *
+ * They are still reported, just not as inline comments - a finding about the pull request as a
+ * whole reads better at the bottom of it than pinned to an arbitrary line anyway.
+ */
+function formatUnanchoredAdvisories(findings) {
+    const rendered = findings.map((finding) => {
+        const suggestion = finding.suggestedFix !== null ? `\n\nSuggested fix: ${finding.suggestedFix}` : '';
+        return `**[${finding.severity}] ${finding.rule}**\n\n${finding.problem}${suggestion}`;
+    });
+    return [
+        '### Advisory findings',
+        '',
+        'About this pull request rather than about any line in it. None of them blocked the merge.',
+        '',
+        rendered.join('\n\n---\n\n'),
+    ].join('\n');
+}
+/**
  * Whether GitHub refused a review because the token's owner opened the pull request.
  *
  * Matched on the status *and* the message: 422 alone covers several unrelated validation
@@ -106,8 +142,15 @@ export async function executeMergeDecision(client, pr, advisoryFindings, mergeCo
     if (currentSha !== pr.headSha) {
         return { kind: 'stale', reviewedSha: pr.headSha, currentSha };
     }
-    const comments = advisoryFindings.map(findingToReviewComment);
+    // Split before approving, not after: a finding with a pseudo-path sent as an inline comment is
+    // a 422 that recordApproval rethrows, and an advisory finding must never cost the approval it
+    // was riding along on.
+    const comments = advisoryFindings.filter(isDiffAnchored).map(findingToReviewComment);
     const approval = await recordApproval(client, pr, comments);
+    const unanchored = advisoryFindings.filter((finding) => !isDiffAnchored(finding));
+    if (unanchored.length > 0) {
+        await client.postComment(pr, formatUnanchoredAdvisories(unanchored));
+    }
     // Human-approval mode stops here, one call short of merging. The approval
     // and the advisory comments still land, so the PR carries the full review —
     // but the merge itself is a person's to make. Deliberately placed after the

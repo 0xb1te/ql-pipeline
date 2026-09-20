@@ -33,6 +33,24 @@ signals:
         via: direct-call
     efferent: []
 
+  - signal: isDiffAnchored
+    intent: >
+      Whether a finding points at a line GitHub will accept an inline review comment on. Not every
+      finding is about a line of code - a failed gate carries the pseudo-path `(gate)` and a pull
+      request that answers to no ql-sprint task carries `(task)`, because what they are about is
+      the pull request itself. GitHub rejects a review comment whose path is not in the diff with a
+      422, and isSelfApprovalRefusal deliberately rethrows it, so one advisory finding with nowhere
+      to point would fail a run that had otherwise passed - the exact opposite of what `should`
+      severity means. The parenthesised spelling is the marker because it cannot collide with a
+      real path.
+    accepts: Finding
+    returns: boolean
+    pure: true
+    afferent:
+      - from: merge.merger.merger#executeMergeDecision
+        via: direct-call
+    efferent: []
+
   - signal: isSelfApprovalRefusal
     intent: >
       Whether GitHub refused a review because the token's owner opened the pull request. Matched
@@ -88,6 +106,9 @@ signals:
       - to: merge.merger.merger#findingToReviewComment
         via: direct-call
         because: renders each advisory finding as a review comment attached to the verdict
+      - to: merge.merger.merger#isDiffAnchored
+        via: direct-call
+        because: a finding about the pull request rather than a line in it is posted as an ordinary comment, because sent inline it is a 422 that would cost the approval it was riding along on
       - to: merge.merger.merger#isSelfApprovalRefusal
         via: direct-call
         because: only that one refusal may degrade an approval to a comment; everything else rethrows
@@ -96,6 +117,6 @@ signals:
         because: a run that approves has to take off an earlier escalation, or the pull request carries both verdicts at once
       - to: shared.core.githubClient#createGithubClient
         via: di
-        because: getHeadSha/approveWithComments/commentReview/addLabels/mergePullRequest/deleteBranch are whatever createGithubClient's Octokit-backed implementation returns
+        because: getHeadSha/approveWithComments/commentReview/postComment/addLabels/mergePullRequest/deleteBranch are whatever createGithubClient's Octokit-backed implementation returns
 
 revision: 2026-09-20

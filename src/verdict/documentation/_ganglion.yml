@@ -7,7 +7,8 @@ path: src/verdict
 role: >
   Turns gate outcomes and review findings into one MERGE/FIX/BLOCK decision - `should`-severity
   findings never block, and a `must`/`security` finding blocks unless every one is auto-fixable
-  and attempts remain.
+  and attempts remain. Also holds the pure checks that manufacture findings rather than weigh them
+  - a failed gate, and a pull request that answers to no ql-sprint task.
 
 upstream:
   - entrypoint.cli
@@ -20,5 +21,8 @@ neurons:
   - id: verdict.decision.requiredChecks
     file: requiredChecks.yml
     unit: ../required-checks.ts
+  - id: verdict.decision.taskProvenance
+    file: taskProvenance.yml
+    unit: ../task-provenance.ts
 
-revision: 2026-08-30
+revision: 2026-09-20

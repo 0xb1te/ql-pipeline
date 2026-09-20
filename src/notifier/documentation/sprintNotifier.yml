@@ -61,7 +61,7 @@ signals:
       - from: entrypoint.cli.governCommand#runGovern
         via: direct-call
     efferent:
-      - to: standards.house.houseCredentials#proxyFetchFromEnv
+      - to: standards.reader.houseCredentials#proxyFetchFromEnv
         via: direct-call
         because: the auth hop and the sprint hop each carry the secret of their own exposure, never one shared
 

@@ -1,0 +1,26 @@
+cns: "1.0"
+ganglion: notify.sprint
+region: notify
+layer: sprint
+path: src/notifier
+
+role: >
+  Everything this pipeline says to, and asks of, ql-sprint - it posts what a governance run
+  decided so the verdict reaches the operator in Telegram, and reads the tracked task list so a
+  run can tell whether the pull request in front of it is work anybody planned.
+
+upstream:
+  - entrypoint.cli
+downstream:
+  - standards.reader
+  - verdict.decision
+
+neurons:
+  - id: notify.sprint.sprintNotifier
+    file: sprintNotifier.yml
+    unit: ../sprint-notifier.ts
+  - id: notify.sprint.sprintTasks
+    file: sprintTasks.yml
+    unit: ../sprint-tasks.ts
+
+revision: 2026-09-20

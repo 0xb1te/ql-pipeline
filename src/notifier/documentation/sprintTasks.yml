@@ -1,0 +1,70 @@
+cns: "1.0"
+neuron: sprintTasks
+kind: function
+region: notify
+layer: sprint
+unit: src/notifier/sprint-tasks.ts
+
+responsibility: >
+  Reads the tasks ql-sprint is tracking, so a governance run can tell whether the pull request in
+  front of it is one somebody planned or one somebody invented.
+
+owns:
+  - >
+    The distinction between "ql-sprint returned no tasks" and "ql-sprint could not be asked". They
+    collapse into the same empty array if you let them, and the second must never be read as
+    evidence that a pull request has no task
+
+invariants:
+  - >
+    It fails open, and returns a result rather than throwing so the caller cannot forget to. Every
+    way this can fail - no network, a refused token, a 503, a body that is not the shape promised -
+    means this run does not know whether the pull request has a task. None of them means it has
+    none
+  - >
+    The same hop the notifier makes, in the other direction, and deliberately the same one - a
+    freshly minted client_credentials token for the route's JWT guard, and the sprint exposure's
+    own ql-proxy secret for the edge in front of it. A second way to reach ql-sprint would be a
+    second set of credentials to keep in step
+
+excludes:
+  - >
+    Judging what it read. Whether a pull request has a task is decided by
+    verdict.decision.taskProvenance, from the list this returns
+  - >
+    The rest of ql-sprint's TaskRecord. Three fields out of the twenty it stores are read; the
+    others belong to the orchestrator and would only be a shape to keep in step for no gain
+
+receptors: []
+
+effectors:
+  - kind: http-out
+    target: ql-sprint's GET /v1/tasks, through a protected ql-proxy exposure
+    signal: readSprintTasks
+    effect: >
+      reads the tracked task list, carrying two protections that do not replace each other - the
+      sprint hop's own edge secret says who may reach the address, and a freshly minted ql-auth
+      bearer token says what they may do once there
+
+signals:
+  - signal: readSprintTasks
+    intent: >
+      Reads ql-sprint's GET /v1/tasks and narrows each record to the three fields the decision
+      needs. A row without a string id is dropped rather than failing the read - ql-sprint owns
+      that record and may grow it, and one malformed entry should not blind the check to the rest.
+      A body that is not a tasks array at all is a different matter, and fails - that is not a list
+      with a bad row in it, it is not a list.
+    accepts: "SprintNotifierCredentials, env"
+    returns: "Promise<SprintTaskList>"
+    afferent:
+      - from: entrypoint.cli.governCommand#taskProvenanceFindings
+        via: direct-call
+    efferent:
+      - to: standards.reader.houseCredentials#proxyFetchFromEnv
+        via: direct-call
+        because: the auth hop and the sprint hop each carry the secret of their own exposure, never one shared
+
+provenance:
+  - docs/integration-guide.md
+
+revision: 2026-09-20

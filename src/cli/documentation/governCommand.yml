@@ -151,6 +151,44 @@ signals:
       - to: fix.fixer.fixer#runFix
         via: direct-call
         because: runs the automated fix attempt for a FIX verdict on a non-fork PR when the provider is still cursor
+      - to: entrypoint.cli.governCommand#taskProvenanceFindings
+        via: direct-call
+        because: asks whether anybody planned this pull request, after the review rather than before it - the answer is advisory and must not stand between a PR and the review that judges its code
+      - to: notify.sprint.sprintNotifier#sprintNotifierCredentialsFromEnv
+        via: direct-call
+        because: a fleet that publishes no ql-sprint has nobody to tell and nothing to ask, which is ordinary rather than a misconfiguration
+      - to: notify.sprint.sprintNotifier#createSprintNotifier
+        via: direct-call
+        because: posts what this run decided so the verdict reaches the operator in Telegram - best-effort, because a review that has already landed must not be undone by the messenger
+
+  - signal: taskProvenanceFindings
+    intent: >
+      Asks ql-sprint whether this pull request is a task anybody planned, and turns a "no" into one
+      advisory finding. Three silences, and only one of them is a finding. No ql-sprint configured
+      at all says nothing, not even a log line - a repository governed by a fleet that runs no
+      orchestrator has no sprint board to be missing from, exactly as it has no Telegram to be
+      notified in. ql-sprint configured but unreachable warns and raises nothing, because absence
+      of evidence is not evidence and a network that was down must never be reported on a pull
+      request as "nobody asked for this". Only ql-sprint answering, and knowing nothing about this
+      pull request, is the finding.
+    accepts: "pr, logger, env?, readTasks?"
+    returns: "Promise<Finding[]>"
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent:
+      - to: notify.sprint.sprintNotifier#sprintNotifierCredentialsFromEnv
+        via: direct-call
+        because: reuses the credentials the notifier already needs rather than inventing a second way to reach ql-sprint
+      - to: notify.sprint.sprintTasks#readSprintTasks
+        via: direct-call
+        because: reads the tracked task list, failing open so an unreachable ql-sprint cannot cost a review that otherwise passed
+      - to: verdict.decision.taskProvenance#decideTaskProvenance
+        via: direct-call
+        because: the pure decision that matches a pull request to a task, so the question is answerable in a test without a network
+      - to: verdict.decision.taskProvenance#taskProvenanceFinding
+        via: direct-call
+        because: renders a no-task answer as the `should` finding that rides along on a MERGE as an advisory comment
 
   - signal: shouldSkipCursorFixer
     intent: >
@@ -164,4 +202,4 @@ signals:
         via: direct-call
     efferent: []
 
-revision: 2026-09-13
+revision: 2026-09-20

@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { readGateReports, shouldSkipCursorFixer } from '../../src/cli/govern-command.js';
+import { describe, expect, it, vi, type Mock } from 'vitest';
+import { readGateReports, shouldSkipCursorFixer, taskProvenanceFindings } from '../../src/cli/govern-command.js';
 import { serializeGateReport } from '../../src/shared/gate-report.js';
 
 function reader(files: Record<string, string>): {
@@ -84,5 +84,71 @@ describe('readGateReports', () => {
     if (!result.ok) {
       expect(result.reason).toContain('test.json');
     }
+  });
+});
+
+describe('taskProvenanceFindings', () => {
+  const SPRINT_ENV = {
+    QL_SPRINT_URL: 'https://sprint.example.com',
+    QL_AUTH_URL: 'https://auth.example.com',
+    QL_AUTH_CLIENT_ID: 'client-id',
+    QL_AUTH_CLIENT_SECRET: 'client-secret',
+  };
+  const PAGE_ID = '2a7f3c19-4d5e-4f60-9b21-0c8e5a6d7b41';
+  const PR = { number: 44, headRef: 'bugfixes/077-a-comment-cancels-the-verdict' };
+
+  type LogFn = (message: string, context?: Record<string, unknown>) => void;
+
+  function logger(): { info: Mock<LogFn>; warn: Mock<LogFn> } {
+    return { info: vi.fn<LogFn>(), warn: vi.fn<LogFn>() };
+  }
+
+  it('says nothing at all when this fleet runs no ql-sprint', async () => {
+    // Not even a warning: a repository governed by a fleet with no orchestrator has no sprint
+    // board to be missing from, exactly as it has no Telegram to be notified in.
+    const log = logger();
+    const read = vi.fn();
+
+    await expect(taskProvenanceFindings(PR, log, {}, read)).resolves.toEqual([]);
+    expect(read).not.toHaveBeenCalled();
+    expect(log.warn).not.toHaveBeenCalled();
+  });
+
+  it('raises one advisory finding when ql-sprint knows nothing about this PR', async () => {
+    const log = logger();
+    const read = vi.fn(() => Promise.resolve({ ok: true as const, tasks: [] }));
+
+    const findings = await taskProvenanceFindings(PR, log, SPRINT_ENV, read);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({ severity: 'should', rule: 'task#provenance', autoFixable: false });
+  });
+
+  it('raises nothing when ql-sprint owns this PR', async () => {
+    const log = logger();
+    const read = vi.fn(() =>
+      Promise.resolve({ ok: true as const, tasks: [{ id: PAGE_ID, branch: null, prNumber: 44 }] }),
+    );
+
+    await expect(taskProvenanceFindings(PR, log, SPRINT_ENV, read)).resolves.toEqual([]);
+    expect(log.info).toHaveBeenCalledWith(expect.stringContaining(PAGE_ID));
+  });
+
+  it('does not call a PR taskless because ql-sprint could not be reached', async () => {
+    // Absence of evidence is not evidence. An outage that posted "nobody asked for this" on a
+    // pull request would be worse than saying nothing.
+    const log = logger();
+    const read = vi.fn(() => Promise.resolve({ ok: false as const, reason: 'ECONNREFUSED' }));
+
+    await expect(taskProvenanceFindings(PR, log, SPRINT_ENV, read)).resolves.toEqual([]);
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('ECONNREFUSED'));
+  });
+
+  it('never raises a blocking finding, whatever the answer', async () => {
+    const read = vi.fn(() => Promise.resolve({ ok: true as const, tasks: [] }));
+
+    const findings = await taskProvenanceFindings(PR, logger(), SPRINT_ENV, read);
+
+    expect(findings.every((finding) => finding.severity === 'should')).toBe(true);
   });
 });

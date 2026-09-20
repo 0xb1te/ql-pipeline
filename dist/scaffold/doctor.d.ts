@@ -9,6 +9,8 @@ export interface CheckResult {
 export interface DoctorInput {
     readonly callerWorkflowPresent: boolean;
     readonly callerWorkflowReferencesPipeline: boolean;
+    /** The caller workflow's own text, or null when none was found. */
+    readonly callerWorkflowText: string | null;
     readonly configPresent: boolean;
     /** null when the config is absent or unparseable. */
     readonly configError: string | null;

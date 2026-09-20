@@ -18,7 +18,12 @@ effectors: []
 
 signals:
   - signal: runDoctorChecks
-    intent: Runs every doctor check against a DoctorInput snapshot and returns each one's pass/warn/fail status with a suggested fix.
+    intent: >
+      Runs every doctor check against a DoctorInput snapshot and returns each one's pass/warn/fail
+      status with a suggested fix. One of them reads the caller workflow's own concurrency block -
+      a group keyed only by pull request number, with the comment triggers on and cancellation
+      enabled, lets the pipeline's own verdict comment cancel the run posting it, and the marker
+      guard cannot prevent that because concurrency is evaluated before any job starts.
     accepts: DoctorInput
     returns: CheckResult[]
     pure: true

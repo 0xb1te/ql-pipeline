@@ -21,7 +21,15 @@ on:
     types: [created, edited]
 
 concurrency:
-  group: pr-pipeline-${{ github.event.pull_request.number || github.event.issue.number }}
+  # The event belongs in the key as much as the number does. Without it the
+  # pipeline's own verdict comment queues a run in this very group, and
+  # `cancel-in-progress` kills the run that is posting it - concurrency is
+  # evaluated before any job, so the marker guard in `resolve` declines the new
+  # run seconds after it has already killed its parent. What that looks like is a
+  # red `checks / ql-pipeline` on a pull request the engine approved.
+  group: >-
+    pr-pipeline-${{ github.event.pull_request.number || github.event.issue.number }}-${{
+    github.event_name == 'pull_request' && 'commit' || 'comment' }}
   cancel-in-progress: true
 
 jobs:
@@ -51,6 +59,7 @@ The `checks /` prefix is your calling job's id — rename the job and the prefix
 - **The `permissions` block is not optional, and its absence is invisible.** A called workflow can never hold more than its caller, and ql-pipeline's jobs declare `contents`/`pull-requests`/`issues` write - they label PRs, comment, push fix commits and merge. GitHub's default `GITHUB_TOKEN` is read-only, so a caller without that block fails at **startup**: no jobs, no annotation, and no reason exposed through the API or the UI. It reads exactly like a missing secret, and has been misdiagnosed as one more than once. Granting it in the caller also keeps the widening to this one workflow - the alternative, flipping the repository-wide **Settings → Actions → General → Workflow permissions** default, hands write to every other workflow in the repo too.
 - **One thing a caller cannot grant itself:** approving pull requests. **Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests"** is repository-level only, and a MERGE verdict calls the approve API. Without it the pipeline reviews and decides correctly, then fails at the last step.
 - **The `concurrency` block is your responsibility, not ql-pipeline's.** A new commit pushed to a PR should cancel the in-flight run for the old one (including a stale fix-loop attempt) — the reusable workflow doesn't declare this for you since it's a property of *your* workflow, not the called one. Key it on `pull_request.number || issue.number` if you take the comment trigger: the two events describe the same PR with different fields, and a group that reads only the first collapses every comment-triggered run in the repo into one.
+- **Key it on the event as well, or the pipeline cancels itself.** With the comment triggers on, a group keyed only by number also catches the pipeline's *own* verdict comment: posting it queues a run in that group, and `cancel-in-progress` kills the run that was posting. The marker guard cannot prevent it — that guard lives in the `resolve` job, and concurrency is evaluated before any job starts, so the new run is declined seconds after it has already killed its parent. The symptom is a red `checks / ql-pipeline` on a pull request the engine *approved*, because a cancelled check is not a green one. Adding `github.event_name` to the group keeps the intention the block was written for — a new commit supersedes the run for the previous commit — while a comment no longer supersedes a run that is mid-verdict. `ql-pipeline doctor` warns when a caller has the old shape.
 - **Required secret for every job:** `GH_PACKAGES_TOKEN` — a token with read access to `0xb1te/ql-docs` and `0xb1te/ql-auth`. ql-pipeline installs `@0xb1te/house-client` and `@0xb1te/ql-auth-client` directly from those two private repositories, and your repo's `GITHUB_TOKEN` cannot read them: it is scoped to your repository alone. All three jobs install ql-pipeline, so all three need it. The workflow rewrites only those two repository URLs, so the token is never offered to any other `github.com` fetch. A read-only fine-grained PAT is enough.
 - **Secret for the default Cursor provider:** `CURSOR_API_KEY`, used by both the reviewer and the fixer when `agent.provider` is `cursor` (the default). The workflow still installs the Cursor CLI on the runner — the fixer remains Cursor-only even if review uses another endpoint.
 - **Secrets for `agent.provider: openai_compatible`:** `QL_PIPELINE_AGENT_API_KEY` (preferred) or `OPENAI_API_KEY` (fallback). These are bearer tokens for `POST {base_url}/chat/completions`. Never put them in `pipeline.config.yml`. A FIX verdict then escalates to a human instead of running the Cursor fixer.

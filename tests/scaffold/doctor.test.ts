@@ -1,10 +1,40 @@
 import { describe, expect, it } from 'vitest';
 import { runDoctorChecks, worstStatus, type DoctorInput } from '../../src/scaffold/doctor.js';
 
+/** The two lines that turn the comment trigger on, so a test can take them away again. */
+const COMMENT_TRIGGER = `  issue_comment:
+    types: [created, edited]
+`;
+
+/** A caller that takes comment triggers and tells the two kinds of run apart. */
+const CALLER_WITH_SPLIT_GROUP = `on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created, edited]
+
+concurrency:
+  group: pr-pipeline-\${{ github.event.pull_request.number || github.event.issue.number }}-\${{ github.event_name == 'pull_request' && 'commit' || 'comment' }}
+  cancel-in-progress: true
+`;
+
+/** The recipe the integration guide used to document, and the one that self-cancels. */
+const CALLER_WITH_SHARED_GROUP = `on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created, edited]
+
+concurrency:
+  group: pr-pipeline-\${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+`;
+
 function input(overrides: Partial<DoctorInput> = {}): DoctorInput {
   return {
     callerWorkflowPresent: true,
     callerWorkflowReferencesPipeline: true,
+    callerWorkflowText: CALLER_WITH_SPLIT_GROUP,
     configPresent: true,
     configError: null,
     targetBranch: 'main',
@@ -126,5 +156,42 @@ describe('worstStatus', () => {
         { name: 'b', status: 'fail', detail: '' },
       ]),
     ).toBe('fail');
+  });
+});
+
+describe('caller concurrency', () => {
+  it('warns when a comment can cancel the run that wrote it', () => {
+    // The defect. The pipeline posts its verdict, that comment queues a run in the same group,
+    // and `cancel-in-progress` kills the run that was posting — so a pull request the engine
+    // approved shows a red check, because a cancelled check is not a green one.
+    const results = runDoctorChecks(input({ callerWorkflowText: CALLER_WITH_SHARED_GROUP }));
+
+    expect(statusOf(results, 'caller concurrency')).toBe('warn');
+    expect(results.find((r) => r.name === 'caller concurrency')?.fix).toContain('event_name');
+  });
+
+  it('passes once the group tells commit runs from comment runs', () => {
+    expect(statusOf(runDoctorChecks(input()), 'caller concurrency')).toBe('pass');
+  });
+
+  it('says nothing about a caller that takes no comment trigger', () => {
+    // Without the comment triggers the shared group is exactly right, and warning about it would
+    // be advice to break a working workflow.
+    const noComments = CALLER_WITH_SHARED_GROUP.replace(COMMENT_TRIGGER, '');
+
+    expect(statusOf(runDoctorChecks(input({ callerWorkflowText: noComments })), 'caller concurrency')).toBe('pass');
+  });
+
+  it('says nothing about a caller that does not cancel in progress', () => {
+    // Nothing is cancelled, so nothing can cancel the run posting a verdict.
+    const noCancel = CALLER_WITH_SHARED_GROUP.replace('cancel-in-progress: true', 'cancel-in-progress: false');
+
+    expect(statusOf(runDoctorChecks(input({ callerWorkflowText: noCancel })), 'caller concurrency')).toBe('pass');
+  });
+
+  it('does not claim to know about a repo with no caller workflow', () => {
+    const results = runDoctorChecks(input({ callerWorkflowPresent: false, callerWorkflowText: null }));
+
+    expect(statusOf(results, 'caller concurrency')).toBe('warn');
   });
 });

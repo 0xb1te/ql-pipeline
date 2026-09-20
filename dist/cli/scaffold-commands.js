@@ -182,16 +182,19 @@ async function collectDoctorInput(root) {
     const workflowsDir = join(root, '.github', 'workflows');
     let callerWorkflowPresent = false;
     let callerWorkflowReferencesPipeline = false;
+    let callerWorkflowText = null;
     if (existsSync(workflowsDir)) {
         for (const name of readdirSync(workflowsDir).filter((entry) => /\.ya?ml$/.test(entry))) {
             const content = readFileSync(join(workflowsDir, name), 'utf-8');
             if (content.includes('ql-pipeline/.github/workflows/pr-pipeline.yml')) {
                 callerWorkflowPresent = true;
                 callerWorkflowReferencesPipeline = true;
+                callerWorkflowText = content;
                 break;
             }
             if (name === 'pr-governance.yml') {
                 callerWorkflowPresent = true;
+                callerWorkflowText = content;
             }
         }
     }
@@ -231,6 +234,7 @@ async function collectDoctorInput(root) {
     return {
         callerWorkflowPresent,
         callerWorkflowReferencesPipeline,
+        callerWorkflowText,
         configPresent,
         configError,
         targetBranch,

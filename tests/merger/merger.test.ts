@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  isSelfApprovalRefusal,
+  isSelfReviewRefusal,
+  recordComplaint,
+  SELF_REVIEW_NOTE,
   SELF_APPROVAL_NOTE,
   executeMergeDecision,
   findingToReviewComment,
@@ -47,6 +49,7 @@ function fakeClient(headSha = PR.headSha): GithubClient {
     approveWithComments: vi.fn().mockResolvedValue(undefined),
     // Answers with the ids of the comments it created, so govern can reply in those threads.
     requestChangesWithComments: vi.fn().mockResolvedValue([]),
+    commentReviewWithThreads: vi.fn().mockResolvedValue([]),
     replyToReviewComment: vi.fn().mockResolvedValue(undefined),
     listComments: vi.fn().mockResolvedValue([]),
     mergePullRequest: vi.fn().mockResolvedValue(undefined),
@@ -299,16 +302,16 @@ describe('a pull request the pipeline itself opened', () => {
   }
 
   it('recognises the refusal by status and message together', () => {
-    expect(isSelfApprovalRefusal(refusing())).toBe(true);
+    expect(isSelfReviewRefusal(refusing())).toBe(true);
   });
 
   it('does not mistake other 422s for it — they are real errors and must not be swallowed', () => {
-    expect(isSelfApprovalRefusal({ status: 422, message: 'Validation Failed: line must be part of the diff' })).toBe(
+    expect(isSelfReviewRefusal({ status: 422, message: 'Validation Failed: line must be part of the diff' })).toBe(
       false,
     );
-    expect(isSelfApprovalRefusal({ status: 403, message: 'own pull request' })).toBe(false);
-    expect(isSelfApprovalRefusal(new Error('own pull request'))).toBe(false);
-    expect(isSelfApprovalRefusal(null)).toBe(false);
+    expect(isSelfReviewRefusal({ status: 403, message: 'own pull request' })).toBe(false);
+    expect(isSelfReviewRefusal(new Error('own pull request'))).toBe(false);
+    expect(isSelfReviewRefusal(null)).toBe(false);
   });
 
   it('records the verdict as a comment review instead of failing the run', async () => {
@@ -493,5 +496,79 @@ describe('unanchoredFindings', () => {
 
     expect(inlineComments(findings).length + unanchoredFindings(findings).length).toBe(findings.length);
     expect(unanchoredFindings(findings).map((entry) => entry.file)).toEqual(['(gate)', '(task)']);
+  });
+});
+
+describe('recordComplaint', () => {
+  // The message GitHub actually sent, taken from the run that found this:
+  // "Unprocessable Entity: Review Can not request changes on your own pull request".
+  function refusingChanges(): { status: number; message: string } {
+    return { status: 422, message: 'Unprocessable Entity: "Review Can not request changes on your own pull request"' };
+  }
+
+  it('requests changes when GitHub allows it', async () => {
+    const client = fakeClient();
+    client.requestChangesWithComments = vi.fn().mockResolvedValue([11, 12]);
+
+    const result = await recordComplaint(client, PR, 'four findings', []);
+
+    expect(result).toEqual({ threads: [11, 12], outcome: 'changes-requested' });
+    expect(client.commentReviewWithThreads).not.toHaveBeenCalled();
+  });
+
+  it('falls back to a comment review when the token owns the pull request', async () => {
+    // The defect. GitHub refuses both self-reviews - the approving one and the changes-requesting
+    // one - with the same 422, and only the approving half was ever caught. So every FIX and BLOCK
+    // verdict on the maintainer's own pull request threw before posting anything: the check went
+    // red by crashing rather than by deciding, and the findings were never written down.
+    const client = fakeClient();
+    client.requestChangesWithComments = vi.fn().mockRejectedValue(refusingChanges());
+    client.commentReviewWithThreads = vi.fn().mockResolvedValue([21]);
+
+    const result = await recordComplaint(client, PR, 'four findings', []);
+
+    expect(result).toEqual({ threads: [21], outcome: 'self-authored' });
+  });
+
+  it('carries the findings into the fallback, and says why it is not a refusal to approve', async () => {
+    const client = fakeClient();
+    client.requestChangesWithComments = vi.fn().mockRejectedValue(refusingChanges());
+    const comments = [findingToReviewComment(finding())];
+
+    await recordComplaint(client, PR, 'four findings', comments);
+
+    expect(client.commentReviewWithThreads).toHaveBeenCalledWith(
+      PR,
+      `four findings${String.fromCharCode(10)}${String.fromCharCode(10)}${SELF_REVIEW_NOTE}`,
+      comments,
+    );
+  });
+
+  it('says the verdict is unchanged, because the failing check is what blocks the merge', () => {
+    // A reader who sees a comment review where they expected requested changes should not have to
+    // wonder whether the pipeline gave up. It did not: BLOCK and FIX both call core.setFailed.
+    expect(SELF_REVIEW_NOTE).toContain('Nothing about the verdict changes');
+    expect(SELF_REVIEW_NOTE).toContain('required check');
+  });
+
+  it('still hands back threads, so the fix loop can answer what it raised', async () => {
+    const client = fakeClient();
+    client.requestChangesWithComments = vi.fn().mockRejectedValue(refusingChanges());
+    client.commentReviewWithThreads = vi.fn().mockResolvedValue([31, 32, 33]);
+
+    expect((await recordComplaint(client, PR, 'x', [])).threads).toEqual([31, 32, 33]);
+  });
+
+  it('rethrows anything that is not that refusal, rather than posting a comment instead', async () => {
+    // The same discipline recordApproval keeps. A 422 covers several unrelated validation failures,
+    // and swallowing one would turn a real error into a review nobody asked for.
+    const client = fakeClient();
+    client.requestChangesWithComments = vi.fn().mockRejectedValue({
+      status: 422,
+      message: 'Validation Failed: line must be part of the diff',
+    });
+
+    await expect(recordComplaint(client, PR, 'x', [])).rejects.toMatchObject({ status: 422 });
+    expect(client.commentReviewWithThreads).not.toHaveBeenCalled();
   });
 });

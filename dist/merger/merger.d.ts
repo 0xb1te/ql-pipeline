@@ -59,9 +59,31 @@ export type ApprovalOutcome =
  * github-actions[bot], which authors nothing and may approve anything; with it, it reviews as a
  * person, and in a one-maintainer suite that person opened the pull request.
  */
-export declare function isSelfApprovalRefusal(error: unknown): boolean;
+export declare function isSelfReviewRefusal(error: unknown): boolean;
 /** What the comment review says in place of an approval, so the PR still carries the verdict. */
 export declare const SELF_APPROVAL_NOTE: string;
+/** What the comment review says in place of a refusal to approve, so the PR still carries it. */
+export declare const SELF_REVIEW_NOTE: string;
+/**
+ * Posts the complaint, refusing to approve where GitHub permits it and commenting where it does
+ * not.
+ *
+ * The exact shape of recordApproval, and for the exact same reason - which is the point. GitHub
+ * refuses *both* self-reviews, the approving one and the changes-requesting one, with the same 422.
+ * Only the approving half was ever caught, so every FIX and BLOCK verdict on a pull request the
+ * token's owner had opened threw out of `requestChangesWithComments` before posting anything. The
+ * check went red by crashing rather than by deciding: no findings on the pull request, no threads
+ * for the fixer to answer, and a summary comment saying four findings had been made that nobody
+ * could read.
+ *
+ * The threads come back either way, so the fix loop is untouched.
+ */
+export declare function recordComplaint(client: Pick<GithubClient, 'requestChangesWithComments' | 'commentReviewWithThreads'>, pr: Pick<PullRequestInfo, 'owner' | 'repo' | 'number'>, body: string, comments: readonly ReviewComment[]): Promise<{
+    readonly threads: readonly number[];
+    readonly outcome: ComplaintOutcome;
+}>;
+/** How the complaint was recorded on the pull request. */
+export type ComplaintOutcome = 'changes-requested' | 'self-authored';
 /** Label applied instead of merging when `merge.require_human_approval` is on. */
 export declare const READY_TO_MERGE_LABEL = "ready-to-merge";
 /** Label applied when the pipeline stops and asks for a person. */

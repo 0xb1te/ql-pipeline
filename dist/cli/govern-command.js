@@ -6,7 +6,7 @@ import * as core from '@actions/core';
 import { countFixAttempts } from '../fixer/attempt-counter.js';
 import { formatComplaintSummary } from '../fixer/complaint.js';
 import { runFix } from '../fixer/fixer.js';
-import { executeMergeDecision, inlineComments, recordVerdictLabel, unanchoredFindings, NEEDS_HUMAN_LABEL, } from '../merger/merger.js';
+import { executeMergeDecision, inlineComments, recordComplaint, recordVerdictLabel, unanchoredFindings, NEEDS_HUMAN_LABEL, } from '../merger/merger.js';
 import { createOpenAiCompatibleReviewer, readAgentApiKeyFromEnv, } from '../reviewer/openai-compatible-runner.js';
 import { runReview, standardsBudgetFor } from '../reviewer/reviewer.js';
 import { dedupeFindings, planReviewPasses } from '../reviewer/review-passes.js';
@@ -452,7 +452,11 @@ export async function runGovern(reportsDir) {
     // FIX and BLOCK both mean something is wrong; post the complaint either
     // way so a human can see exactly what, without digging through CI logs.
     const { summary, comments } = complaintReview(decision.findings, attemptNumber, config.fixer.maxFixAttempts);
-    const findingThreads = await client.requestChangesWithComments(pr, summary, comments);
+    const complaint = await recordComplaint(client, pr, summary, comments);
+    const findingThreads = complaint.threads;
+    if (complaint.outcome === 'self-authored') {
+        logger.info('recorded the findings as a comment review; GitHub refuses a self-requested change');
+    }
     /**
      * Answers every thread this review just opened, once the run knows what it did about them.
      *

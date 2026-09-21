@@ -79,7 +79,7 @@ The MCP client is the same reasoning: two JSON-RPC methods.
 ## Verification
 
 - `pnpm run typecheck`, `pnpm run lint`, `pnpm run build` — green.
-- `pnpm test` — 640 pre-existing on `main`, 688 on this branch: 48 new tests across 4 files, all passing.
+- `pnpm test` — **718 passing across 55 files**, re-run after merging `origin/main`. 48 of those tests are added here across 4 new files; the rest arrived with #33. (Before that merge it read 640 on `main` and 688 here.)
 - The xlsx reader and plan parser are tested against the **real** committed template from ql-docs, not a hand-written fixture, so the contract is verified end to end.
 - `python validate-harness.py .` diffed against a clean `main` worktree: identical output.
 - `pr-pipeline.yml` parses, and `preview-tester` reads `if: false`, `needs: [resolve, ql-pipeline]`, `runs-on: [self-hosted, ql-proxy]`.

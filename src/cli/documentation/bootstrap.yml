@@ -34,6 +34,8 @@ signals:
         via: direct-call
       - from: entrypoint.cli.governCommand#runGovern
         via: direct-call
+      - from: entrypoint.cli.testPreviewCommand#runTestPreview
+        via: direct-call
     efferent:
       - to: shared.core.config#loadConfig
         via: direct-call

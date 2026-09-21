@@ -42,6 +42,9 @@ Evaluate the diff strictly against the rules **and the engineering standards** a
 - Violations of any `SHOULD` rule (advisory only — never blocking).
 - Hallucination risk in the diff itself: code that calls functions/APIs that don't exist elsewhere in the visible context, or that contradicts a stated invariant.
 - Real security vulnerabilities even if not enumerated in the rules (injection, secrets, auth bypass, unsafe deserialization, etc.).
+- **MCP reachability:** is the feature this PR adds reachable over MCP, and is its MCP surface covered by the test plan? Every application exposes its features over an MCP server so an automated tester can drive them; a feature that ships without one is incomplete. Report it when the diff adds a user-facing capability with no corresponding MCP tool, or adds MCP tools the `MCP Cases` sheet of the task's `testing-plan.xlsx` has no rows for. Read the generated `testing-plan.md` in the task folder for that — it is the diffable rendering of the workbook, and is in the diff when the plan changed.
+  - This is a judgement, which is why it is here. Whether the two required files *exist* is checked structurally before you are asked anything, so do not report a missing `testing-plan.xlsx` or `seed.sql` as a finding — that verdict is already in.
+  - The security shape of that surface is part of it: an MCP server that is on by default, that does not refuse to start on a production signal, or that is given a public route through the devops `edge` service is a `SECURITY` finding, not a style note. The preview URL's only lock is a token meant for showing a demo, and this surface can read every user.
 
 Judge only what this diff actually changes. The standards describe a whole finished stage; a PR is one step. Do not report a standards item as violated merely because the diff does not implement it — report it only when the changed lines actually contradict it.
 

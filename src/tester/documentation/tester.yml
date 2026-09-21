@@ -1,0 +1,102 @@
+cns: "1.0"
+neuron: tester
+kind: function
+region: tester
+layer: preview
+unit: src/tester/tester.ts
+
+responsibility: >
+  Drives every case of a plan against the preview, collects the results in silence, and renders
+  them as findings and one comment once the whole plan has finished.
+
+owns:
+  - >
+    The one-comment rule, and the mapping from a case's blocker/major/minor severity onto the
+    must/should this pipeline's verdict already understands
+
+invariants:
+  - >
+    ONE comment, not a stream, posted at the end - even when the first case fails, and especially
+    then. A per-case comment turns a twenty-case plan into twenty notifications and hands a fix
+    agent twenty prompts for what is usually one root cause. Batching is also what lets a fixer see
+    failures that only make sense together
+  - >
+    A case that throws is a failed case, never a failed run. One broken tool must not cost the
+    other nineteen results
+  - >
+    An unreachable MCP server is a finding about the feature, not an infrastructure hiccup to
+    swallow. A surface an agent cannot reach is a surface nobody can test, and a run that quietly
+    stopped early would report success it did not earn
+  - >
+    Every finding carries the case id, the call, the input, the expectation and what came back. A
+    failure with no reproduction is a complaint, not a finding
+
+excludes:
+  - >
+    Posting. It returns the comment text and the findings; the caller decides where they go, which
+    is what keeps the one-comment rule testable
+  - >
+    Semantic judgement of a response. A model deciding whether an answer "means" the expected thing
+    would make a suite whose verdict changes between runs
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: judgeCase
+    intent: >
+      Whether one case passed, deliberately shallow - the tool answered, and did not set its error
+      flag. Anything cleverer buys flakiness the suite cannot afford.
+    accepts: "testCase, result"
+    returns: CaseOutcome
+    pure: true
+    afferent:
+      - from: tester.preview.tester#runTestPlan
+        via: direct-call
+    efferent: []
+
+  - signal: runTestPlan
+    intent: >
+      Runs every case in order and stays silent throughout, which is the mechanism behind the
+      one-comment rule rather than a politeness. Abandons the run, and records after how many
+      cases, when the server becomes unreachable - there is nothing left to test, and the count is
+      what tells a reader how much of the plan the report actually covers.
+    accepts: "client, cases"
+    returns: "Promise<TesterRun>"
+    afferent:
+      - from: entrypoint.cli.testPreviewCommand#runTestPreview
+        via: direct-call
+    efferent:
+      - to: tester.preview.tester#judgeCase
+        via: direct-call
+        because: separates driving the plan from deciding what a response means, so each is testable alone
+
+  - signal: testerFindings
+    intent: >
+      Every failure as a Finding in the shape the fixer already consumes, so the existing loop
+      picks them up rather than needing a second mechanism. autoFixable is true, unlike the
+      task-artifact findings - a tool returning the wrong thing is exactly what the fix agent is
+      for, and it has the reproduction to work from.
+    accepts: "run, planPath"
+    returns: "readonly Finding[]"
+    pure: true
+    afferent:
+      - from: entrypoint.cli.testPreviewCommand#runTestPreview
+        via: direct-call
+    efferent: []
+
+  - signal: formatTesterComment
+    intent: >
+      The single comment. Passing cases are counted rather than listed: a reader needs to know the
+      plan ran and how much of it held, and twenty green lines push the failures off the screen.
+      Pipes and newlines in a response are escaped, so one bad answer cannot break the table that
+      reports it.
+    accepts: "run, cases, planPath"
+    returns: string
+    pure: true
+    afferent:
+      - from: entrypoint.cli.testPreviewCommand#runTestPreview
+        via: direct-call
+    efferent: []
+
+revision: 2026-09-21

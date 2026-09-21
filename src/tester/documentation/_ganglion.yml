@@ -1,0 +1,30 @@
+cns: "1.0"
+ganglion: tester.preview
+region: tester
+layer: preview
+path: src/tester
+
+role: >
+  Reads a task's MCP test plan, drives every case against the preview a pull request booted, and
+  reports every failure together in one comment. The only region that talks to the application
+  under review rather than about it.
+
+upstream:
+  - entrypoint.cli
+downstream: []
+
+neurons:
+  - id: tester.preview.xlsxReader
+    file: xlsxReader.yml
+    unit: ../xlsx-reader.ts
+  - id: tester.preview.testPlan
+    file: testPlan.yml
+    unit: ../test-plan.ts
+  - id: tester.preview.mcpClient
+    file: mcpClient.yml
+    unit: ../mcp-client.ts
+  - id: tester.preview.tester
+    file: tester.yml
+    unit: ../tester.ts
+
+revision: 2026-09-21

@@ -1,0 +1,52 @@
+cns: "1.0"
+neuron: xlsxReader
+kind: function
+region: tester
+layer: preview
+unit: src/tester/xlsx-reader.ts
+
+responsibility: >
+  Reads the sheets of an .xlsx workbook as rows of strings, and throws on anything it does not
+  understand.
+
+owns:
+  - >
+    The narrow slice of the xlsx format this pipeline needs - a ZIP central-directory walk, raw
+    DEFLATE, the workbook part, its relationships, and the shared string table
+
+invariants:
+  - >
+    It never returns an empty sheet for a file it could not parse. That would turn "the test plan
+    is unreadable" into "the test plan has no cases", and a run reporting success it did not earn
+    is the failure the whole tester exists to prevent
+  - >
+    Cells are placed by their reference, never appended in order. Empty cells are omitted from the
+    XML entirely, so reading positionally would shift every column after the first blank - a
+    silent skew that would map values into the wrong contract columns
+
+excludes:
+  - >
+    Everything in the format that is not a value: styles, charts, merged cells, pivot tables,
+    images. Ignored rather than mishandled, and the scope is stated so nobody later assumes more
+  - >
+    Writing. Nothing in this pipeline edits a workbook; the tester reports and leaves it alone
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: readWorkbook
+    intent: >
+      Every sheet by name, each as rows of strings. Hand-rolled rather than depended on: two parts
+      of one file format do not justify the largest runtime dependency in a repository that has
+      four. Handles zip64, because openpyxl emits it once a workbook grows, and a reader that
+      failed only on large plans would fail exactly when a plan mattered most.
+    accepts: bytes
+    returns: "Map<string, string[][]>"
+    pure: true
+    afferent:
+      - from: tester.preview.testPlan#parseTestPlan
+        via: direct-call
+    efferent: []
+
+revision: 2026-09-21

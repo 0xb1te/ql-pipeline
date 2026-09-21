@@ -78,7 +78,7 @@ on:
         required: false
 
 jobs:
-  # ---------------------------------------------------------------- 0/3 --
+  # ---------------------------------------------------------------- 0/4 --
   # Which pull request is this run about, and should it run at all?
   #
   # A `pull_request` event answers both in its payload. An `issue_comment` —
@@ -190,7 +190,7 @@ jobs:
                 `${isFork ? ' (from a fork: review only, no fix commits)' : ''}, triggered by ${context.eventName}.`,
             );
 
-  # ---------------------------------------------------------------- 1/3 --
+  # ---------------------------------------------------------------- 1/4 --
   test:
     name: test
     needs: resolve
@@ -291,7 +291,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
-  # ---------------------------------------------------------------- 2/3 --
+  # ---------------------------------------------------------------- 2/4 --
   build:
     name: build
     needs: [resolve, test]
@@ -366,7 +366,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
-  # ---------------------------------------------------------------- 3/3 --
+  # ---------------------------------------------------------------- 3/4 --
   ql-pipeline:
     name: ql-pipeline
     needs: [resolve, test, build]
@@ -486,3 +486,103 @@ jobs:
           # Both absent is the ordinary case for a fleet with no ql-sprint, and nothing fails.
           QL_SPRINT_URL: ${{ secrets.QL_SPRINT_URL }}
           QL_SPRINT_PROXY_TOKEN: ${{ secrets.QL_SPRINT_PROXY_TOKEN }}
+
+  # ---------------------------------------------------------------- 4/4 --
+  # DORMANT UNTIL THERE IS A PREVIEW TO TEST.
+  #
+  # This is the last job in the chain: a green pull request with a live preview,
+  # seeded from its own task's seed.sql, driven over MCP so an agent can say what
+  # broke. Everything it needs on this side is built and tested; what is missing
+  # is the job before it. The preview deploy job does not exist yet - its task
+  # ("Deploy a green PR to a temporary URL and print its access token") is still
+  # in Backlog - so this job has nothing to depend on and no stack to reach.
+  #
+  # Rather than ship a job that fails on every run, it is gated off explicitly.
+  # TO ENABLE, when the preview deploy job lands:
+  #   1. add `preview` to `needs` below, and drop `deploy-preview` from `resolve`
+  #      if that is where the flag ends up living;
+  #   2. replace the `if:` with the real condition - it must run only when the
+  #      preview job actually brought a stack up, never merely when it completed;
+  #   3. set QL_PREVIEW_MCP_URL from that job's output;
+  #   4. delete this comment block down to the `if:`.
+  #
+  # `runs-on: [self-hosted, ql-proxy]` is not an optimisation, it is the security
+  # boundary. The job reaches the application's MCP server over the internal
+  # compose network, on the same host as the preview. That surface is never
+  # publicly routed: the preview URL's only lock is a gate token meant for showing
+  # somebody a demo, and a token that opens a demo must not also open a tool that
+  # can read every user. See ql-docs `workflow/flows/app-mcp-surface.md`.
+  preview-tester:
+    name: preview-tester
+    needs: [resolve, ql-pipeline]
+    if: false
+    runs-on: [self-hosted, ql-proxy]
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    env:
+      QL_PIPELINE_PR_NUMBER: ${{ needs.resolve.outputs.number }}
+      QL_PIPELINE_PR_TITLE: ${{ needs.resolve.outputs.title }}
+      QL_PIPELINE_PR_HEAD_REF: ${{ needs.resolve.outputs.head-ref }}
+      QL_PIPELINE_PR_HEAD_SHA: ${{ needs.resolve.outputs.head-sha }}
+      QL_PIPELINE_PR_BASE_REF: ${{ needs.resolve.outputs.base-ref }}
+      QL_PIPELINE_PR_IS_FORK: ${{ needs.resolve.outputs.is-fork }}
+    steps:
+      - name: Checkout PR head branch
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ needs.resolve.outputs.head-repo }}
+          ref: ${{ needs.resolve.outputs.head-ref }}
+          token: ${{ secrets.GH_TOKEN || github.token }}
+
+      - name: Checkout ql-pipeline
+        uses: actions/checkout@v4
+        with:
+          repository: 0xb1te/ql-pipeline
+          ref: ${{ inputs.ql-pipeline-ref }}
+          path: .ql-pipeline
+
+      - name: Hide the ql-pipeline checkout from the repo under review
+        run: echo '/.ql-pipeline/' >> .git/info/exclude
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: .ql-pipeline/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: .ql-pipeline/pnpm-lock.yaml
+
+      - name: Authenticate ql-pipeline's private git dependencies
+        env:
+          GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+        run: |
+          if [ -z "$GH_PACKAGES_TOKEN" ]; then
+            echo "::warning::GH_PACKAGES_TOKEN is not set - installing ql-pipeline will fail to fetch its private git dependencies."
+            exit 0
+          fi
+          for repo in 0xb1te/ql-docs 0xb1te/ql-auth; do
+            git config --global "url.https://x-access-token:$GH_PACKAGES_TOKEN@github.com/$repo.insteadOf" "https://github.com/$repo"
+          done
+
+      - name: Install and build ql-pipeline
+        working-directory: .ql-pipeline
+        run: pnpm install --frozen-lockfile --ignore-workspace && pnpm run build
+
+      # Reads the task folder the branch names, drives every MCP Cases row against
+      # the preview, and posts ONE comment carrying every failure together - even
+      # when the first case fails, and especially then. A per-case comment turns a
+      # twenty-case plan into twenty notifications and hands the fix agent twenty
+      # prompts for what is usually one root cause.
+      - name: Drive the preview over MCP
+        run: node .ql-pipeline/dist/main.js test-preview
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+          PIPELINE_CONFIG_PATH: ${{ inputs.config-path }}
+          # Set from the preview deploy job's output once that job exists. It is an
+          # internal compose address - http://<stack>-backend:<port>/mcp - never the
+          # public preview URL.
+          QL_PREVIEW_MCP_URL: ''

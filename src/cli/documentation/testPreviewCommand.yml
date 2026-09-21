@@ -1,0 +1,86 @@
+cns: "1.0"
+neuron: testPreviewCommand
+kind: function
+region: entrypoint
+layer: cli
+unit: src/cli/test-preview-command.ts
+
+responsibility: >
+  The `test-preview` command: finds the task folder the branch names, drives its MCP cases against
+  the preview the pull request booted, and posts one comment carrying every failure.
+
+owns:
+  - >
+    The name of the variable the preview job publishes its internal MCP address in, and the
+    decision that an absent one is a failure rather than a skip
+
+invariants:
+  - >
+    The MCP server is reached over the preview's internal compose network, never its public URL.
+    The job runs on the same self-hosted host for exactly this reason - a gate token that opens a
+    demo must not also open a tool that can read every user
+  - >
+    Nothing here skips quietly. An unparseable plan, a missing workbook, a task folder that does
+    not exist and an unset endpoint each fail the check and say which one happened. A tester that
+    reports success because it ran nothing is worse than no tester
+  - >
+    Exactly one comment per run, posted after every case has finished
+
+excludes:
+  - >
+    Bringing the preview up, routing it, or tearing it down. This command tests a stack somebody
+    else deployed and owns none of its lifecycle
+  - >
+    Writing results back into the workbook. A CI job that pushes to the branch it is testing
+    invalidates its own run
+
+receptors: []
+effectors:
+  - kind: log
+    target: stdout/stderr, and a GitHub Actions setFailed annotation on a blocking failure
+    effect: the check fails when any blocker case failed, or when the plan could not be read at all
+    signal: runTestPreview
+  - kind: http-out
+    target: the pull request, via the GitHub comments API
+    effect: exactly one comment per run, carrying every failure together once the whole plan has finished
+    signal: runTestPreview
+
+signals:
+  - signal: runTestPreview
+    intent: >
+      The last job in the chain, and the only one that exercises the product rather than reading
+      it. Resolves the plan from the branch, drives it, reports once. Zero declared cases is a
+      quiet success - that is a task saying it has no MCP surface worth driving, which ql-docs
+      makes a distinct statement from a malformed plan.
+    accepts: "()"
+    returns: "Promise<void>"
+    afferent:
+      - from: entrypoint.main.main#main
+        via: direct-call
+    efferent:
+      - to: entrypoint.cli.bootstrap#createPipelineContext
+        via: direct-call
+        because: reuses the one place that reads the pull request, the GitHub client and the config
+      - to: verdict.decision.taskArtifacts#taskFolderRefOf
+        via: direct-call
+        because: the branch is what says which task folder holds the plan, derived rather than configured
+      - to: verdict.decision.taskArtifacts#taskFolderGlobFor
+        via: direct-call
+        because: a failure names the same glob the command searched, so nobody is sent somewhere it did not look
+      - to: tester.preview.testPlan#parseTestPlan
+        via: direct-call
+        because: turns the committed workbook into cases, throwing loudly rather than returning fewer
+      - to: tester.preview.mcpClient#createMcpClient
+        via: direct-call
+        because: the transport to the preview's own MCP server, bound to the internal address the deploy published
+      - to: tester.preview.tester#runTestPlan
+        via: direct-call
+        because: drives every case in silence, which is the mechanism behind the one-comment rule
+      - to: tester.preview.tester#formatTesterComment
+        via: direct-call
+        because: the single comment, rendered once the whole plan has finished
+      - to: tester.preview.tester#testerFindings
+        via: direct-call
+        because: decides whether any failure was a blocker, which is what fails the check
+
+revision: 2026-09-21

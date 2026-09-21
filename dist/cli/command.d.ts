@@ -7,6 +7,8 @@ export type Command = {
     readonly kind: 'govern';
     readonly reportsDir: string;
 } | {
+    readonly kind: 'test-preview';
+} | {
     readonly kind: 'init';
     readonly root: string;
 } | {

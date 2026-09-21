@@ -79,6 +79,15 @@ regions:
       - id: verdict.decision
         file: src/verdict/documentation/_ganglion.yml
 
+  - region: tester
+    purpose: >
+      Reads a task's MCP test plan, drives every case against the preview a pull request booted,
+      and reports every failure together in one comment. The only region that talks to the
+      application under review rather than about it.
+    ganglia:
+      - id: tester.preview
+        file: src/tester/documentation/_ganglion.yml
+
   - region: fix
     purpose: >
       Runs one automated fix attempt against blocking findings, reverts any edit to a protected

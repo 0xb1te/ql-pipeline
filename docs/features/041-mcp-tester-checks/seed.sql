@@ -1,0 +1,12 @@
+-- No fixtures required.
+--
+-- ql-pipeline is a CI tool. It has no database and no application MCP surface a
+-- preview could boot, which is also why the MCP Cases sheet in testing-plan.xlsx
+-- carries zero rows rather than being absent -- see plan.md, "Explicitly out of
+-- scope". The cases this task is verified by are unit tests, on the Pipeline
+-- Checks tab.
+--
+-- The file is present because ql-docs workflow/flows/seed-data.md requires it of
+-- every task, with no "not relevant here" exemption. That is deliberate: a check
+-- on a file's existence cannot be argued with, and this pull request is the one
+-- that teaches the pipeline to run that check.

@@ -1,0 +1,59 @@
+cns: "1.0"
+neuron: testPlan
+kind: function
+region: tester
+layer: preview
+unit: src/tester/test-plan.ts
+
+responsibility: >
+  Turns the pinned "MCP Cases" sheet of a task's testing-plan.xlsx into cases, or throws with a
+  sentence naming the row and the column that is wrong.
+
+owns:
+  - >
+    This pipeline's half of the parser contract ql-docs workflow/flows/testing-plan.md defines -
+    the pinned sheet name, the header row, and the seven required columns. The two change together
+    or not at all
+
+invariants:
+  - >
+    Every failure throws. A plan that is empty or unparseable must fail loudly, because a silently
+    skipped test run that reports success manufactures evidence
+  - >
+    Zero data rows is not a failure. ql-docs makes an absent sheet and an empty sheet mean
+    different things - malformed, versus a task stating it has no MCP surface worth driving - and
+    reading them the same way would force a lie into one of the two
+  - >
+    A duplicate Case-id throws. Two rows with one id make a finding unattributable to a case,
+    which is the one thing a report has to get right
+
+excludes:
+  - >
+    Reading the file from disk, and reaching any server. It takes bytes and returns cases, so the
+    contract is testable against a real committed workbook with no network and no filesystem layout
+  - >
+    The per-screen tabs. Those are for a human tester; this reads only the machine sheet
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: parseTestPlan
+    intent: >
+      Reads the MCP Cases sheet into cases. Matches columns by header text rather than position,
+      so a workbook with an extra column still parses, while a missing required column throws
+      naming every one that is absent. The Input cell is parsed as JSON and an unparseable one is
+      an error rather than a string, because a payload silently sent as text is a case that tests
+      something nobody wrote.
+    accepts: bytes
+    returns: "readonly TestCase[]"
+    pure: true
+    afferent:
+      - from: entrypoint.cli.testPreviewCommand#runTestPreview
+        via: direct-call
+    efferent:
+      - to: tester.preview.xlsxReader#readWorkbook
+        via: direct-call
+        because: the plan is a binary workbook, and reading it is a separable concern with its own failure modes
+
+revision: 2026-09-21

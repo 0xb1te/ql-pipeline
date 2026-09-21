@@ -1,0 +1,11 @@
+-- No fixtures required.
+--
+-- ql-pipeline is a CI tool with no database, and this change reorders two calls
+-- inside one function. It adds no MCP surface, which is also why the MCP Cases
+-- sheet in testing-plan.xlsx carries zero rows rather than being absent -- see
+-- plan.md, "Explicitly out of scope". The cases are unit tests, on the
+-- Governance Run tab.
+--
+-- The file is present because ql-docs workflow/flows/seed-data.md requires it of
+-- every task, with no "not relevant here" exemption -- and because this task
+-- exists to make the check that looks for it actually run.

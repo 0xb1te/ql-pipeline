@@ -116,6 +116,31 @@ export async function taskProvenanceFindings(pr, logger, env = process.env, read
     return finding === null ? [] : [finding];
 }
 /**
+ * What the R4 escalation says, and anything structural a human should see while they are here.
+ *
+ * The escalation returns before the review, the gates and the verdict ever run, so whatever this
+ * comment omits is not reported anywhere else on that pull request. A task folder missing its test
+ * plan was, until this carried it, silently unchecked on exactly the pull requests that get the
+ * most human attention.
+ *
+ * Kept pure and separate from `escalateToHuman` so the composition is testable without a GitHub
+ * client, the same way complaintReview is.
+ */
+// @signal protectedPathsComment
+export function protectedPathsComment(artifactFindings) {
+    const head = 'This PR touches pipeline-governance paths (rules, prompts, config, or workflows) and always requires ' +
+        'human review — the pipeline never auto-merges or auto-fixes changes to its own laws (RULES.md R4).';
+    if (artifactFindings.length === 0)
+        return head;
+    return [
+        head,
+        '---',
+        '**Also worth seeing before you review.** These are structural checks, reported here because an ' +
+            'R4 escalation stops before the review that would otherwise raise them:',
+        ...artifactFindings.map((finding) => `- ${finding.problem}`),
+    ].join('\n\n');
+}
+/**
  * Whether the task folder this branch names carries the two artifacts an automated tester needs,
  * as one finding.
  *
@@ -222,19 +247,20 @@ export async function runGovern(reportsDir) {
         logger.info('additional areas detected from changed paths', { areas: addedByPath });
     }
     await client.addLabels(pr, reviewAreas.map((area) => `area:${area}`));
+    // Whether the task folder this branch names carries the test plan and the seed data an
+    // automated tester runs on. Structural, and ahead of the R4 escalation below rather than
+    // after it: the two questions are orthogonal, and a person summoned to review a governance
+    // change should not have to discover separately that the folder is also incomplete. An R4
+    // pull request used to return before this ran, so its task folder was never checked at all.
+    const artifactFindings = taskArtifactFindings(pr, consumerRoot, config.merge.requiredChecks, logger);
     // RULES.md R4: the pipeline never auto-merges or auto-fixes changes to
     // its own governance paths. Checked structurally and before the AI is
     // consulted — making the AI's judgment the enforcement mechanism for its
     // own constitution would defeat the point.
     if (touchesProtectedPaths(changedFiles, config.fixer.protectedPaths)) {
-        await escalateToHuman(client, pr, logger, 'PR touches protected pipeline-governance paths and requires human review', 'This PR touches pipeline-governance paths (rules, prompts, config, or workflows) and always requires ' +
-            'human review — the pipeline never auto-merges or auto-fixes changes to its own laws (RULES.md R4).');
+        await escalateToHuman(client, pr, logger, 'PR touches protected pipeline-governance paths and requires human review', protectedPathsComment(artifactFindings));
         return;
     }
-    // Structural, and before the AI: the task folder this branch names must carry the test plan and
-    // the seed data an automated tester runs on. Computed here rather than beside the other findings
-    // so the log line lands before the review, in the order the checks actually run.
-    const artifactFindings = taskArtifactFindings(pr, consumerRoot, config.merge.requiredChecks, logger);
     const gateReports = readGateReports(reportsDir);
     if (!gateReports.ok) {
         await escalateToHuman(client, pr, logger, gateReports.reason, `**The pipeline could not read the gate results**, so it cannot tell whether this PR builds or passes ` +

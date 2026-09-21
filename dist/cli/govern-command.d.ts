@@ -40,6 +40,18 @@ export declare function readGateReports(reportsDir: string, reader?: {
  */
 export declare function taskProvenanceFindings(pr: Pick<PullRequestInfo, 'number' | 'headRef'>, logger: Pick<Logger, 'info' | 'warn'>, env?: NodeJS.ProcessEnv, readTasks?: (credentials: Parameters<typeof readSprintTasks>[0], env?: NodeJS.ProcessEnv) => Promise<SprintTaskList>): Promise<Finding[]>;
 /**
+ * What the R4 escalation says, and anything structural a human should see while they are here.
+ *
+ * The escalation returns before the review, the gates and the verdict ever run, so whatever this
+ * comment omits is not reported anywhere else on that pull request. A task folder missing its test
+ * plan was, until this carried it, silently unchecked on exactly the pull requests that get the
+ * most human attention.
+ *
+ * Kept pure and separate from `escalateToHuman` so the composition is testable without a GitHub
+ * client, the same way complaintReview is.
+ */
+export declare function protectedPathsComment(artifactFindings: readonly Finding[]): string;
+/**
  * Whether the task folder this branch names carries the two artifacts an automated tester needs,
  * as one finding.
  *

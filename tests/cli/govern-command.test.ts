@@ -1,8 +1,13 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 import {
   complaintReview,
+  protectedPathsComment,
   readGateReports,
   shouldSkipCursorFixer,
+  taskArtifactFindings,
   taskProvenanceFindings,
 } from '../../src/cli/govern-command.js';
 import type { Finding } from '../../src/shared/types.js';
@@ -272,5 +277,85 @@ describe('complaintReview with advisory findings', () => {
     expect(review.comments).toHaveLength(1);
     expect(review.summary).toContain('no task answers for this PR');
     expect(review.summary).toContain('About this pull request rather than a line in it');
+  });
+});
+
+describe('taskArtifactFindings', () => {
+  const quiet = { info: vi.fn() };
+
+  function repo(files: readonly string[] | null): string {
+    // A real directory, because this reads the filesystem the way CI does.
+    const root = mkdtempSync(join(tmpdir(), 'ql-artifacts-'));
+    if (files !== null) {
+      const folder = join(root, 'docs', 'features', '007-statistics-dashboard');
+      mkdirSync(folder, { recursive: true });
+      for (const name of files) writeFileSync(join(folder, name), '');
+    }
+    return root;
+  }
+
+  const OPTED_IN = ['build', 'test', 'ai-review', 'task-artifacts'] as const;
+
+  it('raises nothing when the folder carries both artifacts', () => {
+    const root = repo(['index.md', 'plan.md', 'testing-plan.xlsx', 'seed.sql']);
+    expect(taskArtifactFindings({ headRef: 'features/007-statistics-dashboard' }, root, OPTED_IN, quiet)).toEqual([]);
+  });
+
+  it('raises one finding naming what is missing', () => {
+    const root = repo(['index.md', 'plan.md']);
+    const [finding] = taskArtifactFindings({ headRef: 'features/007-statistics-dashboard' }, root, OPTED_IN, quiet);
+    expect(finding?.severity).toBe('must');
+    expect(finding?.problem).toContain('testing-plan.xlsx');
+    expect(finding?.problem).toContain('seed.sql');
+  });
+
+  it('resolves a branch ql-sprint suffixed with a task id', () => {
+    const root = repo(['index.md', 'testing-plan.xlsx', 'seed.sql']);
+    expect(taskArtifactFindings({ headRef: 'features/007-statistics-dashboard-a1b2c3' }, root, OPTED_IN, quiet)).toEqual([]);
+  });
+
+  it('says nothing about a branch that names no task folder', () => {
+    expect(taskArtifactFindings({ headRef: 'dependabot/npm/lodash' }, repo(null), OPTED_IN, quiet)).toEqual([]);
+  });
+
+  it('reports a task folder that does not exist at all', () => {
+    const [finding] = taskArtifactFindings({ headRef: 'hotfixes/003-checkout' }, repo(null), OPTED_IN, quiet);
+    expect(finding?.problem).toContain('docs/hotfixes/003-*/');
+  });
+});
+
+describe('protectedPathsComment', () => {
+  function missing(): Finding {
+    return {
+      severity: 'must',
+      rule: 'task#artifacts',
+      file: '(task)',
+      line: 1,
+      problem: '`docs/features/007-x` is missing 1 required artifact: `seed.sql`',
+      suggestedFix: null,
+      autoFixable: false,
+    };
+  }
+
+  it('is just the R4 sentence when the task folder is complete', () => {
+    const body = protectedPathsComment([]);
+    expect(body).toContain('RULES.md R4');
+    expect(body).not.toContain('Also worth seeing');
+  });
+
+  it('carries a structural finding the escalation would otherwise swallow', () => {
+    // The reason the check moved ahead of R4: this escalation returns before the review,
+    // the gates and the verdict, so anything it leaves out is reported nowhere at all.
+    const body = protectedPathsComment([missing()]);
+    expect(body).toContain('RULES.md R4');
+    expect(body).toContain('seed.sql');
+    expect(body).toContain('stops before the review');
+  });
+
+  it('carries every finding, not just the first', () => {
+    const second = { ...missing(), problem: 'second problem' };
+    const body = protectedPathsComment([missing(), second]);
+    expect(body).toContain('seed.sql');
+    expect(body).toContain('second problem');
   });
 });

@@ -184,7 +184,10 @@ signals:
         because: asks whether anybody planned this pull request, after the review rather than before it - the answer is advisory and must not stand between a PR and the review that judges its code
       - to: entrypoint.cli.governCommand#taskArtifactFindings
         via: direct-call
-        because: checks the task folder structurally and before the AI, so whether a required file exists is never something a reviewer can be talked out of
+        because: checks the task folder structurally, ahead of both the R4 escalation and the AI, so whether a required file exists is never something a reviewer can be talked out of
+      - to: entrypoint.cli.governCommand#protectedPathsComment
+        via: direct-call
+        because: an R4 escalation returns before the review and the verdict, so the structural findings have to travel in its own comment or be reported nowhere
       - to: notify.sprint.sprintNotifier#sprintNotifierCredentialsFromEnv
         via: direct-call
         because: a fleet that publishes no ql-sprint has nobody to tell and nothing to ask, which is ordinary rather than a misconfiguration
@@ -224,10 +227,12 @@ signals:
   - signal: taskArtifactFindings
     intent: >
       Asks whether the task folder this branch names carries the test plan and the seed data an
-      automated tester needs, and turns a "no" into one finding. Structural, and run before the AI
-      review is even considered, for the reason R4 is - whether a file exists is not a judgement,
-      and making a reviewer the enforcement mechanism for one turns an unarguable check into a
-      negotiable opinion. Unlike the protected-paths check it does not escalate to a human: a
+      automated tester needs, and turns a "no" into one finding. Structural, and run before the R4
+      escalation as well as before the AI review, for the reason R4 itself is - whether a file
+      exists is not a judgement, and making a reviewer the enforcement mechanism for one turns an
+      unarguable check into a negotiable opinion. The two questions are orthogonal: running after
+      R4 meant a governance pull request returned before this ever ran, so the pull requests that
+      get the most human attention were the only ones whose task folder went unchecked. Unlike the protected-paths check it does not escalate to a human: a
       missing test plan is not something a person adjudicates, the author adds the file. It also
       does not skip the review the way a red gate does, because a folder missing its test plan
       says nothing about whether the code is worth reviewing.
@@ -246,6 +251,22 @@ signals:
       - to: verdict.decision.taskArtifacts#taskArtifactFinding
         via: direct-call
         because: the pure decision, given the folder listing this signal read, so the check is testable without a disk
+
+  - signal: protectedPathsComment
+    intent: >
+      Composes what the R4 escalation says, plus any structural finding a person should see while
+      they are already looking. The escalation returns before the review, the gates and the verdict
+      ever run, so whatever this comment omits is reported nowhere else on that pull request - a
+      task folder missing its test plan was, until this carried it, silently unchecked on exactly
+      the pull requests that get the most human attention. Kept pure and apart from escalateToHuman
+      so the composition is testable without a GitHub client, the same way complaintReview is.
+    accepts: artifactFindings
+    returns: string
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
 
   - signal: shouldSkipCursorFixer
     intent: >

@@ -19,7 +19,7 @@ effectors:
   - kind: http-out
     target: the GitHub REST API, via Octokit
     signal: createGithubClient
-    effect: every GithubClient method (listCommitMessages, listChangedFiles, getPullRequestDetails, addLabels, postComment, listComments, approveWithComments, commentReview, requestChangesWithComments, replyToReviewComment, listReviewThreads, resolveReviewThread, mergePullRequest, getHeadSha, deleteBranch) is a thin wrapper over one Octokit call - REST for all but listReviewThreads and resolveReviewThread, which are GraphQL because resolving a thread exists only there and takes a node id REST never returns
+    effect: every GithubClient method (listCommitMessages, listChangedFiles, getPullRequestDetails, addLabels, postComment, listComments, approveWithComments, commentReview, requestChangesWithComments, replyToReviewComment, listReviewThreads, resolveReviewThread, mergePullRequest, getHeadSha, deleteBranch, listPullRequestsByLabel) is a thin wrapper over one Octokit call - REST for all but listReviewThreads and resolveReviewThread, which are GraphQL because resolving a thread exists only there and takes a node id REST never returns
 
 signals:
   - signal: readPullRequestContext
@@ -59,6 +59,9 @@ signals:
       from a token. Its removeLabel treats a 404 as success, because GitHub answers that both for a
       label the pull request never carried and for one the repository does not define - and the only
       caller removes the verdict it did not reach, where absence is the state being asked for.
+      Its listPullRequestsByLabel is the one repository-scoped read on this surface: every other
+      method answers about a pull request the caller already has, which left the `needs-human` /
+      `ready-to-merge` queue this pipeline fills readable only in a browser.
     accepts: token
     returns: GithubClient
     afferent:
@@ -70,9 +73,11 @@ signals:
         via: di
       - from: merge.merger.merger#executeMergeDecision
         via: di
+      - from: mcp.server.inspect#runInspectTool
+        via: di
     efferent:
       - to: shared.core.githubClient#stampAutomated
         via: direct-call
         because: every comment this pipeline writes has to be recognisable to the run that reads it next
 
-revision: 2026-09-20
+revision: 2026-09-21

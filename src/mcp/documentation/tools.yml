@@ -6,14 +6,24 @@ layer: server
 unit: src/mcp/tools.ts
 
 responsibility: >
-  Declares the three tools this server exposes and runs one by spawning the already-built CLI
-  (`dist/main.js`) as a child process, exactly as a person at a terminal would - there is no
-  in-process code path for doctor/init/upgrade here.
+  Declares the tool list this server exposes - the three maintenance commands it owns, plus the
+  read-only inspection tools from mcp.server.inspect - and dispatches a call: an inspection name
+  is answered in-process, and anything left is run by spawning the already-built CLI
+  (`dist/main.js`) as a child process, exactly as a person at a terminal would. There is still
+  no in-process code path for doctor/init/upgrade here.
 
 owns:
-  - TOOLS, the tool descriptors tools/list returns verbatim
+  - TOOLS, the tool descriptors tools/list returns verbatim, composed from MAINTENANCE_TOOLS and INSPECT_TOOLS
 invariants:
-  - gate/govern are deliberately not exposed here - they are CI-triggered, not maintenance actions an agent should invoke ad hoc
+  - >
+    The CI-verb carve-out: gate/govern are deliberately not exposed here, and the reason is not
+    that they are CI-triggered - it is that they write. govern merges, approves, comments and
+    pushes fix commits; gate runs the shell commands named in the config. What makes the
+    carve-out survivable is that the reading half now exists (mcp.server.inspect), so learning
+    what govern would decide no longer requires causing it. Recorded, not assumed: ql-docs
+    GR-04's parity clause admits only a secrets exception, which this is not, so a House
+    `problem` is still owed - see docs/features/040-governance-verbs-on-mcp/plan.md.
+  - TOOLS is maintenance-first, then inspection, and is pinned by exact-equality assertions in tests/mcp/tools.test.ts and tests/mcp/server.test.ts
 
 receptors: []
 
@@ -33,6 +43,13 @@ signals:
     afferent:
       - from: mcp.server.server#dispatch
         via: direct-call
-    efferent: []
+    efferent:
+      - to: mcp.server.inspect#runInspectTool
+        via: direct-call
+        because: an inspection tool name is answered in-process rather than by spawning the CLI
 
-revision: 2026-08-30
+provenance:
+  - docs/features/040-governance-verbs-on-mcp/plan.md
+  - docs/features/040-governance-verbs-on-mcp/summary.md
+
+revision: 2026-09-21

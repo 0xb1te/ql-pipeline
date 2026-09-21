@@ -11,6 +11,7 @@ role: >
 
 upstream:
   - entrypoint.cli
+  - mcp.server
 downstream:
   - routing.parser
   - shared.core

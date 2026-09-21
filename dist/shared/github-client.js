@@ -356,6 +356,26 @@ export function createGithubClient(token) {
                 ref: `heads/${pr.headRef}`,
             });
         },
+        async listPullRequestsByLabel(repo, label) {
+            const issues = await octokit.paginate(octokit.rest.issues.listForRepo, {
+                owner: repo.owner,
+                repo: repo.repo,
+                labels: label,
+                state: 'open',
+            });
+            return issues
+                .filter((issue) => issue.pull_request !== undefined)
+                .map((issue) => ({
+                number: issue.number,
+                title: issue.title,
+                url: issue.html_url,
+                isDraft: issue.draft === true,
+                labels: issue.labels
+                    .map((entry) => (typeof entry === 'string' ? entry : (entry.name ?? '')))
+                    .filter((name) => name.length > 0),
+                updatedAt: issue.updated_at,
+            }));
+        },
     };
 }
 //# sourceMappingURL=github-client.js.map

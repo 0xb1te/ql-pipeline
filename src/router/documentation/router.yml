@@ -27,6 +27,8 @@ signals:
     afferent:
       - from: entrypoint.cli.bootstrap#resolveRouting
         via: direct-call
+      - from: mcp.server.inspect#runInspectTool
+        via: direct-call
     efferent:
       - to: routing.parser.commitParser#parseCommits
         via: direct-call

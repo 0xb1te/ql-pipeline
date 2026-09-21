@@ -1,0 +1,77 @@
+cns: "1.0"
+neuron: inspect
+kind: function
+region: mcp
+layer: server
+unit: src/mcp/inspect.ts
+
+responsibility: >
+  The read-only half of the MCP server: four tools that answer what a governance run routed to,
+  what its gates reported, what verdict those inputs reach, and which pull requests are parked on
+  a person - by composing the same functions `govern` composes, in process, and stopping before
+  anything writes.
+
+excludes:
+  - Running gate or govern - see the CI-verb carve-out documented on mcp.server.tools#runTool
+  - Deciding anything of its own; every verdict here comes from verdict.decision, never from a rule restated locally
+
+invariants:
+  - every tool here is side-effect-free - no merge, no comment, no label, no push, no fix commit
+  - the gate reader is `govern`'s own readGateReports, never a private re-walk of the reports directory, so an inspector cannot disagree with the engine about a malformed report
+  - a finding handed in as JSON is validated, never coerced - an unrecognised severity is refused rather than defaulted, because a wrong severity is a wrong verdict
+  - cli/govern-command.ts is imported lazily, so an MCP server start does not load the fixer, reviewer, standards reader and house client for a reader two of seven tools use
+
+receptors: []
+
+effectors:
+  - kind: http-out
+    target: the GitHub REST API, via the injected GithubClient
+    signal: runInspectTool
+    effect: ql_pipeline_human_queue lists open pull requests carrying `needs-human` or `ready-to-merge`; it reads only, and calls no method that labels, comments, approves, pushes or merges
+  - kind: filesystem
+    target: the inspected repo's pipeline config and gate-report directory
+    signal: runInspectTool
+    effect: reads .github/pipeline.config.yml (or pipeline.config.yml) and the JSON reports the gate jobs left behind; writes nothing
+
+signals:
+  - signal: runInspectTool
+    intent: >
+      Runs one read-only inspection tool - route, gate reports, verdict, or human queue - or
+      answers null when the name belongs to the spawning half, which is what lets runTool keep
+      its own dispatch untouched.
+    accepts: "name, args, deps?"
+    returns: Promise<ToolResult | null>
+    afferent:
+      - from: mcp.server.tools#runTool
+        via: direct-call
+    efferent:
+      - to: routing.router.router#determineRoute
+        via: direct-call
+        because: ql_pipeline_route answers with the same areas, rule files and gates the pipeline would route to
+      - to: entrypoint.cli.governCommand#readGateReports
+        via: direct-call
+        because: ql_pipeline_gate_reports reads the reports through govern's own reader, including its fail-closed answer to an unreadable one
+      - to: verdict.decision.requiredChecks#gateFindings
+        via: direct-call
+        because: a failed gate becomes a finding before the verdict weighs it, exactly as in govern
+      - to: verdict.decision.requiredChecks#isReviewRequired
+        via: direct-call
+        because: ql_pipeline_verdict reports whether the AI review stage would run at all
+      - to: fix.fixer.attemptCounter#countFixAttempts
+        via: direct-call
+        because: the attempts already spent decide whether a fixable finding still gets a FIX
+      - to: verdict.decision.verdict#decidePipelineOutcome
+        via: direct-call
+        because: the MERGE/FIX/BLOCK answer comes from the engine's own decision function, never restated here
+      - to: shared.core.config#loadConfig
+        via: direct-call
+        because: required checks, max fix attempts and the target branch all come from the inspected repo's config
+      - to: shared.core.githubClient#createGithubClient
+        via: di
+        because: the human queue needs a GitHub read, injectable so tests can prove nothing writes
+
+provenance:
+  - docs/features/040-governance-verbs-on-mcp/plan.md
+  - docs/features/040-governance-verbs-on-mcp/summary.md
+
+revision: 2026-09-21

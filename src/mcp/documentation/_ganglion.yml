@@ -5,12 +5,20 @@ layer: server
 path: src/mcp
 
 role: >
-  Exposes `doctor`/`init`/`upgrade` to an AI agent over newline-delimited JSON-RPC on stdio,
-  spawning the already-built CLI as a child process for each call rather than running any of
-  its logic in-process.
+  Exposes this pipeline to an AI agent over newline-delimited JSON-RPC on stdio, in two halves:
+  the maintenance commands (`doctor`/`init`/`upgrade`) are spawned as the already-built CLI, a
+  child process per call, while the read-only inspection of a governance run - route, gate
+  reports, verdict, human queue - is composed in-process from the engine's own functions.
+  `gate` and `govern` themselves are not exposed here; the carve-out and its cost are recorded
+  on mcp.server.tools#runTool.
 
 upstream: []
-downstream: []
+downstream:
+  - entrypoint.cli
+  - routing.router
+  - verdict.decision
+  - fix.fixer
+  - shared.core
 
 neurons:
   - id: mcp.server.tools
@@ -19,5 +27,8 @@ neurons:
   - id: mcp.server.server
     file: server.yml
     unit: ../server.ts
+  - id: mcp.server.inspect
+    file: inspect.yml
+    unit: ../inspect.ts
 
-revision: 2026-08-30
+revision: 2026-09-21

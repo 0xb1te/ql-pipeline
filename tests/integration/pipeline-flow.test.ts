@@ -77,6 +77,7 @@ function fakeGithubClient(): GithubClient {
     commentReview: vi.fn().mockResolvedValue(undefined),
     listReviewThreads: vi.fn().mockResolvedValue([]),
     resolveReviewThread: vi.fn().mockResolvedValue(undefined),
+    listPullRequestsByLabel: vi.fn().mockResolvedValue([]),
   };
 }
 

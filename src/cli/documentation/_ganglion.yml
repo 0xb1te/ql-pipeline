@@ -10,6 +10,7 @@ role: >
 
 upstream:
   - entrypoint.main
+  - mcp.server
 downstream:
   - shared.core
   - merge.merger

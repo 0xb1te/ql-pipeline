@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
- * Stdio MCP server exposing `doctor`/`init`/`upgrade` to an AI agent.
- * `gate` and `govern` are CI-triggered only and are not exposed here.
+ * Stdio MCP server exposing the maintenance commands (`doctor`/`init`/`upgrade`) and the
+ * read-only inspection of a governance run (route, gate reports, verdict, human queue).
+ * `gate` and `govern` themselves are not exposed: they write - merge, approve, comment, push,
+ * and run configured shell. See the carve-out on `runTool` in ./tools.ts.
  *
  * Newline-delimited JSON-RPC over stdio, hand-rolled rather than pulled
  * from an SDK — the same shape ql-docs's own `apps/house-api/mcp/house-mcp.mjs`
@@ -23,7 +25,7 @@ async function dispatch(method, params) {
         return {
             protocolVersion: '2024-11-05',
             capabilities: { tools: {} },
-            serverInfo: { name: 'ql-pipeline', version: '0.1.0' },
+            serverInfo: { name: 'ql-pipeline', version: '0.2.0' },
         };
     }
     if (method === 'tools/list') {

@@ -73,7 +73,7 @@ The MCP client is the same reasoning: two JSON-RPC methods.
 
 - **`RequiredCheck` gains a value.** Config already validates against `REQUIRED_CHECKS`, so an unknown name still fails loudly; existing configs are unaffected because it is not in the defaults.
 - **The `MCP Cases` column set is shared with ql-docs** `workflow/flows/testing-plan.md`. Changing it means changing the generator, the spec and this parser together; both sides say so.
-- **`package.json` 0.1.0 → 0.2.0** (MINOR — feature).
+- **`package.json` 0.2.0 → 0.3.0** (MINOR — feature). Originally 0.1.0 → 0.2.0, but PR #33 merged the same bump from the same base first. Both branches would have written the identical string, so git would have merged them without a conflict and this feature would have shipped with no version of its own — the failure ql-docs `bugfixes/003-version-collision` had to correct after the fact. Caught before merge here instead.
 - **Harness:** one new region, one new ganglion, five new neurons, one new tract. Validator output is byte-identical to `main` (24 pre-existing errors, same breakdown).
 
 ## Verification

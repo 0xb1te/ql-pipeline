@@ -160,6 +160,22 @@ tracts:
     effectors:
       - filesystem:the already-built dist/main.js
 
+  - tract: inspect-a-governance-run
+    stimulus: process start (this file run directly as the MCP server entrypoint)
+    response: >
+      an agent's tools/call for a read-only inspection tool is answered in-process - the route,
+      the gate reports, the MERGE/FIX/BLOCK a verdict would reach, or the human queue - without
+      merging, commenting, labelling or pushing anything
+    path:
+      - mcp.server.server#main
+      - mcp.server.server#handleLine
+      - mcp.server.server#dispatch
+      - mcp.server.tools#runTool
+      - mcp.server.inspect#runInspectTool
+    effectors:
+      - filesystem:the inspected repo's pipeline config and gate-report directory
+      - http-out:the GitHub REST API, read-only
+
   - tract: test-a-preview-over-mcp
     stimulus: process start (node dist/main.js test-preview)
     response: every MCP case in the branch's task folder is driven against the preview and every failure is reported in one comment

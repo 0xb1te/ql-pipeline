@@ -14,6 +14,7 @@ upstream:
   - review.reviewer
   - fix.fixer
   - merge.merger
+  - mcp.server
 downstream: []
 
 neurons:

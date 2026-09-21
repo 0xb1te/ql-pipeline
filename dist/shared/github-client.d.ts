@@ -196,6 +196,32 @@ export interface GithubClient {
     deleteBranch: (pr: Pick<PullRequestInfo, 'owner' | 'repo'> & {
         readonly headRef: string;
     }) => Promise<void>;
+    /**
+     * Every open pull request in a repository carrying one label.
+     *
+     * The first repository-scoped read on this client - everything above it answers about one
+     * pull request the caller already has. It exists because `needs-human` and `ready-to-merge`
+     * are this pipeline's own vocabulary, written only by `recordVerdictLabel`, and nothing could
+     * read them back: the queue this pipeline fills was one only a person with a browser could see.
+     *
+     * Issues and pull requests share GitHub's label API, so the listing keeps only entries that
+     * carry a `pull_request` member - an issue labelled `needs-human` is not part of this queue.
+     */
+    listPullRequestsByLabel: (repo: Pick<PullRequestInfo, 'owner' | 'repo'>, label: string) => Promise<readonly LabelledPullRequest[]>;
+}
+/** One entry of the human queue: enough to act on without a second round trip. */
+export interface LabelledPullRequest {
+    readonly number: number;
+    readonly title: string;
+    readonly url: string;
+    readonly isDraft: boolean;
+    /**
+     * Every label the PR carries, not only the one queried. `needs-human` and `ready-to-merge`
+     * are mutually exclusive by construction, so a PR listed under both is a bug worth seeing
+     * rather than a detail worth hiding.
+     */
+    readonly labels: readonly string[];
+    readonly updatedAt: string;
 }
 /** Thin Octokit wrapper for the two calls this pipeline needs so far. */
 export declare function createGithubClient(token: string): GithubClient;

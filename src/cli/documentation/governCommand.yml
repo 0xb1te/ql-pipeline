@@ -180,6 +180,9 @@ signals:
       - to: entrypoint.cli.governCommand#taskProvenanceFindings
         via: direct-call
         because: asks whether anybody planned this pull request, after the review rather than before it - the answer is advisory and must not stand between a PR and the review that judges its code
+      - to: entrypoint.cli.governCommand#taskArtifactFindings
+        via: direct-call
+        because: checks the task folder structurally and before the AI, so whether a required file exists is never something a reviewer can be talked out of
       - to: notify.sprint.sprintNotifier#sprintNotifierCredentialsFromEnv
         via: direct-call
         because: a fleet that publishes no ql-sprint has nobody to tell and nothing to ask, which is ordinary rather than a misconfiguration
@@ -215,6 +218,32 @@ signals:
       - to: verdict.decision.taskProvenance#taskProvenanceFinding
         via: direct-call
         because: renders a no-task answer as the `should` finding that rides along on a MERGE as an advisory comment
+
+  - signal: taskArtifactFindings
+    intent: >
+      Asks whether the task folder this branch names carries the test plan and the seed data an
+      automated tester needs, and turns a "no" into one finding. Structural, and run before the AI
+      review is even considered, for the reason R4 is - whether a file exists is not a judgement,
+      and making a reviewer the enforcement mechanism for one turns an unarguable check into a
+      negotiable opinion. Unlike the protected-paths check it does not escalate to a human: a
+      missing test plan is not something a person adjudicates, the author adds the file. It also
+      does not skip the review the way a red gate does, because a folder missing its test plan
+      says nothing about whether the code is worth reviewing.
+    accepts: "pr, consumerRoot, requiredChecks, logger"
+    returns: "readonly Finding[]"
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent:
+      - to: verdict.decision.taskArtifacts#taskFolderRefOf
+        via: direct-call
+        because: the branch is the only thing that says which task folder to look in, and it is derived rather than configured
+      - to: verdict.decision.taskArtifacts#taskFolderGlobFor
+        via: direct-call
+        because: logs the same glob the finding names, so the run log and the pull request comment agree
+      - to: verdict.decision.taskArtifacts#taskArtifactFinding
+        via: direct-call
+        because: the pure decision, given the folder listing this signal read, so the check is testable without a disk
 
   - signal: shouldSkipCursorFixer
     intent: >

@@ -1,0 +1,124 @@
+cns: "1.0"
+neuron: taskArtifacts
+kind: function
+region: verdict
+layer: decision
+unit: src/verdict/task-artifacts.ts
+
+responsibility: >
+  Answers whether the task folder a branch names carries the two artifacts an automated tester
+  needs - the test plan and the seed data - and turns a "no" into one finding.
+
+owns:
+  - >
+    The branch-to-task-folder derivation. It matches on `<kind>/NNN` rather than the whole slug,
+    because ql-sprint appends a six-hex task-id suffix to every branch it cuts and an exact slug
+    comparison would miss every one of them
+  - >
+    The list of artifacts a task folder owes - testing-plan.xlsx and seed.sql - and the sentence
+    that tells an author where to copy each one from
+
+invariants:
+  - >
+    A branch that names no task folder raises nothing. This check exists to make a task folder
+    complete, not to force every branch through the task flow - a dependency bump has no task
+    folder to be missing artifacts from. A pull request with no task at all is already reported,
+    advisorily, by verdict.decision.taskProvenance
+  - >
+    `must` only where a repository has opted in by listing `task-artifacts` in
+    merge.required_checks; `should` everywhere else. A check that starts blocking the day it ships
+    turns every pull request already in flight red at once and hands every author the same repair
+    job in the same files
+  - >
+    autoFixable is false throughout. No fix agent can invent a test plan or the data it runs
+    against, and claiming otherwise would spend a fix attempt discovering that
+
+excludes:
+  - >
+    Touching the filesystem. It is given the folder listing and answers from that, so "is this
+    task folder complete" is answerable in a test without a disk - the same reason
+    verdict.decision.taskProvenance takes the task list rather than reaching for ql-sprint
+  - >
+    The generated testing-plan.md rendering. It is derived from the workbook rather than authored,
+    so a missing one is a forgotten command rather than a missing contract, and the AI review -
+    which is the thing that reads it - is what notices
+  - >
+    Deciding what a missing artifact costs. It returns a severity; verdict.decision.verdict is
+    what knows that `should` never blocks
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: taskFolderRefOf
+    intent: >
+      Reads the task folder a branch names, as a kind and a three-digit number, or null when it
+      names none. Matched on `<kind>/NNN` and not on the slug: ql-sprint ends every branch it cuts
+      with the first six hex characters of the task's Notion page id, so
+      features/007-statistics-dashboard-a1b2c3 must still resolve to docs/features/007-statistics-
+      dashboard/. Matching the number is exact anyway - ql-docs gives each kind its own counter and
+      never reuses a number, so the glob resolves to one folder or none.
+    accepts: headRef
+    returns: TaskFolderRef | null
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#taskArtifactFindings
+        via: direct-call
+      - from: entrypoint.cli.testPreviewCommand#runTestPreview
+        via: direct-call
+    efferent: []
+
+  - signal: taskFolderGlobFor
+    intent: >
+      The glob that resolves a task folder reference to a directory. Exported rather than inlined
+      so the search the caller runs and the path the finding names can never disagree - a message
+      that tells an author to look somewhere the check did not look is worse than no message.
+    accepts: TaskFolderRef
+    returns: string
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#taskArtifactFindings
+        via: direct-call
+      - from: entrypoint.cli.testPreviewCommand#runTestPreview
+        via: direct-call
+      - from: verdict.decision.taskArtifacts#taskArtifactFinding
+        via: direct-call
+    efferent: []
+
+  - signal: missingTaskArtifacts
+    intent: >
+      Which of the required artifacts a folder listing does not contain, compared case-
+      insensitively because Windows and macOS checkouts disagree with Linux about whether
+      Seed.SQL is the same file as seed.sql, and a check that says "missing" about a file the
+      author can see is a check nobody trusts twice.
+    accepts: files
+    returns: readonly string[]
+    pure: true
+    afferent:
+      - from: verdict.decision.taskArtifacts#taskArtifactFinding
+        via: direct-call
+    efferent: []
+
+  - signal: taskArtifactFinding
+    intent: >
+      Renders an absent or incomplete task folder as one finding, or null when it is complete.
+      Severity follows merge.required_checks exactly as requiredChecks#gateFindings does, for the
+      same reason - advisory everywhere from day one, blocking where a repository has said it is
+      ready, is how a standard arrives without an outage. The two cases get different sentences
+      because they are different mistakes: no folder at all is a task nobody opened, an incomplete
+      one is a task whose author did not know what it owed.
+    accepts: "lookup, requiredChecks"
+    returns: Finding | null
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#taskArtifactFindings
+        via: direct-call
+    efferent:
+      - to: verdict.decision.taskArtifacts#taskFolderGlobFor
+        via: direct-call
+        because: the message names the same glob the caller searched, so an author is never sent somewhere the check did not look
+      - to: verdict.decision.taskArtifacts#missingTaskArtifacts
+        via: direct-call
+        because: the pure comparison that decides which artifacts are absent, kept separate so it is testable without building a finding
+
+revision: 2026-09-21

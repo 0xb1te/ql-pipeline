@@ -1,6 +1,6 @@
 import type { PullRequestInfo, ReviewComment } from '../shared/github-client.js';
 import type { Logger } from '../shared/logger.js';
-import { type AgentProvider, type Finding, type GateOutcome } from '../shared/types.js';
+import { type AgentProvider, type Finding, type GateOutcome, type RequiredCheck } from '../shared/types.js';
 import { readSprintTasks, type SprintTaskList } from '../notifier/sprint-tasks.js';
 /** Auto-fix still requires cursor-agent. An OpenAI-compatible review cannot write a fix commit. */
 export declare function shouldSkipCursorFixer(provider: AgentProvider): boolean;
@@ -39,6 +39,19 @@ export declare function readGateReports(reportsDir: string, reader?: {
  * the only defensible severity for it.
  */
 export declare function taskProvenanceFindings(pr: Pick<PullRequestInfo, 'number' | 'headRef'>, logger: Pick<Logger, 'info' | 'warn'>, env?: NodeJS.ProcessEnv, readTasks?: (credentials: Parameters<typeof readSprintTasks>[0], env?: NodeJS.ProcessEnv) => Promise<SprintTaskList>): Promise<Finding[]>;
+/**
+ * Whether the task folder this branch names carries the two artifacts an automated tester needs,
+ * as one finding.
+ *
+ * Structural, and computed before the AI review is even considered, for the reason R4 is: whether
+ * a file exists is not a judgement, and making a reviewer the enforcement mechanism for one turns
+ * an unarguable check into a negotiable opinion.
+ *
+ * Unlike the protected-paths check above it does not escalate to a human. A missing test plan is
+ * not something a person adjudicates - the author adds the file - so it rides the ordinary finding
+ * path, where `must` blocks the merge and the message says what to copy from where.
+ */
+export declare function taskArtifactFindings(pr: Pick<PullRequestInfo, 'headRef'>, consumerRoot: string, requiredChecks: readonly RequiredCheck[], logger: Pick<Logger, 'info'>): readonly Finding[];
 /**
  * The whole request-changes review: the body, and the comments GitHub will actually accept.
  *

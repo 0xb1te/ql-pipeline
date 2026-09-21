@@ -4,6 +4,7 @@ import type { GateStage } from './gate-command.js';
 export type Command =
   | { readonly kind: 'gate'; readonly stage: GateStage; readonly reportPath: string }
   | { readonly kind: 'govern'; readonly reportsDir: string }
+  | { readonly kind: 'test-preview' }
   | { readonly kind: 'init'; readonly root: string }
   | { readonly kind: 'upgrade'; readonly root: string; readonly force: boolean }
   | { readonly kind: 'doctor'; readonly root: string };
@@ -21,6 +22,7 @@ export const USAGE = [
   'run inside CI by the reusable workflow:',
   '  ql-pipeline gate --stage <test|build> [--report <path>]',
   '  ql-pipeline govern [--reports <dir>]',
+  '  ql-pipeline test-preview                       drive the preview over MCP',
 ].join('\n');
 
 function readFlag(argv: readonly string[], flag: string): string | undefined {
@@ -56,6 +58,13 @@ export function parseCommand(argv: readonly string[]): CommandParse {
 
   if (subcommand === 'govern') {
     return { ok: true, command: { kind: 'govern', reportsDir: readFlag(argv, '--reports') ?? 'gate-reports' } };
+  }
+
+  // Takes no flags on purpose. Which plan to run comes from the branch, and where the MCP
+  // server is comes from the environment the preview job published - both are facts about
+  // the run, and a flag would be a second place for either to be wrong.
+  if (subcommand === 'test-preview') {
+    return { ok: true, command: { kind: 'test-preview' } };
   }
 
   const root = readFlag(argv, '--root') ?? '.';

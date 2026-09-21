@@ -87,15 +87,27 @@ export type GatesConfig = Readonly<Partial<Record<Area, GateCommands>>>;
 export type MergeMethod = 'squash' | 'merge' | 'rebase';
 
 /**
+ * The stages that actually run a command in their own job and report an outcome.
+ * Named positively rather than derived from RequiredCheck by exclusion, so adding
+ * a non-gate check below cannot silently widen what a GateReport may claim to be.
+ */
+export type GateStage = 'build' | 'test';
+
+/**
  * The pipeline stages a repo can require before a PR is allowed to merge.
  * A stage left out of `merge.required_checks` still runs, but its failures
  * are advisory rather than blocking — except `ai-review`, which is skipped
  * outright when not required (there's no point paying for a review whose
  * findings can't block).
+ *
+ * `task-artifacts` is not a job: it is a structural check on the task folder the
+ * branch names, and it is deliberately absent from the defaults. Listing it is how
+ * a repository says its task folders already carry a test plan and seed data; until
+ * then the check still runs and still reports, advisorily.
  */
-export type RequiredCheck = 'build' | 'test' | 'ai-review';
+export type RequiredCheck = GateStage | 'ai-review' | 'task-artifacts';
 
-export const REQUIRED_CHECKS: readonly RequiredCheck[] = ['build', 'test', 'ai-review'];
+export const REQUIRED_CHECKS: readonly RequiredCheck[] = ['build', 'test', 'ai-review', 'task-artifacts'];
 
 export interface MergeConfig {
   readonly targetBranch: string;
@@ -215,7 +227,7 @@ export type RouteResult =
 
 export interface GateOutcome {
   readonly area: Area;
-  readonly gate: 'build' | 'test';
+  readonly gate: GateStage;
   readonly command: string;
   readonly passed: boolean;
   readonly output: string;

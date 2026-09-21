@@ -18,7 +18,7 @@ import { HOUSE_API_URL_VAR, LEGACY_HOUSE_API_URL_VAR, createHouseStandardsReader
 import { describeDroppedSections, formatStandardsForPrompt, resolveStandards, standardsIds, } from '../standards/standards-resolver.js';
 import { formatAuditSummary, } from '../shared/audit-summary.js';
 import { mergeGateReports, parseGateReport } from '../shared/gate-report.js';
-import { AREAS } from '../shared/types.js';
+import { AREAS, } from '../shared/types.js';
 import { replyForFinding } from '../reviewer/finding-reply.js';
 import { formatDirection } from '../shared/human-direction.js';
 import { gateFindings, isReviewRequired } from '../verdict/required-checks.js';
@@ -27,6 +27,7 @@ import { threadsToResolve } from '../reviewer/settled-threads.js';
 import { createSprintNotifier, sprintNotifierCredentialsFromEnv, } from '../notifier/sprint-notifier.js';
 import { readSprintTasks } from '../notifier/sprint-tasks.js';
 import { decideTaskProvenance, taskProvenanceFinding } from '../verdict/task-provenance.js';
+import { taskArtifactFinding, taskFolderGlobFor, taskFolderRefOf, } from '../verdict/task-artifacts.js';
 import { createPipelineContext, resolveRouting } from './bootstrap.js';
 // dist/cli/govern-command.js -> ql-pipeline's own checkout root is two
 // levels up. rules/ and prompts/ ship inside ql-pipeline itself; the repo
@@ -115,6 +116,45 @@ export async function taskProvenanceFindings(pr, logger, env = process.env, read
     return finding === null ? [] : [finding];
 }
 /**
+ * Whether the task folder this branch names carries the two artifacts an automated tester needs,
+ * as one finding.
+ *
+ * Structural, and computed before the AI review is even considered, for the reason R4 is: whether
+ * a file exists is not a judgement, and making a reviewer the enforcement mechanism for one turns
+ * an unarguable check into a negotiable opinion.
+ *
+ * Unlike the protected-paths check above it does not escalate to a human. A missing test plan is
+ * not something a person adjudicates - the author adds the file - so it rides the ordinary finding
+ * path, where `must` blocks the merge and the message says what to copy from where.
+ */
+// @signal taskArtifactFindings
+export function taskArtifactFindings(pr, consumerRoot, requiredChecks, logger) {
+    const ref = taskFolderRefOf(pr.headRef);
+    if (ref === null) {
+        logger.info(`task artifacts: not checked — branch ${pr.headRef} names no task folder`);
+        return [];
+    }
+    const parent = join(consumerRoot, 'docs', ref.kind);
+    const folder = existsSync(parent)
+        ? readdirSync(parent, { withFileTypes: true }).find((entry) => entry.isDirectory() && entry.name.startsWith(`${ref.number}-`))
+        : undefined;
+    const lookup = folder === undefined
+        ? { kind: 'no-folder', ref }
+        : {
+            kind: 'folder',
+            ref,
+            path: `docs/${ref.kind}/${folder.name}`,
+            files: readdirSync(join(parent, folder.name)),
+        };
+    const finding = taskArtifactFinding(lookup, requiredChecks);
+    if (finding === null) {
+        logger.info(`task artifacts: complete in ${lookup.kind === 'folder' ? lookup.path : taskFolderGlobFor(ref)}`);
+        return [];
+    }
+    logger.info(`task artifacts: ${finding.severity} — ${taskFolderGlobFor(ref)}`);
+    return [finding];
+}
+/**
  * The whole request-changes review: the body, and the comments GitHub will actually accept.
  *
  * One function rather than two calls, because the two have to agree and once did not. A `must`
@@ -191,6 +231,10 @@ export async function runGovern(reportsDir) {
             'human review — the pipeline never auto-merges or auto-fixes changes to its own laws (RULES.md R4).');
         return;
     }
+    // Structural, and before the AI: the task folder this branch names must carry the test plan and
+    // the seed data an automated tester runs on. Computed here rather than beside the other findings
+    // so the log line lands before the review, in the order the checks actually run.
+    const artifactFindings = taskArtifactFindings(pr, consumerRoot, config.merge.requiredChecks, logger);
     const gateReports = readGateReports(reportsDir);
     if (!gateReports.ok) {
         await escalateToHuman(client, pr, logger, gateReports.reason, `**The pipeline could not read the gate results**, so it cannot tell whether this PR builds or passes ` +
@@ -366,7 +410,12 @@ export async function runGovern(reportsDir) {
     }
     // Whether anybody planned this work, asked after the review rather than before it: it is
     // advisory, so it must not stand between a pull request and the review that judges its code.
-    findings = [...findings, ...(await taskProvenanceFindings(pr, logger))];
+    //
+    // The artifact findings were decided structurally, long before the review; they join here
+    // because this is where everything that weighs on the verdict is gathered. They do not skip the
+    // review the way a red gate does - a folder missing its test plan says nothing about whether the
+    // code in the pull request is worth reviewing.
+    findings = [...findings, ...artifactFindings, ...(await taskProvenanceFindings(pr, logger))];
     const commitMessages = await client.listCommitMessages(pr);
     const attemptsSoFar = countFixAttempts(commitMessages);
     const attemptNumber = attemptsSoFar + 1;

@@ -12,6 +12,7 @@ upstream:
   - entrypoint.main
 downstream:
   - shared.core
+  - tester.preview
   - merge.merger
   - routing.router
   - verdict.decision
@@ -34,6 +35,9 @@ neurons:
   - id: entrypoint.cli.governCommand
     file: governCommand.yml
     unit: ../govern-command.ts
+  - id: entrypoint.cli.testPreviewCommand
+    file: testPreviewCommand.yml
+    unit: ../test-preview-command.ts
   - id: entrypoint.cli.scaffoldCommands
     file: scaffoldCommands.yml
     unit: ../scaffold-commands.ts

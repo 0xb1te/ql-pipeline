@@ -1,5 +1,5 @@
 // @neuron shared.core.gateReport
-import type { Area, GateOutcome, RequiredCheck } from './types.js';
+import type { Area, GateOutcome, GateStage } from './types.js';
 
 /**
  * The handoff between the gate jobs and the pipeline job. Each gate stage
@@ -7,7 +7,7 @@ import type { Area, GateOutcome, RequiredCheck } from './types.js';
  * boundary as a file rather than staying in memory.
  */
 export interface GateReport {
-  readonly stage: Exclude<RequiredCheck, 'ai-review'>;
+  readonly stage: GateStage;
   readonly outcomes: readonly GateOutcome[];
 }
 

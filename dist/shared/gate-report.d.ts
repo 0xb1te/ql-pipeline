@@ -1,11 +1,11 @@
-import type { GateOutcome, RequiredCheck } from './types.js';
+import type { GateOutcome, GateStage } from './types.js';
 /**
  * The handoff between the gate jobs and the pipeline job. Each gate stage
  * runs as its own GitHub check, so its outcomes have to survive the job
  * boundary as a file rather than staying in memory.
  */
 export interface GateReport {
-    readonly stage: Exclude<RequiredCheck, 'ai-review'>;
+    readonly stage: GateStage;
     readonly outcomes: readonly GateOutcome[];
 }
 /**

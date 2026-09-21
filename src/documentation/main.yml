@@ -47,6 +47,9 @@ signals:
       - to: entrypoint.cli.governCommand#runGovern
         via: direct-call
         because: the `govern` command's own implementation
+      - to: entrypoint.cli.testPreviewCommand#runTestPreview
+        via: direct-call
+        because: the `test-preview` command's own implementation
       - to: entrypoint.cli.scaffoldCommands#runInit
         via: direct-call
         because: the `init` command's own implementation

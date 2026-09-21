@@ -160,4 +160,16 @@ tracts:
     effectors:
       - filesystem:the already-built dist/main.js
 
-revision: 2026-09-20
+  - tract: test-a-preview-over-mcp
+    stimulus: process start (node dist/main.js test-preview)
+    response: every MCP case in the branch's task folder is driven against the preview and every failure is reported in one comment
+    path:
+      - entrypoint.main.main#main
+      - entrypoint.cli.testPreviewCommand#runTestPreview
+      - tester.preview.tester#runTestPlan
+      - tester.preview.tester#judgeCase
+    effectors:
+      - http-out:the application's MCP server, on the preview's internal compose network
+      - http-out:one pull request comment, posted once when the whole plan has finished
+
+revision: 2026-09-21

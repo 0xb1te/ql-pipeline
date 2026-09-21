@@ -1,0 +1,56 @@
+cns: "1.0"
+neuron: mcpClient
+kind: adapter
+region: tester
+layer: preview
+unit: src/tester/mcp-client.ts
+
+responsibility: >
+  Calls the application MCP server a preview stack booted, over JSON-RPC, on the internal compose
+  network.
+
+owns:
+  - >
+    The two JSON-RPC methods the tester needs - tools/list and tools/call - and the distinction
+    between a server that answered with an error and a server that could not be reached at all
+
+invariants:
+  - >
+    Reached over the internal compose network, never the public edge. The preview URL's only lock
+    is a gate token meant for showing somebody a demo, and this surface can manage everything the
+    application can, including its users. The tester job runs on the same host for exactly this
+    reason
+  - >
+    A JSON-RPC error is the server answering and becomes a failed case. Only a transport failure
+    is McpUnreachableError, because the caller treats the two completely differently - one case
+    failed, versus there is nothing left to test
+
+excludes:
+  - >
+    Judging a response. It returns what the server said; tester.preview.tester decides whether
+    that is a pass
+  - >
+    Retries. A flaky case that passes on the second attempt is a flaky blocker, which is worse
+    than no blocker
+
+receptors: []
+effectors:
+  - kind: http-out
+    target: the application's MCP server, on the preview's internal compose network
+    effect: one JSON-RPC tools/call per test case, over the compose network and never the public edge
+    signal: createMcpClient
+
+signals:
+  - signal: createMcpClient
+    intent: >
+      A client bound to one endpoint, with a per-call timeout so a hung tool fails its own case
+      rather than holding the whole run. Hand-rolled for the same reason the xlsx reader is - two
+      JSON-RPC methods do not justify a dependency here.
+    accepts: "{ endpoint, timeoutMs?, fetchImpl? }"
+    returns: McpClient
+    afferent:
+      - from: entrypoint.cli.testPreviewCommand#runTestPreview
+        via: direct-call
+    efferent: []
+
+revision: 2026-09-21

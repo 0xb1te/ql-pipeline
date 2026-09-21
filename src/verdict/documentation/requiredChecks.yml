@@ -21,6 +21,8 @@ signals:
     afferent:
       - from: entrypoint.cli.governCommand#runGovern
         via: direct-call
+      - from: mcp.server.inspect#runInspectTool
+        via: direct-call
     efferent: []
 
   - signal: gateFindings
@@ -32,6 +34,8 @@ signals:
     pure: true
     afferent:
       - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+      - from: mcp.server.inspect#runInspectTool
         via: direct-call
     efferent: []
 

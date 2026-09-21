@@ -10,6 +10,7 @@ role: >
 
 upstream:
   - entrypoint.cli
+  - mcp.server
 downstream:
   - review.reviewer
   - shared.core

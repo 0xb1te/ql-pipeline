@@ -39,11 +39,20 @@ describe('MCP server dispatch', () => {
     expect(response['result']).toMatchObject({ serverInfo: { name: 'ql-pipeline' } });
   });
 
-  it('lists exactly the three maintenance tools on tools/list', async () => {
+  // Exact equality on purpose - see the matching note in tools.test.ts.
+  it('lists exactly the maintenance and inspection tools on tools/list', async () => {
     const response = await send({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
 
     const result = response['result'] as { tools: { name: string }[] };
-    expect(result.tools.map((t) => t.name)).toEqual(['ql_pipeline_doctor', 'ql_pipeline_init', 'ql_pipeline_upgrade']);
+    expect(result.tools.map((t) => t.name)).toEqual([
+      'ql_pipeline_doctor',
+      'ql_pipeline_init',
+      'ql_pipeline_upgrade',
+      'ql_pipeline_route',
+      'ql_pipeline_gate_reports',
+      'ql_pipeline_verdict',
+      'ql_pipeline_human_queue',
+    ]);
   });
 
   it('forwards tools/call to runTool with the call\'s name and arguments', async () => {

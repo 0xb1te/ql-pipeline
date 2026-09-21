@@ -8,7 +8,8 @@ unit: src/mcp/server.ts
 responsibility: >
   A hand-rolled, newline-delimited JSON-RPC server on stdio implementing initialize/tools/list/
   tools/call - the same shape ql-docs's house-mcp.mjs uses - so an agent can drive doctor/init/
-  upgrade without any HTTP service to forward to.
+  upgrade, and the read-only inspection of a governance run, without any HTTP service to
+  forward to.
 
 excludes:
   - Any framing besides one JSON object per line - no Content-Length headers, no batching
@@ -39,7 +40,7 @@ signals:
     efferent:
       - to: mcp.server.tools#runTool
         via: direct-call
-        because: tools/call's actual work - running the named tool's CLI command
+        because: tools/call's actual work - answering an inspection tool in-process, or running the named tool's CLI command
 
   - signal: handleLine
     intent: Parses one newline-delimited line as a JSON-RPC request, dispatches it, and writes back its result or error as one JSON-RPC response line.
@@ -63,4 +64,8 @@ signals:
         via: direct-call
         because: hands off each complete line as soon as it's buffered
 
-revision: 2026-08-30
+provenance:
+  - docs/features/040-governance-verbs-on-mcp/plan.md
+  - docs/features/040-governance-verbs-on-mcp/summary.md
+
+revision: 2026-09-21

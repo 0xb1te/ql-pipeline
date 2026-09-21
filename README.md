@@ -59,6 +59,43 @@ Feature-complete against the specification. Build-out and conformance tracked as
 
 399 tests across 34 files; the commit parser and verdict engine hold 100% branch coverage. **Not yet verified:** a live Actions run against a real PR, and a live `cursor-agent` review/fix cycle — see [SPECIFICATION.md §8](docs/SPECIFICATION.md).
 
+## The MCP server
+
+The package ships a second binary, `ql-pipeline-mcp`, a stdio JSON-RPC server that lets an agent
+ask this pipeline about itself. Seven tools, in two halves.
+
+**Maintenance** — these spawn the CLI as a child process, exactly as you would in a terminal:
+
+| Tool | Does |
+|---|---|
+| `ql_pipeline_doctor` | Checks a repo's scaffolding, changing nothing |
+| `ql_pipeline_init` | Scaffolds the pipeline into a repo |
+| `ql_pipeline_upgrade` | Refreshes the managed files |
+
+**Inspection** — read-only, composed in-process from the same functions `govern` composes:
+
+| Tool | Answers |
+|---|---|
+| `ql_pipeline_route` | Which areas, rule files and gate commands does this PR pull in? |
+| `ql_pipeline_gate_reports` | What did the build and test gate jobs report? |
+| `ql_pipeline_verdict` | Given those gates and these findings: MERGE, FIX or BLOCK — and why? |
+| `ql_pipeline_human_queue` | Which open PRs are labelled `needs-human` or `ready-to-merge`? |
+
+None of the four writes: no merge, comment, label, approval or pushed commit. `ql_pipeline_human_queue`
+needs `GITHUB_TOKEN`; the other three read the repo's config and its gate reports off disk.
+
+### Why gate and govern are not here
+
+The two CI verbs stay off this surface, deliberately. `govern` merges to the target branch, approves
+pull requests, comments and pushes fix commits; `gate` executes the shell commands named in `gates:`.
+This repo's own config sets `require_human_approval: true` so that no agent both changes code and merges
+it, and a tool calling `runGovern` would hand that capability back through another door.
+
+The inspection half is what makes that carve-out affordable: the reason to want `govern` on an MCP was
+to learn what it would decide, and `ql_pipeline_verdict` answers that without causing it. The carve-out
+is a real deviation from the suite's MCP parity rule and is recorded as one, with the House conversation
+it still owes, in [docs/features/040-governance-verbs-on-mcp/plan.md](docs/features/040-governance-verbs-on-mcp/plan.md).
+
 ## Repository layout
 
 ```
@@ -75,6 +112,7 @@ src/reviewer/              Cursor CLI review: prompt building, diff grounding, r
 src/verdict/               Pure MERGE / FIX / BLOCK engine and required-checks semantics
 src/fixer/                 Attempt counting, complaint formatting, fix agent, protected-path revert
 src/merger/                Target-branch resolution; approve + merge + delete-branch
+src/mcp/                   Stdio JSON-RPC server: the CLI-spawning tools, and read-only run inspection
 src/shared/                Types, config, logger, GitHub client, exec, worktree snapshots, gate reports, audit summary
 tests/                     Mirrors src/; tests/integration/ holds the end-to-end and chaos-safety suites
 .github/workflows/         pr-pipeline.yml (the reusable workflow) · dogfood.yml · self-check.yml

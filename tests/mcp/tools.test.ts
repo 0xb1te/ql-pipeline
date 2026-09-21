@@ -29,8 +29,31 @@ function emitClose(child: FakeChildProcess, exitCode: number, stdout = '', stder
 }
 
 describe('TOOLS', () => {
-  it('lists exactly the three maintenance commands, never gate or govern', () => {
-    expect(TOOLS.map((tool) => tool.name)).toEqual(['ql_pipeline_doctor', 'ql_pipeline_init', 'ql_pipeline_upgrade']);
+  // Exact equality on purpose, and kept exact when the list grew from three to seven: adding a
+  // tool to an MCP server is a public-API change, and this assertion is what makes it a
+  // deliberate act rather than a side effect of an import. Loosening it to a `toContain` would
+  // let a tool appear without anyone deciding it should.
+  it('lists exactly the maintenance and inspection tools, never gate or govern', () => {
+    expect(TOOLS.map((tool) => tool.name)).toEqual([
+      'ql_pipeline_doctor',
+      'ql_pipeline_init',
+      'ql_pipeline_upgrade',
+      'ql_pipeline_route',
+      'ql_pipeline_gate_reports',
+      'ql_pipeline_verdict',
+      'ql_pipeline_human_queue',
+    ]);
+  });
+
+  it('exposes no tool that runs gate or govern', () => {
+    const names = TOOLS.map((tool) => tool.name).join(' ');
+    expect(names).not.toContain('gate_stage');
+    expect(names).not.toContain('govern');
+  });
+
+  it('gives every tool a unique name', () => {
+    const names = TOOLS.map((tool) => tool.name);
+    expect(new Set(names).size).toBe(names.length);
   });
 });
 

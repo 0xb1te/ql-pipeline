@@ -114,8 +114,10 @@ regions:
 
   - region: mcp
     purpose: >
-      Exposes `doctor`/`init`/`upgrade` to an AI agent over stdio JSON-RPC by spawning the
-      already-built CLI as a child process.
+      Exposes this pipeline to an AI agent over stdio JSON-RPC in two halves: `doctor`/`init`/
+      `upgrade` by spawning the already-built CLI as a child process, and the read-only
+      inspection of a governance run - route, gate reports, verdict, human queue - composed
+      in-process from the engine's own functions. `gate` and `govern` stay off it, deliberately.
     ganglia:
       - id: mcp.server
         file: src/mcp/documentation/_ganglion.yml
@@ -130,4 +132,4 @@ regions:
 
 excluded: []
 
-revision: 2026-09-20
+revision: 2026-09-21

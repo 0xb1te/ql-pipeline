@@ -5,8 +5,10 @@ layer: fixer
 path: src/fixer
 
 role: >
-  Runs one automated fix attempt against blocking findings, hard-reverts any edit to a protected
-  path regardless of what the agent did, and commits and pushes whatever real change is left.
+  Runs one automated fix attempt against blocking findings, by whichever provider the repository
+  configured - in process with a coding-agent CLI, hard-reverting any edit to a protected path
+  and committing what is left, or dispatched to ql-agents, which does its own committing on its
+  own host and reports back a run id.
 
 upstream:
   - entrypoint.cli
@@ -14,6 +16,7 @@ upstream:
 downstream:
   - review.reviewer
   - shared.core
+  - standards.reader
 
 neurons:
   - id: fix.fixer.fixer
@@ -28,5 +31,8 @@ neurons:
   - id: fix.fixer.protectedPaths
     file: protectedPaths.yml
     unit: ../protected-paths.ts
+  - id: fix.fixer.agentsFixer
+    file: agentsFixer.yml
+    unit: ../agents-fixer.ts
 
-revision: 2026-08-30
+revision: 2026-09-22

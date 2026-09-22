@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { replyForFinding } from '../../src/reviewer/finding-reply.js';
+import { pickedUpReply, replyForFinding } from '../../src/reviewer/finding-reply.js';
 
 const ATTEMPT = { attemptNumber: 1, maxFixAttempts: 3 };
 
@@ -56,5 +56,32 @@ describe('replyForFinding', () => {
     });
 
     expect(text).not.toContain('Files touched');
+  });
+});
+
+describe('pickedUpReply', () => {
+  it('names the run, so a reader has something they can look up or cancel', () => {
+    const body = pickedUpReply({ runId: 'run-7', attemptNumber: 1, maxFixAttempts: 3 });
+
+    expect(body).toContain('run-7');
+    expect(body).toContain('attempt 1 of 3');
+  });
+
+  it('says the agent has every finding, not just this thread', () => {
+    // The agent is given the whole complaint at once, so a thread claiming sole ownership of
+    // the run would be the same overstatement replyForFinding already refuses to make.
+    expect(pickedUpReply({ runId: 'run-7', attemptNumber: 2, maxFixAttempts: 3 })).toMatch(
+      /every finding in this review/i,
+    );
+  });
+
+  it('promises the second reply that replyForFinding posts', () => {
+    expect(pickedUpReply({ runId: 'run-7', attemptNumber: 1, maxFixAttempts: 3 })).toMatch(/second reply/i);
+  });
+
+  it('never claims the finding is fixed', () => {
+    const body = pickedUpReply({ runId: 'run-7', attemptNumber: 1, maxFixAttempts: 3 });
+
+    expect(body).not.toMatch(/fixed|resolved/i);
   });
 });

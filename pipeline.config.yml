@@ -111,6 +111,15 @@ standards:
 # is review-only and would disable the fixer. Slug is the cursor-agent
 # --list-models id, not the product display name.
 agent:
+  # cursor            - spawns cursor-agent in the governance job. Reviews and fixes.
+  # openai_compatible - review only; the fixer still needs a real agent.
+  # ql_agents         - dispatches the fix to ql-agents instead of spawning a CLI here, so
+  #                     which coding agent runs is a descriptor on that side rather than a code
+  #                     path in this repo. Needs QL_AGENTS_URL, QL_AGENTS_WORKTREE_BASE and the
+  #                     QL_AUTH_* credentials; the model below is forwarded to the run.
+  #                     Note it cannot revert protected paths the way `cursor` does - ql-agents
+  #                     pushes from its own host - so R4 on the triggered run is the backstop.
+  #                     See docs/features/046-fix-through-ql-agents/.
   provider: cursor
   # Fallback for every phase. Override one phase at a time with
   # `review.model` / `fix.model` - review reasons about a whole diff against

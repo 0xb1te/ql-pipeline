@@ -25,6 +25,22 @@ receptors: []
 effectors: []
 
 signals:
+  - signal: pickedUpReply
+    intent: >
+      The reply posted into a finding's thread the moment an agent accepts it, before it has done
+      anything. Separate from replyForFinding, which answers with what an attempt did - this one
+      answers the question a reader actually has while the attempt runs, which had no answer on
+      the pull request for however many minutes the agent took. It names the run rather than
+      describing one, because a run id is what a person can look up, quote or cancel, and it
+      never claims the finding is fixed.
+    accepts: "{ runId, attemptNumber, maxFixAttempts }"
+    returns: string
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
   - signal: replyForFinding
     intent: >
       The reply for one finding thread, given what this run did about the findings as a whole.
@@ -41,4 +57,4 @@ signals:
 provenance:
   - docs/features/025-answer-the-findings/plan.md
 
-revision: 2026-09-19
+revision: 2026-09-22

@@ -1,6 +1,6 @@
 // @neuron shared.core.auditSummary
 import type { PipelineDecision } from '../verdict/verdict.js';
-import type { Area, GateOutcome } from './types.js';
+import { FIX_ATTEMPT_MARKER, type Area, type GateOutcome } from './types.js';
 
 /** What survived of one standards document, for the coverage line. */
 export interface StandardsCoverage {
@@ -114,6 +114,11 @@ export function formatAuditSummary(input: AuditSummaryInput): string {
       '',
       'Pushing to this branch cancels the attempt while it runs, and the run itself is the only ' +
         'place that is visible.',
+      // Renders as nothing, and is how the next run knows this attempt happened. The commit
+      // history cannot answer that under a provider that commits for itself - see
+      // fix.fixer.attemptCounter.
+      '',
+      FIX_ATTEMPT_MARKER,
     );
   }
 

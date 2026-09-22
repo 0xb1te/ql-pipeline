@@ -357,7 +357,9 @@ function verdictTool(params, root, env, fileExists, loadPipelineConfig, readRepo
     const requiredChecks = loaded.config.merge.requiredChecks;
     const fromGates = gateFindings(reports.outcomes, requiredChecks);
     const findings = [...fromGates, ...parsedFindings.findings];
-    const attemptsSoFar = countFixAttempts(readStringArray(params, 'commitMessages'));
+    // The same two sources govern uses, so this tool cannot report a different attempt count
+    // than the run it is describing.
+    const attemptsSoFar = countFixAttempts(readStringArray(params, 'commitMessages'), readStringArray(params, 'commentBodies'));
     const decision = decidePipelineOutcome({
         findings,
         attemptsSoFar,

@@ -186,3 +186,27 @@ export interface ReviewVerdict {
     readonly verdict: 'PASS' | 'FAIL';
     readonly findings: readonly Finding[];
 }
+/**
+ * Stamped into every comment this pipeline writes, so a later run can recognise its own voice.
+ *
+ * Identity cannot do this job. The workflow acts as `secrets.GH_TOKEN` when one is set, and that
+ * token belongs to a person — the same person who comments on the pull request. Once `GH_TOKEN`
+ * is configured, the pipeline's comments and the operator's are written by the *same GitHub
+ * account*, so "was this written by a bot?" has no answer, and "was this written by me?" would
+ * decline the operator's own direction along with the pipeline's chatter.
+ *
+ * What the two do not share is what they say. An HTML comment renders as nothing, survives
+ * GitHub's Markdown untouched, and is carried in the webhook payload the trigger reads — so the
+ * guard can ask the one question that still separates them.
+ *
+ * Without this, a `GH_TOKEN` that finally closes the fix loop also makes every verdict comment
+ * start another run that writes another verdict comment, forever.
+ *
+ * It lives here, rather than beside `stampAutomated` where it was introduced, because two
+ * guards need it and one of them must stay pure. `shared/github-client.ts` already imports
+ * `PrComment` from `shared/human-direction.ts`; that import is type-only and erases, so the
+ * client has no runtime dependency on the formatter. Had the formatter imported this constant
+ * back out of the client, that erasure would have reversed into a real one — a pure string
+ * function pulling in `@actions/github` and the whole Octokit surface to read one string.
+ */
+export declare const AUTOMATION_MARKER = "<!-- ql-pipeline:automated -->";

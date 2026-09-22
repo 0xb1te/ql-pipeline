@@ -28,6 +28,11 @@ export interface AuditSummaryInput {
     readonly standardsCoverage?: readonly StandardsCoverage[];
     /** Present only when the prompt ceiling cut the standards further. */
     readonly promptCoverage?: PromptCoverage;
+    /**
+     * The Actions run this summary is posted from, so the fix attempt a FIX verdict announces can
+     * be watched while it runs. Null outside Actions, where there is no run to point at.
+     */
+    readonly runUrl?: string | null;
 }
 /**
  * Renders one audit-trail PR comment per pipeline run. Per plan.md §6

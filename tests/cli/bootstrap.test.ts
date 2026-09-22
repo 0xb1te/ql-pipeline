@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { resolveRouting } from '../../src/cli/bootstrap.js';
+import { actionsRunUrl, resolveRouting } from '../../src/cli/bootstrap.js';
 import type { GithubClient, PullRequestInfo } from '../../src/shared/github-client.js';
 import type { PipelineConfig } from '../../src/shared/types.js';
 
@@ -105,5 +105,35 @@ describe('resolveRouting', () => {
     if (result.kind === 'proceed') {
       expect(result.targetBranch).toBe('release/mobile');
     }
+  });
+});
+
+describe('actionsRunUrl', () => {
+  it('builds the run URL from the Actions environment', () => {
+    const url = actionsRunUrl({
+      GITHUB_SERVER_URL: 'https://github.com',
+      GITHUB_REPOSITORY: '0xb1te/ql-pipeline',
+      GITHUB_RUN_ID: '42',
+    });
+
+    expect(url).toBe('https://github.com/0xb1te/ql-pipeline/actions/runs/42');
+  });
+
+  it('honours an Enterprise server rather than hard-coding github.com', () => {
+    const url = actionsRunUrl({
+      GITHUB_SERVER_URL: 'https://ghe.example.com',
+      GITHUB_REPOSITORY: 'a/b',
+      GITHUB_RUN_ID: '7',
+    });
+
+    expect(url).toBe('https://ghe.example.com/a/b/actions/runs/7');
+  });
+
+  it('returns null outside Actions rather than a half-built URL', () => {
+    // A link to `undefined/actions/runs/undefined` is worse than no link: it reads as a broken
+    // pipeline rather than as a summary posted from somewhere that has no run.
+    expect(actionsRunUrl({})).toBeNull();
+    expect(actionsRunUrl({ GITHUB_SERVER_URL: 'https://github.com', GITHUB_REPOSITORY: 'a/b' })).toBeNull();
+    expect(actionsRunUrl({ GITHUB_SERVER_URL: '', GITHUB_REPOSITORY: 'a/b', GITHUB_RUN_ID: '1' })).toBeNull();
   });
 });

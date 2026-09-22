@@ -9,12 +9,20 @@ responsibility: >
   Renders the one audit-trail PR comment every pipeline run posts, regardless of its decision -
   plan.md §6's guarantee that the full decision trail is reconstructible from the PR alone.
 
+owns:
+  - Announcing, on a FIX verdict, that a fix agent is starting and where the run can be watched - this comment is posted before runFix is called and nothing else is written until the attempt finishes, so the Decision line was the only pre-fix signal there was and it did not read as one
+  - Saying that a push cancels the attempt, because consumers set concurrency.cancel-in-progress and announcing an attempt without saying it can be killed would be a worse comment than none
+  - Carrying that status in this comment rather than in a second one, since pull-request comments are fed back to the fix agent as human direction and a separate status update would reach the agent as an instruction from a person
+
+excludes:
+  - Reading the environment; the run URL arrives as an argument so this unit stays pure - see entrypoint.cli.bootstrap#actionsRunUrl
+
 receptors: []
 effectors: []
 
 signals:
   - signal: formatAuditSummary
-    intent: Renders one run's areas, target branch, gate outcomes, review status, finding count, and decision (with its BLOCK reason, if any) as a Markdown PR comment.
+    intent: Renders one run's areas, target branch, gate outcomes, review status, finding count, and decision as a Markdown PR comment - with its BLOCK reason if any, and on FIX the announcement that a fix agent is starting, how many blocking findings it has, the run to watch it at, and the warning that a push cancels it.
     accepts: AuditSummaryInput
     returns: string
     pure: true
@@ -23,4 +31,7 @@ signals:
         via: direct-call
     efferent: []
 
-revision: 2026-08-30
+provenance:
+  - docs/bugfixes/044-fix-attempt-starts-silently/summary.md
+
+revision: 2026-09-22

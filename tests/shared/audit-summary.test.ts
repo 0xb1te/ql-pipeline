@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { formatAuditSummary, type AuditSummaryInput } from '../../src/shared/audit-summary.js';
-import type { GateOutcome } from '../../src/shared/types.js';
+import type { Finding, GateOutcome } from '../../src/shared/types.js';
 
 function input(overrides: Partial<AuditSummaryInput> = {}): AuditSummaryInput {
   return {
@@ -101,5 +101,65 @@ describe('formatAuditSummary — standards coverage', () => {
     );
 
     expect(summary.indexOf('**Standards coverage:**')).toBeLessThan(summary.indexOf('**Findings:**'));
+  });
+});
+
+describe('formatAuditSummary — a FIX verdict announces the attempt', () => {
+  const RUN = 'https://github.com/0xb1te/ql-pipeline/actions/runs/42';
+
+  const finding: Finding = {
+    severity: 'must',
+    rule: 'review.standards#MUST',
+    file: 'src/a.ts',
+    line: 1,
+    problem: 'wrong',
+    suggestedFix: null,
+    autoFixable: true,
+  };
+
+  const fix = (overrides: Partial<AuditSummaryInput> = {}): AuditSummaryInput =>
+    input({
+      findingCount: 1,
+      decision: { kind: 'FIX', findings: [finding], advisoryFindings: [] },
+      ...overrides,
+    });
+
+  it('says a fix agent is running, instead of leaving it to be inferred from the verdict', () => {
+    // `Decision: FIX` was already the only pre-fix signal on the pull request, because this
+    // comment is posted before runFix is called. It never read as one.
+    const summary = formatAuditSummary(fix({ runUrl: RUN }));
+
+    expect(summary).toContain('**Decision:** FIX (attempt 1 of 3)');
+    expect(summary).toMatch(/fix agent/i);
+  });
+
+  it('links the run, which is the only place the attempt can be watched', () => {
+    expect(formatAuditSummary(fix({ runUrl: RUN }))).toContain(RUN);
+  });
+
+  it('warns that a push cancels the attempt in flight', () => {
+    // Consumers set concurrency.cancel-in-progress, so pushing while a fix runs kills it
+    // silently. Announcing an attempt without saying that would be a worse comment than none.
+    expect(formatAuditSummary(fix({ runUrl: RUN }))).toMatch(/cancel/i);
+  });
+
+  it('still announces the attempt when there is no run to link', () => {
+    const summary = formatAuditSummary(fix({ runUrl: null }));
+
+    expect(summary).toMatch(/fix agent/i);
+    expect(summary).not.toContain('actions/runs');
+    expect(summary).not.toContain('undefined');
+    expect(summary).not.toContain('null');
+  });
+
+  it('says nothing about a fix agent on MERGE or BLOCK', () => {
+    expect(formatAuditSummary(input({ runUrl: RUN }))).not.toMatch(/fix agent/i);
+
+    const blocked = input({
+      runUrl: RUN,
+      decision: { kind: 'BLOCK', reason: 'needs a human', findings: [finding], advisoryFindings: [] },
+    });
+
+    expect(formatAuditSummary(blocked)).not.toMatch(/fix agent/i);
   });
 });

@@ -11,6 +11,7 @@ responsibility: >
 
 owns:
   - The PipelineContext shape every job (gate, govern) is built from
+  - Reading the Actions run out of the environment, because this unit is where this surface reads process.env at all - the run URL is the only identity a governance run has that a reader can act on, since cursor-agent is spawned with --print and leaves no session id to quote
 invariants:
   - Every job resolves routing for itself rather than trusting a verdict handed down from another job
 
@@ -23,6 +24,21 @@ effectors:
     effect: throws with a specific message when GITHUB_TOKEN is unset or the pipeline config fails to load
 
 signals:
+  - signal: actionsRunUrl
+    intent: >
+      The Actions run this process belongs to, as a URL, or null when it is not running in
+      Actions. Pure in its argument so it can be tested without mutating the real environment.
+      Returns null rather than a half-built URL when any of the three variables is missing - a
+      link into a path built from absent values reads as a broken pipeline rather than as a
+      summary posted from somewhere with no run.
+    accepts: Readonly<Record<string, string | undefined>>
+    returns: string | null
+    pure: true
+    afferent:
+      - from: entrypoint.cli.bootstrap#createPipelineContext
+        via: direct-call
+    efferent: []
+
   - signal: createPipelineContext
     intent: >
       Reads GITHUB_TOKEN, loads the pipeline config, reads the triggering PR from the Actions
@@ -49,6 +65,9 @@ signals:
       - to: shared.core.logger#createLogger
         via: direct-call
         because: builds the logger this run's job writes progress and errors to
+      - to: entrypoint.cli.bootstrap#actionsRunUrl
+        via: direct-call
+        because: the run URL is read from the environment here, where every other environment read on this surface already happens
     raises:
       - code: Error
         when: GITHUB_TOKEN is unset or empty, the pipeline config cannot be read or parsed, or the event payload has no pull_request
@@ -81,4 +100,4 @@ signals:
         via: direct-call
         because: confirms the PR's actual base branch is the one its areas resolved to
 
-revision: 2026-08-30
+revision: 2026-09-22

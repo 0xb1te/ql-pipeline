@@ -27,3 +27,13 @@ Newest entries at the bottom.
   second test key on the author instead: the operator comments from that same account, and
   declining their direction is the failure `026` and `030` were both trying to avoid. Shipped in
   `0.3.1`.
+
+- `bugfixes/044-fix-attempt-starts-silently` — A `FIX` verdict ran `cursor-agent` for minutes with
+  nothing on the pull request saying so: the summary comment is posted before `runFix`, but its
+  `Decision: FIX` line names a verdict, not an activity, and no part of `src/` read
+  `GITHUB_RUN_ID`, so there was no run to link. `formatAuditSummary` now announces the attempt and
+  links the run, and warns that a push cancels it — consumers set `cancel-in-progress`. The
+  environment is read in `bootstrap.ts` (`actionsRunUrl`) and passed in as an argument: do not move
+  that read into `audit-summary.ts`, whose neuron declares it `pure` with no receptors or
+  effectors. Do not add a *second* comment for status either — PR comments reach the fix agent as
+  human direction, which `043` had just closed off. Shipped in `0.3.2`.

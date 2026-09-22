@@ -32,6 +32,11 @@ export interface AuditSummaryInput {
   readonly standardsCoverage?: readonly StandardsCoverage[];
   /** Present only when the prompt ceiling cut the standards further. */
   readonly promptCoverage?: PromptCoverage;
+  /**
+   * The Actions run this summary is posted from, so the fix attempt a FIX verdict announces can
+   * be watched while it runs. Null outside Actions, where there is no run to point at.
+   */
+  readonly runUrl?: string | null;
 }
 
 /**
@@ -86,6 +91,31 @@ export function formatAuditSummary(input: AuditSummaryInput): string {
     '',
     `**Decision:** ${input.decision.kind} (attempt ${input.attemptNumber} of ${input.maxFixAttempts})`,
   );
+
+  // Announced here because here is the only place it can be. This comment is posted before
+  // `runFix` is called, and the fix agent then runs for minutes with nothing else written to the
+  // pull request until it is done -- so `Decision: FIX` was, quite literally, the only signal
+  // that anything was happening, and it does not read as one.
+  //
+  // It is said in this comment rather than in a second one on purpose: comments on the pull
+  // request are fed back to the fix agent as human direction, so a status update posted
+  // separately would arrive at the agent as an instruction from a person. See bugfix 043.
+  if (input.decision.kind === 'FIX') {
+    lines.push(
+      '',
+      `A fix agent is starting now, against ${String(input.decision.findings.length)} blocking ` +
+        'finding(s). It writes one commit addressing all of them at once, and the review that ' +
+        'commit triggers is what decides whether they are settled.',
+    );
+    if (input.runUrl !== undefined && input.runUrl !== null) {
+      lines.push('', `Watch it: ${input.runUrl}`);
+    }
+    lines.push(
+      '',
+      'Pushing to this branch cancels the attempt while it runs, and the run itself is the only ' +
+        'place that is visible.',
+    );
+  }
 
   if (input.decision.kind === 'BLOCK') {
     lines.push(`> ${input.decision.reason}`);

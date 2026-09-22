@@ -40,7 +40,8 @@ export interface PreviewUpRequest {
 }
 /**
  * The argument vector for `ql-proxy up`. A vector and never a string: the branch name is
- * pull-request content and reaches the child as an argument, not through a shell.
+ * pull-request content and reaches the child as an argument, not through a shell. Announcing
+ * is switched off, so the pipeline's summary is the only comment a preview gets.
  */
 export declare function previewUpArgs(request: PreviewUpRequest): readonly string[];
 export interface PreviewUpOutput {

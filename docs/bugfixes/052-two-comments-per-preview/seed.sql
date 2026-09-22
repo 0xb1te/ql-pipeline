@@ -1,0 +1,15 @@
+-- No fixtures required.
+--
+-- ql-pipeline is a CI tool with no database. This bugfix removes an
+-- environment variable and adds one argv entry; there is no persisted state
+-- for a fixture to establish.
+--
+-- What stands in for fixtures here is the injected executor the 050 tests
+-- already use: it records the argv and the environment the ql-proxy child is
+-- spawned with, which is exactly what this change alters.
+--
+-- The MCP Cases sheet is present and empty: no MCP surface changes.
+--
+-- The file is present because ql-docs workflow/flows/seed-data.md requires it
+-- of every task with no "not relevant here" exemption, and because ql-pipeline
+-- reports a pull request whose task folder lacks it.

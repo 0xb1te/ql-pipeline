@@ -4,13 +4,6 @@ import { type PipelineContext } from './bootstrap.js';
 export declare const PROXY_HOME_VAR = "QL_PROXY_HOME";
 /** Which ql-proxy.yml the CLI reads on that host. Optional; the CLI has its own default. */
 export declare const PROXY_CONFIG_VAR = "QL_PROXY_CONFIG";
-/**
- * The token ql-proxy's own `gh pr comment` announces the address with. The workflow passes
- * `github.token` here and never GH_TOKEN, deliberately: ql-proxy's comment carries no automation
- * marker, so it must arrive as github-actions[bot] - which the resolve job declines - rather than
- * as the person GH_TOKEN belongs to, whose comments start another run.
- */
-export declare const ANNOUNCE_TOKEN_VAR = "QL_PREVIEW_ANNOUNCE_TOKEN";
 /** Read by the devops compose to mount `docs/${QL_TASK_FOLDER}/seed.sql` into the database. */
 export declare const TASK_FOLDER_VAR = "QL_TASK_FOLDER";
 /** Offered to the devops compose so it can pass the switch through to the application. */

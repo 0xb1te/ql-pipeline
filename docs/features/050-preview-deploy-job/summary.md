@@ -27,13 +27,13 @@ A green pull request in a product repository now gets a preview, and the tester 
 
 - **The verdict gates the deploy, not the comment count.** Advisory findings never block a merge, so they never block the preview. Recorded because the brief asked for it explicitly.
 - **Decided twice.** `decidePreviewDeploy` runs in `govern` to set the flag and again in `deploy-preview` before spawning anything. Do not remove the second on the grounds that the job condition already checked — it is what refuses to bring a stack up for a repository whose folder is not there.
-- **ql-proxy announces as `github-actions[bot]`, never as a person.** Its comment carries no automation marker; as a person's it would start another run on a consumer with comment triggers. `QL_PREVIEW_ANNOUNCE_TOKEN` is `github.token` and is the only token the child gets. Two comments per preview is the price until ql-proxy grows `--no-announce`.
+- **ql-proxy announces as `github-actions[bot]`, never as a person.** Its comment carries no automation marker; as a person's it would start another run on a consumer with comment triggers. `QL_PREVIEW_ANNOUNCE_TOKEN` is `github.token` and is the only token the child gets. Two comments per preview is the price until ql-proxy grows `--no-announce`. *Superseded by bugfix 052: ql-proxy 0.2.0 has the flag, the deploy passes it, and the child gets no token at all.*
 - **The MCP address is a container IP and never appears on the pull request.** The surface behind it can manage every user; the summary says whether it answered and nothing else.
 - **The tester runs even when the address is empty**, and fails loudly on it. A skip there would be the quiet success `041` refuses.
 - **`ql-proxy up` stdout is read as a contract**: the last URL-shaped line, and an optional `token: <value>` line. Written into the `previewStack` neuron's `owns` so the ql-proxy gate task knows what to print.
 
 ## Follow-Ups
 
-- **ql-proxy**: honour `--protect` on `up` and print `token: <value>` (the sibling task, *Authenticate previews behind a browser gate page*); add `--no-announce`.
+- **ql-proxy**: honour `--protect` on `up` and print `token: <value>` (the sibling task, *Authenticate previews behind a browser gate page*); add `--no-announce`. *Done in ql-proxy 0.2.0 (#9); the pipeline side is bugfix 052.*
 - **A consumer to prove it on**, once one has a contract-shaped devops folder and a registered runner.
 - Stacked on 049 (PR #43). Merge that first, then retarget this to `main` — see the memory on stacked pull requests.

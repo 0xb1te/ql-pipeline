@@ -6,6 +6,7 @@ import * as core from '@actions/core';
 import { countFixAttempts } from '../fixer/attempt-counter.js';
 import { formatComplaintSummary } from '../fixer/complaint.js';
 import { runFix } from '../fixer/fixer.js';
+import { agentsFixerCredentialsFromEnv, runAgentsFix } from '../fixer/agents-fixer.js';
 import { executeMergeDecision, inlineComments, recordComplaint, recordVerdictLabel, unanchoredFindings, NEEDS_HUMAN_LABEL, } from '../merger/merger.js';
 import { createOpenAiCompatibleReviewer, readAgentApiKeyFromEnv, } from '../reviewer/openai-compatible-runner.js';
 import { runReview, standardsBudgetFor } from '../reviewer/reviewer.js';
@@ -19,7 +20,7 @@ import { describeDroppedSections, formatStandardsForPrompt, resolveStandards, st
 import { formatAuditSummary, } from '../shared/audit-summary.js';
 import { mergeGateReports, parseGateReport } from '../shared/gate-report.js';
 import { AREAS, } from '../shared/types.js';
-import { replyForFinding } from '../reviewer/finding-reply.js';
+import { pickedUpReply, replyForFinding } from '../reviewer/finding-reply.js';
 import { formatDirection } from '../shared/human-direction.js';
 import { gateFindings, isReviewRequired } from '../verdict/required-checks.js';
 import { decidePipelineOutcome } from '../verdict/verdict.js';
@@ -591,16 +592,64 @@ export async function runGovern(reportsDir) {
         return;
     }
     const primaryArea = route.areas[0];
-    logger.info(`agent: fix model=${config.agent.fix.model ?? '(provider default)'}`);
-    const fixOutcome = await runFix(decision.findings, loadPromptTemplate('fixer.md'), primaryArea, {
-        cwd: consumerRoot,
-        branch: pr.headRef,
-        protectedPaths: config.fixer.protectedPaths,
-        attemptNumber,
-        maxFixAttempts: config.fixer.maxFixAttempts,
-        humanDirection: direction,
-        ...(config.agent.fix.model !== null ? { model: config.agent.fix.model } : {}),
-    });
+    logger.info(`agent: fix provider=${config.agent.provider} model=${config.agent.fix.model ?? '(provider default)'}`);
+    /**
+     * Says, in every thread this review opened, that a named agent now has the findings.
+     *
+     * Posted from inside the dispatch rather than after it, because "an agent has this" is only
+     * worth saying while it is still true that nobody knows. Best-effort like every other reply
+     * here: a thread that stays quiet is untidy, a governance run that failed over untidiness
+     * would be worse.
+     */
+    const announcePickup = async (runId) => {
+        const body = pickedUpReply({ runId, attemptNumber, maxFixAttempts: config.fixer.maxFixAttempts });
+        for (const commentId of findingThreads) {
+            try {
+                await client.replyToReviewComment(pr, commentId, body);
+            }
+            catch (error) {
+                logger.warn(`could not announce the pickup in a finding thread: ${String(error)}`);
+            }
+        }
+    };
+    let fixOutcome;
+    if (config.agent.provider === 'ql_agents') {
+        const agentsCredentials = agentsFixerCredentialsFromEnv();
+        if (agentsCredentials === undefined) {
+            await answerThreads({
+                kind: 'not-attempted',
+                why: 'the ql_agents provider is configured but QL_AGENTS_URL (or the ql-auth credentials) is unset.',
+            });
+            await escalateToHuman(client, pr, logger, 'agent.provider is ql_agents but this fleet has no ql-agents configured', 'This repository asks for the `ql_agents` fix provider, but `QL_AGENTS_URL` and the ' +
+                '`QL_AUTH_*` credentials are not all set on this workflow, so no agent could be reached. ' +
+                'The findings above need a human until that is configured.');
+            await notifySprint('block', 'Changes requested, but ql-agents is not configured on this fleet.');
+            return;
+        }
+        fixOutcome = await runAgentsFix(decision.findings, primaryArea, {
+            credentials: agentsCredentials,
+            repoUrl: `https://github.com/${pr.owner}/${pr.repo}.git`,
+            branch: pr.headRef,
+            taskId: `pr-${String(pr.number)}`,
+            worktreeBaseDir: agentsCredentials.worktreeBaseDir,
+            protectedPaths: config.fixer.protectedPaths,
+            attemptNumber,
+            humanDirection: direction,
+            onDispatched: announcePickup,
+            ...(config.agent.fix.model !== null ? { model: config.agent.fix.model } : {}),
+        });
+    }
+    else {
+        fixOutcome = await runFix(decision.findings, loadPromptTemplate('fixer.md'), primaryArea, {
+            cwd: consumerRoot,
+            branch: pr.headRef,
+            protectedPaths: config.fixer.protectedPaths,
+            attemptNumber,
+            maxFixAttempts: config.fixer.maxFixAttempts,
+            humanDirection: direction,
+            ...(config.agent.fix.model !== null ? { model: config.agent.fix.model } : {}),
+        });
+    }
     if (fixOutcome.kind === 'committed') {
         // Answered before the run ends, because this run is about to mark itself superseded - the
         // push starts a fresh one, and nothing later would know which threads these were.

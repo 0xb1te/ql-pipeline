@@ -179,6 +179,15 @@ signals:
       - to: fix.fixer.fixer#runFix
         via: direct-call
         because: runs the automated fix attempt for a FIX verdict on a non-fork PR when the provider is still cursor
+      - to: fix.fixer.agentsFixer#agentsFixerCredentialsFromEnv
+        via: direct-call
+        because: the ql_agents provider is refused loudly when the fleet publishes no ql-agents, rather than failing mid-dispatch
+      - to: fix.fixer.agentsFixer#runAgentsFix
+        via: direct-call
+        because: agent.provider ql_agents dispatches the fix to the suite's agent runner instead of spawning a CLI here
+      - to: review.reviewer.findingReply#pickedUpReply
+        via: direct-call
+        because: every thread this review opened is told which run picked the findings up, the moment the run id exists
       - to: entrypoint.cli.governCommand#taskProvenanceFindings
         via: direct-call
         because: asks whether anybody planned this pull request, after the review rather than before it - the answer is advisory and must not stand between a PR and the review that judges its code

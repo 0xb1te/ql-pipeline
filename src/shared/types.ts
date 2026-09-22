@@ -136,7 +136,12 @@ export interface FixerConfig {
   readonly protectedPaths: readonly string[];
 }
 
-export const AGENT_PROVIDERS = ['cursor', 'openai_compatible'] as const;
+/**
+ * `ql_agents` does not name a model vendor, which is the point of it. It routes the fix to the
+ * suite's own agent runner, where which coding agent actually runs is a descriptor on that side
+ * rather than a code path here - so changing vendor stops being a change to this repository.
+ */
+export const AGENT_PROVIDERS = ['cursor', 'openai_compatible', 'ql_agents'] as const;
 export type AgentProvider = (typeof AGENT_PROVIDERS)[number];
 
 /** The two phases that spend a model: the AI review, and the auto-fix agent. */

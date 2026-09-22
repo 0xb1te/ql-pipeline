@@ -1,0 +1,21 @@
+-- No fixtures required.
+--
+-- ql-pipeline is a CI tool with no database. This feature adds an HTTP client,
+-- a provider value and a comment; there is no persisted state for a fixture to
+-- establish.
+--
+-- What stands in for fixtures here is a stubbed ql-agents. The tests inject
+-- `fetchImpl`, `sleep`, `now` and `onDispatched`, so the fixtures of this task
+-- are response sequences: a 202 carrying a run id, then a series of
+-- `GET /v1/runs/:id` bodies walking queued -> running -> completed, and the
+-- failed / cancelled / 400 / no-run-id variants. An injected clock covers the
+-- timeout without waiting for one.
+--
+-- The MCP Cases sheet is present and empty: this feature adds no MCP tool,
+-- schema or return shape. See plan.md, "Explicitly out of scope". Note that
+-- ql-pipeline reaches ql-agents over its HTTP job API, not over MCP -- the
+-- exposure at agents.rvproxy.com is an ordinary protected ql-proxy hop.
+--
+-- The file is present because ql-docs workflow/flows/seed-data.md requires it
+-- of every task with no "not relevant here" exemption, and because ql-pipeline
+-- fails a pull request structurally when it is missing.

@@ -1,0 +1,108 @@
+cns: "1.0"
+neuron: agentsFixer
+kind: function
+region: fix
+layer: fixer
+unit: src/fixer/agents-fixer.ts
+
+responsibility: >
+  Runs one fix attempt through ql-agents instead of spawning a coding-agent CLI in this process -
+  dispatching the complaint, reporting the run id the moment it exists, waiting, and turning the
+  run's terminal state into the same FixOutcome the in-process fixer returns.
+
+owns:
+  - >
+    Making the coding agent a deployment choice rather than a code path. fix.fixer.fixer is welded
+    to the Cursor CLI - it spawns a binary, diffs its own working tree and commits what it finds -
+    so changing model vendor meant changing the fixer. ql-agents already owns running an agent
+    against a branch for the rest of the suite, and routing through it puts the vendor on the far
+    side as a descriptor
+  - >
+    Announcing the run id before the run finishes, via onDispatched. This is the only reason the
+    dispatch is not simply awaited - the id exists at 202, and a reader watching the pull request
+    should learn a named agent has the findings then, not minutes later when it is done
+  - >
+    Treating a failed pickup announcement as survivable. The run is already executing by the time
+    it is called, so failing the attempt over an unposted comment would be the messenger undoing
+    the message
+  - >
+    Returning null from the credential reader when any of the five variables is missing, rather
+    than half-configuring. Asking for this provider without them is the misconfiguration, and only
+    the caller knows which provider was configured
+  - >
+    Stating the protected paths in the brief, and accepting that this provider cannot revert them.
+    ql-agents works in a worktree on its own host and pushes the branch itself, so this process
+    never holds the diff that fix.fixer.protectedPaths reverts. The backstop is R4 on the run that
+    push triggers, which escalates to a human and refuses the auto-merge
+
+excludes:
+  - >
+    Committing or pushing; ql-agents does both on its own host, which is why the committed outcome
+    names the run rather than a commit message of this pipeline's making
+  - Deciding which provider runs - entrypoint.cli.governCommand reads agent.provider and routes
+  - Minting the ql-proxy edge secret; standards.reader.houseCredentials#proxyFetchFromEnv owns the hop
+
+receptors: []
+
+effectors:
+  - kind: http-out
+    target: ql-agents, via its ql-proxy exposure
+    signal: runAgentsFix
+    effect: >
+      POST /v1/runs dispatches one implement-mode run against the pull request's head branch, and
+      GET /v1/runs/:id is polled until the run reaches completed, failed or cancelled. Two
+      protections ride on both, neither replacing the other - the agents hop's own ql-proxy edge
+      secret says who may reach the address, and a ql-auth client_credentials bearer says what
+      they may do once there
+
+signals:
+  - signal: agentsFixerCredentialsFromEnv
+    intent: >
+      The five variables needed to reach ql-agents, or undefined when this fleet publishes none.
+      Undefined is the ordinary case and not an error - a fleet can govern perfectly well with the
+      in-process cursor fixer. Reuses the ql-auth credentials the standards hop already needs, so
+      publishing ql-agents adds QL_AGENTS_URL and QL_AGENTS_WORKTREE_BASE and nothing else.
+    accepts: NodeJS.ProcessEnv
+    returns: AgentsFixerCredentials | undefined
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
+  - signal: buildAgentsBrief
+    intent: >
+      The complaint as the brief a coding agent is given - every finding with its severity, rule,
+      place and problem, plus the protected paths it must not touch. Separate and pure so the one
+      guarantee this provider weakens is inspectable in a test rather than buried in a request body.
+    accepts: "readonly Finding[], readonly string[]"
+    returns: string
+    pure: true
+    afferent:
+      - from: fix.fixer.agentsFixer#runAgentsFix
+        via: direct-call
+    efferent: []
+
+  - signal: runAgentsFix
+    intent: >
+      Dispatches one implement-mode run, calls onDispatched with the run id, polls until the run is
+      terminal or the timeout passes, and maps completed to committed and anything else to an
+      agent error. Returns the same FixOutcome as fix.fixer.fixer so the caller's handling of the
+      three cases does not fork on provider.
+    accepts: "readonly Finding[], Area, RunAgentsFixOptions"
+    returns: Promise<FixOutcome>
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent:
+      - to: fix.fixer.agentsFixer#buildAgentsBrief
+        via: direct-call
+        because: the findings have to reach the agent as a brief before anything is dispatched
+      - to: standards.reader.houseCredentials#proxyFetchFromEnv
+        via: direct-call
+        because: both the auth hop and the agents hop sit behind per-exposure ql-proxy secrets
+
+provenance:
+  - docs/features/046-fix-through-ql-agents/summary.md
+
+revision: 2026-09-22

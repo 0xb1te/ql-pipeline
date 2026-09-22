@@ -43,6 +43,7 @@ export const PROXY_TOKEN_VAR = 'QL_PROXY_TOKEN';
 export const AUTH_PROXY_TOKEN_VAR = 'QL_AUTH_PROXY_TOKEN';
 export const HOUSE_PROXY_TOKEN_VAR = 'QL_HOUSE_PROXY_TOKEN';
 export const SPRINT_PROXY_TOKEN_VAR = 'QL_SPRINT_PROXY_TOKEN';
+export const AGENTS_PROXY_TOKEN_VAR = 'QL_AGENTS_PROXY_TOKEN';
 
 /**
  * Which of the protected addresses a request is going to.
@@ -64,7 +65,7 @@ export const SPRINT_PROXY_TOKEN_VAR = 'QL_SPRINT_PROXY_TOKEN';
  * `QL_PROXY_PROTECTION_TOKEN`: that is one key for every address, which is the
  * arrangement per-exposure secrets exist to replace.
  */
-export type ProxyHop = 'auth' | 'house' | 'sprint';
+export type ProxyHop = 'auth' | 'house' | 'sprint' | 'agents';
 
 const HOP_TOKEN_VAR: Record<ProxyHop, string> = {
   auth: AUTH_PROXY_TOKEN_VAR,
@@ -73,6 +74,9 @@ const HOP_TOKEN_VAR: Record<ProxyHop, string> = {
   // ql-sprint simply never calls it, and an absent token here means the same as
   // it does for the other two - "nothing in front to satisfy", not "refuse".
   sprint: SPRINT_PROXY_TOKEN_VAR,
+  // Outbound-only and optional exactly like sprint: a fleet that fixes with the in-process
+  // cursor agent never publishes ql-agents and never calls this hop.
+  agents: AGENTS_PROXY_TOKEN_VAR,
 };
 
 /**

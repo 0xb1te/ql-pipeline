@@ -15,3 +15,12 @@ than an honest gap.
   check, added an MCP-reachability criterion to the AI review, and built the tester that drives a
   preview over MCP and reports every failure in one comment. The `preview-tester` job ships
   `if: false` until a preview deploy job exists. Shipped as `0.3.0`.
+
+- `features/046-fix-through-ql-agents` — `runFix` was welded to the Cursor CLI: it spawns a
+  binary, diffs its own tree and commits, which is why `openai_compatible` was review-only.
+  `agent.provider: ql_agents` now dispatches to ql-agents' `POST /v1/runs` instead, and every
+  finding thread gets `Picked up by agent <runId>` the moment the run is accepted rather than
+  when it ends. `cursor` is untouched and still the default — deliberately, because ql-agents
+  pushes from its own host, so protected paths can no longer be reverted before the commit and
+  R4 on the triggered run is the only backstop. Do not make `ql_agents` the default without
+  replacing that guard. Shipped in `0.4.0`.

@@ -28,6 +28,26 @@ export interface FindingReplyContext {
  * a fact. What it can say truthfully is what was attempted, what landed, and that the next review
  * decides. If the finding survives, the next run raises it again and the thread shows both.
  */
+/**
+ * The reply posted into a finding's thread the moment an agent accepts it, before it has done
+ * anything at all.
+ *
+ * Separate from {@link replyForFinding}, which answers with what an attempt *did*. This one
+ * answers the question a reader actually has while the attempt is running, which until now had
+ * no answer on the pull request for however many minutes the agent took: has anybody got this.
+ *
+ * It names the run rather than describing one, because a run id is the thing a person can look
+ * up, quote in a message, or use to cancel.
+ */
+// @signal pickedUpReply
+export function pickedUpReply(context: { readonly runId: string; readonly attemptNumber: number; readonly maxFixAttempts: number }): string {
+  return (
+    `Picked up by agent \`${context.runId}\` (attempt ${String(context.attemptNumber)} of ` +
+    `${String(context.maxFixAttempts)}). It is running now and has every finding in this review, ` +
+    `not just this one. This thread gets a second reply saying what the attempt actually did.`
+  );
+}
+
 // @signal replyForFinding
 export function replyForFinding(context: FindingReplyContext): string {
   const { outcome, attemptNumber, maxFixAttempts } = context;

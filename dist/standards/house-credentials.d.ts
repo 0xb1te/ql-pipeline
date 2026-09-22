@@ -34,6 +34,7 @@ export declare const PROXY_TOKEN_VAR = "QL_PROXY_TOKEN";
 export declare const AUTH_PROXY_TOKEN_VAR = "QL_AUTH_PROXY_TOKEN";
 export declare const HOUSE_PROXY_TOKEN_VAR = "QL_HOUSE_PROXY_TOKEN";
 export declare const SPRINT_PROXY_TOKEN_VAR = "QL_SPRINT_PROXY_TOKEN";
+export declare const AGENTS_PROXY_TOKEN_VAR = "QL_AGENTS_PROXY_TOKEN";
 /**
  * Which of the protected addresses a request is going to.
  *
@@ -54,7 +55,7 @@ export declare const SPRINT_PROXY_TOKEN_VAR = "QL_SPRINT_PROXY_TOKEN";
  * `QL_PROXY_PROTECTION_TOKEN`: that is one key for every address, which is the
  * arrangement per-exposure secrets exist to replace.
  */
-export type ProxyHop = 'auth' | 'house' | 'sprint';
+export type ProxyHop = 'auth' | 'house' | 'sprint' | 'agents';
 /**
  * A `fetch` that adds the ql-proxy shared secret to every request, or
  * `undefined` when no secret is configured.

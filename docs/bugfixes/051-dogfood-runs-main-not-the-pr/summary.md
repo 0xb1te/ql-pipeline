@@ -38,6 +38,8 @@ The head *branch* rather than the head *sha*, because the repository-under-revie
 
 Gate 3, first half: this pull request's own dogfood run is a `pull_request` event and so runs the branch's YAML. Its `resolve` job announces `ql-pipeline governs itself: running 0xb1te/ql-pipeline@bugfixes/051-dogfood-runs-main-not-the-pr, not ql-pipeline-ref.` and every **Checkout ql-pipeline** step checks that ref out. Second half: the first governed pull request after the merge whose engine differs from `main` logs its own branch's lines. Recorded in the test plan as `TASK051-11` and `TASK051-12`.
 
+Observed on run `35731658929`, the pull request's first dogfood run: `resolve` annotated `ql-pipeline governs itself: running 0xb1te/ql-pipeline@bugfixes/051-dogfood-runs-main-not-the-pr, not ql-pipeline-ref.`, and in every job both checkouts fetched `refs/heads/bugfixes/051-dogfood-runs-main-not-the-pr`, where every earlier run's second checkout fetched `main`. The govern job then routed to `infrastructure`, found the task folder complete, logged `preview environment: not required`, and escalated on R4 (`needs-human`, `checks / ql-pipeline` red) - the expected verdict for a pull request touching `.github/workflows/`. `TASK051-11` is `OK`; `TASK051-12` stays open until a pull request whose engine differs from `main` is governed.
+
 ## Why Wasn't This Caught
 
 Because the run looked right. The workflow YAML *was* the branch's, the job names were the branch's, and the engine was green — `main`'s engine, which is always green on `main`'s own tests. Nothing in the log named the ref the engine came from; the `Checkout ql-pipeline` step printed `main` in a line nobody reads when the check is green.

@@ -542,12 +542,10 @@ jobs:
   # is why the fork guard is spelled out here as well as in the flag: a fork's
   # workflow content is attacker-controlled.
   #
-  # ql-proxy's own `gh pr comment` announces the address. It is handed
-  # `github.token` and never GH_TOKEN, on purpose: that comment carries no
-  # automation marker, so it has to arrive as github-actions[bot] - which `resolve`
-  # declines - rather than as the person GH_TOKEN belongs to, whose comments start
-  # another run. The pipeline's own summary (URL, token, expiry, MCP state) is
-  # posted by the command below and carries the marker.
+  # ql-proxy is told not to announce (`--no-announce`, ql-proxy 0.2.0), so the
+  # summary the command below posts - URL, token, expiry, MCP state, stamped with
+  # the automation marker - is the only comment a preview gets, and the ql-proxy
+  # child is handed no GitHub token at all.
   preview:
     name: preview
     needs: [resolve, ql-pipeline]
@@ -636,8 +634,6 @@ jobs:
           # operator knows the host.
           QL_PROXY_HOME: ${{ vars.QL_PROXY_HOME }}
           QL_PROXY_CONFIG: ${{ vars.QL_PROXY_CONFIG }}
-          # github.token, never GH_TOKEN - see the job comment.
-          QL_PREVIEW_ANNOUNCE_TOKEN: ${{ github.token }}
 
   # ---------------------------------------------------------------- 5/6 --
   # The last job in the chain: a green pull request with a live preview, seeded

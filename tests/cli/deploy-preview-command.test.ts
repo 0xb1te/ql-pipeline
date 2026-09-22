@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
-  ANNOUNCE_TOKEN_VAR,
   deployPreview,
   MCP_ENABLED_VAR,
   PROXY_CONFIG_VAR,
@@ -113,7 +112,7 @@ function deps(exec: ArgvExecutor, overrides: Partial<DeployPreviewDeps> = {}): D
   let clock = 1_000_000;
   return {
     exec,
-    env: { [PROXY_HOME_VAR]: '/opt/ql-proxy', [PROXY_CONFIG_VAR]: '/opt/ql-proxy/ql-proxy.yml', [ANNOUNCE_TOKEN_VAR]: 'ghs_actions' },
+    env: { [PROXY_HOME_VAR]: '/opt/ql-proxy', [PROXY_CONFIG_VAR]: '/opt/ql-proxy/ql-proxy.yml', GH_TOKEN: 'ghp_never_forwarded' },
     probeMcp: vi.fn(() => Promise.resolve(true)),
     sleep: vi.fn((ms: number) => {
       clock += ms;
@@ -140,16 +139,17 @@ describe('deployPreview', () => {
     expect(up.args.slice(1)).toEqual([
       'up', '--branch', PR.headRef, '--repo', '0xb1te/shop', '--pr', '42',
       '--dir', join(root, 'infrastructure', 'docker', 'environments', 'devops'),
-      '--ttl', '120', '--protect',
+      '--ttl', '120', '--no-announce', '--protect',
     ]);
-    // The seed mount and the MCP switch reach compose through ql-proxy's environment; the
-    // announce token is github.token under the name gh reads.
-    expect(up.env).toMatchObject({
+    // The seed mount and the MCP switch reach compose through ql-proxy's environment, and
+    // nothing else does: ql-proxy is told not to announce, so no GitHub token is forwarded
+    // even when the job's own environment holds one.
+    expect(up.env).toEqual({
       [TASK_FOLDER_VAR]: 'features/007-statistics-dashboard',
       [MCP_ENABLED_VAR]: 'true',
       [PROXY_CONFIG_VAR]: '/opt/ql-proxy/ql-proxy.yml',
-      GH_TOKEN: 'ghs_actions',
     });
+    expect(up.env).not.toHaveProperty('GH_TOKEN');
 
     expect(calls.map((call) => `${call.file} ${call.args.slice(call.file === 'node' ? 1 : 0).join(' ')}`)).toEqual([
       `node ${up.args.slice(1).join(' ')}`,

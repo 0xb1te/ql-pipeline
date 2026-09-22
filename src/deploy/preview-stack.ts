@@ -77,7 +77,8 @@ export interface PreviewUpRequest {
 
 /**
  * The argument vector for `ql-proxy up`. A vector and never a string: the branch name is
- * pull-request content and reaches the child as an argument, not through a shell.
+ * pull-request content and reaches the child as an argument, not through a shell. Announcing
+ * is switched off, so the pipeline's summary is the only comment a preview gets.
  */
 // @signal previewUpArgs
 export function previewUpArgs(request: PreviewUpRequest): readonly string[] {
@@ -93,6 +94,12 @@ export function previewUpArgs(request: PreviewUpRequest): readonly string[] {
     request.checkoutDir,
     '--ttl',
     String(request.ttlMinutes),
+    // The pipeline posts its own summary - URL, token, expiry, MCP state - so ql-proxy's own
+    // announce is switched off. `--pr` stays regardless: ql-proxy records the pull request on
+    // the stack so teardown can resolve it by repo and number on close, which was never about
+    // announcing. Needs ql-proxy 0.2.0; 0.1.0 refuses the flag as an option needing a value,
+    // which is the right failure - loud, on the first preview, naming the flag.
+    '--no-announce',
     // Accepted and ignored by a ql-proxy that predates the browser gate; honoured by one that
     // has it. The summary reads the listing afterwards to say which happened.
     ...(request.protect ? ['--protect'] : []),

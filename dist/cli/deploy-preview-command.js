@@ -11,13 +11,6 @@ import { createPipelineContext } from './bootstrap.js';
 export const PROXY_HOME_VAR = 'QL_PROXY_HOME';
 /** Which ql-proxy.yml the CLI reads on that host. Optional; the CLI has its own default. */
 export const PROXY_CONFIG_VAR = 'QL_PROXY_CONFIG';
-/**
- * The token ql-proxy's own `gh pr comment` announces the address with. The workflow passes
- * `github.token` here and never GH_TOKEN, deliberately: ql-proxy's comment carries no automation
- * marker, so it must arrive as github-actions[bot] - which the resolve job declines - rather than
- * as the person GH_TOKEN belongs to, whose comments start another run.
- */
-export const ANNOUNCE_TOKEN_VAR = 'QL_PREVIEW_ANNOUNCE_TOKEN';
 /** Read by the devops compose to mount `docs/${QL_TASK_FOLDER}/seed.sql` into the database. */
 export const TASK_FOLDER_VAR = 'QL_TASK_FOLDER';
 /** Offered to the devops compose so it can pass the switch through to the application. */
@@ -85,13 +78,14 @@ export async function deployPreview(ctx, deps) {
     }
     const proxyMain = join(proxyHome, 'dist', 'cli', 'entry', 'main.js');
     const proxyConfig = deps.env[PROXY_CONFIG_VAR];
-    const announceToken = deps.env[ANNOUNCE_TOKEN_VAR];
+    // No GitHub token, deliberately. ql-proxy is told not to announce, so nothing it spawns -
+    // `docker compose` included - has any business holding one; the narrower environment is
+    // the point.
     const childEnv = {
         // `docs/features/007-x` -> `features/007-x`, the shape the contract's compose reads.
         [TASK_FOLDER_VAR]: taskFolder.path.replace(/^docs\//, ''),
         [MCP_ENABLED_VAR]: 'true',
         ...(proxyConfig === undefined || proxyConfig === '' ? {} : { [PROXY_CONFIG_VAR]: proxyConfig }),
-        ...(announceToken === undefined || announceToken === '' ? {} : { GH_TOKEN: announceToken }),
     };
     const devopsDir = join(consumerRoot, PREVIEW_ENVIRONMENT_DIR);
     const upArgs = previewUpArgs({

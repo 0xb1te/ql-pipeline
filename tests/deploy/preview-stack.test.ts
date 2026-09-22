@@ -97,8 +97,22 @@ describe('previewUpArgs', () => {
       '/work/shop/infrastructure/docker/environments/devops',
       '--ttl',
       '120',
+      '--no-announce',
       '--protect',
     ]);
+  });
+
+  it('always switches announcing off and keeps --pr, because teardown resolves the stack by it', () => {
+    const args = previewUpArgs({
+      branch: 'b',
+      repository: 'o/r',
+      pullRequest: 9,
+      checkoutDir: '/d',
+      ttlMinutes: 30,
+      protect: false,
+    });
+    expect(args).toContain('--no-announce');
+    expect(args.slice(args.indexOf('--pr'), args.indexOf('--pr') + 2)).toEqual(['--pr', '9']);
   });
 
   it('omits --protect when the repository asked for an open preview', () => {

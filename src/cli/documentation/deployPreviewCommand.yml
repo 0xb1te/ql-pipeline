@@ -17,10 +17,9 @@ owns:
     and of the two it hands the compose stack - QL_TASK_FOLDER, so the database boots from the
     branch's own seed.sql, and QL_MCP_ENABLED
   - >
-    That ql-proxy's own announce comment is made with github.token and never GH_TOKEN. That
-    comment carries no automation marker, so it must arrive as github-actions[bot], which the
-    resolve job declines, rather than as the person GH_TOKEN belongs to, whose comments start
-    another run
+    That the ql-proxy child is handed no GitHub token. ql-proxy is told not to announce, so the
+    pipeline's summary is the only comment a preview gets and nothing ql-proxy spawns - docker
+    compose included - holds a credential it has no use for
 
 invariants:
   - >
@@ -131,4 +130,6 @@ signals:
         via: direct-call
         because: the sequence itself, with the real dependencies
 
+provenance:
+  - "docs/bugfixes/052-two-comments-per-preview/plan.md"
 revision: 2026-09-22

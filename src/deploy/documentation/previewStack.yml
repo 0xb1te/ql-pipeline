@@ -19,8 +19,12 @@ owns:
     opted in, contract satisfied, a task folder with a seed, not a fork
   - >
     The stdout contract read off `ql-proxy up`: the last URL-shaped line is the address, and an
-    optional `token: <value>` line is the gate token. Stated here because ql-proxy does not print
-    the token yet, and the summary tells the three access states apart rather than blurring them
+    optional `token: <value>` line is the gate token (ql-proxy 0.2.0 prints it). The summary
+    tells the three access states apart rather than blurring them
+  - >
+    That `ql-proxy up` is always told `--no-announce` and always given `--pr`: the pipeline's
+    summary is the only comment, and the pull request number is what teardown resolves the
+    stack by on close - it was never about announcing
   - >
     That the MCP address is a container IP on the preview host and never the public URL. The
     surface behind it can manage everything the application can; the preview URL's only lock is
@@ -68,8 +72,9 @@ signals:
   - signal: previewUpArgs
     intent: >
       The argument vector for `ql-proxy up`, a vector and never a string because the branch name
-      is pull-request content. `--protect` rides along whenever the repository asked for the gate;
-      a ql-proxy that predates the browser gate ignores it and the listing says which happened.
+      is pull-request content. `--no-announce` always, so the pipeline's summary is the only
+      comment; `--protect` rides along whenever the repository asked for the gate. Needs ql-proxy
+      0.2.0, which refuses neither flag; 0.1.0 refuses `--no-announce` loudly on the first run.
     accepts: PreviewUpRequest
     returns: "readonly string[]"
     pure: true
@@ -129,4 +134,6 @@ signals:
         via: direct-call
     efferent: []
 
+provenance:
+  - "docs/bugfixes/052-two-comments-per-preview/plan.md"
 revision: 2026-09-22

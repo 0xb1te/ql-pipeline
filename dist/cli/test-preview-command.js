@@ -1,11 +1,11 @@
 // @neuron entrypoint.cli.testPreviewCommand
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as core from '@actions/core';
 import { createMcpClient } from '../tester/mcp-client.js';
 import { parseTestPlan, TestPlanError } from '../tester/test-plan.js';
 import { formatTesterComment, runTestPlan, testerFindings } from '../tester/tester.js';
-import { taskFolderGlobFor, taskFolderRefOf } from '../verdict/task-artifacts.js';
+import { lookupTaskFolder, taskFolderGlobFor } from '../verdict/task-artifacts.js';
 import { createPipelineContext } from './bootstrap.js';
 /** Where the preview stack published its MCP server, on the runner's own compose network. */
 export const MCP_ENDPOINT_VAR = 'QL_PREVIEW_MCP_URL';
@@ -32,20 +32,16 @@ export async function runTestPreview() {
         core.setFailed(`${MCP_ENDPOINT_VAR} is not set, so there is no preview MCP server to drive`);
         return;
     }
-    const ref = taskFolderRefOf(pr.headRef);
-    if (ref === null) {
+    const lookup = lookupTaskFolder(pr.headRef, consumerRoot);
+    if (lookup.kind === 'not-a-task-branch') {
         logger.info(`no task folder named by branch ${pr.headRef} — nothing to test`);
         return;
     }
-    const parent = join(consumerRoot, 'docs', ref.kind);
-    const folder = existsSync(parent)
-        ? readdirSync(parent, { withFileTypes: true }).find((entry) => entry.isDirectory() && entry.name.startsWith(`${ref.number}-`))
-        : undefined;
-    if (folder === undefined) {
-        core.setFailed(`no task folder matches ${taskFolderGlobFor(ref)}, so this preview has no test plan to run`);
+    if (lookup.kind === 'no-folder') {
+        core.setFailed(`no task folder matches ${taskFolderGlobFor(lookup.ref)}, so this preview has no test plan to run`);
         return;
     }
-    const planPath = `docs/${ref.kind}/${folder.name}/testing-plan.xlsx`;
+    const planPath = `${lookup.path}/testing-plan.xlsx`;
     const absolutePlan = join(consumerRoot, planPath);
     if (!existsSync(absolutePlan)) {
         core.setFailed(`${planPath} is missing, so this preview cannot be tested`);

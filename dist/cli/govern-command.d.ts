@@ -90,6 +90,8 @@ export declare function previewEnvironmentRefusal(findings: readonly Finding[]):
  * path, where `must` blocks the merge and the message says what to copy from where.
  */
 export declare function taskArtifactFindings(pr: Pick<PullRequestInfo, 'headRef'>, consumerRoot: string, requiredChecks: readonly RequiredCheck[], logger: Pick<Logger, 'info'>): readonly Finding[];
+/** The job output the workflow reads to decide whether the `preview` job runs at all. */
+export declare const DEPLOY_PREVIEW_OUTPUT = "deploy-preview";
 /**
  * The whole request-changes review: the body, and the comments GitHub will actually accept.
  *

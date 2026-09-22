@@ -1,0 +1,25 @@
+-- No fixtures required.
+--
+-- ql-pipeline is a CI tool with no database. This feature adds a CI job, a
+-- command that drives two other programs (ql-proxy and docker), and a config
+-- block; there is no persisted state for a fixture to establish.
+--
+-- What stands in for fixtures here is an injected executor. The tests hand
+-- deployPreview a fake ArgvExecutor that answers `ql-proxy up`, `ql-proxy
+-- list --json`, `docker compose ps -q` and `docker inspect` the way the
+-- preview host does, plus a fake clock and a fake MCP probe, so the whole
+-- sequence - including the bounded readiness wait - runs without ql-proxy,
+-- Docker or a network.
+--
+-- The seed this feature is *about* is the consumer's: the deploy sets
+-- QL_TASK_FOLDER so the devops compose mounts docs/<kind>/NNN-*/seed.sql into
+-- the preview database. That file belongs to the task being previewed, not
+-- to this one.
+--
+-- The MCP Cases sheet is present and empty: this feature adds no tool, schema
+-- or return shape to ql-pipeline's own MCP server. See plan.md, "Contract
+-- Impact".
+--
+-- The file is present because ql-docs workflow/flows/seed-data.md requires it
+-- of every task with no "not relevant here" exemption, and because ql-pipeline
+-- reports a pull request whose task folder lacks it.

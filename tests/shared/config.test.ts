@@ -48,6 +48,12 @@ describe('parseConfig', () => {
         docs: {},
         maxCharsPerArea: 140_000,
       },
+      preview: {
+        enabled: true,
+        ttlMinutes: 120,
+        protect: true,
+        mcp: { service: 'backend', port: 8080, path: '/mcp', readyTimeoutSeconds: 180 },
+      },
     });
   });
 
@@ -338,5 +344,35 @@ describe('fixer.fix_advisory', () => {
     expect(() => parseConfig(yaml(['fixer:', '  fix_advisory: maybe']))).toThrow(
       /fix_advisory must be a boolean/,
     );
+  });
+});
+
+describe('parseConfig preview block', () => {
+  const base = 'merge:\n  target_branch: main\n';
+
+  it('defaults to an enabled, protected, two-hour preview with the house MCP location', () => {
+    expect(parseConfig(base).preview).toEqual({
+      enabled: true,
+      ttlMinutes: 120,
+      protect: true,
+      mcp: { service: 'backend', port: 8080, path: '/mcp', readyTimeoutSeconds: 180 },
+    });
+  });
+
+  it('reads every key, with the rest defaulted', () => {
+    const config = parseConfig(`${base}preview:\n  enabled: false\n  ttl_minutes: 45\n  protect: false\n  mcp:\n    service: api\n    port: 3000\n`);
+    expect(config.preview).toEqual({
+      enabled: false,
+      ttlMinutes: 45,
+      protect: false,
+      mcp: { service: 'api', port: 3000, path: '/mcp', readyTimeoutSeconds: 180 },
+    });
+  });
+
+  it('refuses a non-boolean enabled, a non-positive ttl, and an MCP path with no leading slash', () => {
+    expect(() => parseConfig(`${base}preview:\n  enabled: yes\n`)).toThrow(ConfigError);
+    expect(() => parseConfig(`${base}preview:\n  ttl_minutes: 0\n`)).toThrow(/ttl_minutes/);
+    expect(() => parseConfig(`${base}preview:\n  mcp:\n    path: mcp\n`)).toThrow(/must start with/);
+    expect(() => parseConfig(`${base}preview:\n  mcp:\n    port: eighty\n`)).toThrow(/preview.mcp.port/);
   });
 });

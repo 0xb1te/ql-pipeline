@@ -7,7 +7,9 @@ unit: src/shared/exec.ts
 
 responsibility: >
   The real shell-backed CommandExecutor every gate/git-invoking signal is injected with by
-  default - runs a trusted, config-defined command string through a shell.
+  default - runs a trusted, config-defined command string through a shell - and its shell-less
+  sibling, which runs a fixed program with an argument vector so pull-request content can reach
+  a child as an argument and never through a shell string.
 
 invariants:
   - Only ever fed trusted, config-defined command strings - never PR-derived content (RULES.md R5.4)
@@ -19,6 +21,10 @@ effectors:
     target: a shell, in the given working directory
     signal: defaultCommandExecutor
     effect: runs the given command string through a shell and returns its stdout/stderr
+  - kind: filesystem
+    target: the named program, in the given working directory, with no shell
+    signal: defaultArgvExecutor
+    effect: runs the program with its argument vector and an environment layered over the process's own
 
 signals:
   - signal: defaultCommandExecutor
@@ -36,4 +42,15 @@ signals:
         via: di
     efferent: []
 
-revision: 2026-08-30
+  - signal: defaultArgvExecutor
+    intent: >
+      Runs a program with an argument vector and no shell, for the case the other executor is
+      wrong for - a fixed program handed a branch name or a checkout path from the pull request.
+    accepts: "file, args, { cwd, env? }"
+    returns: "Promise<{ stdout: string; stderr: string }>"
+    afferent:
+      - from: entrypoint.cli.deployPreviewCommand#deployPreview
+        via: di
+    efferent: []
+
+revision: 2026-09-22

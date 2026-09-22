@@ -1,0 +1,134 @@
+cns: "1.0"
+neuron: deployPreviewCommand
+kind: function
+region: entrypoint
+layer: cli
+unit: src/cli/deploy-preview-command.ts
+
+responsibility: >
+  The `deploy-preview` command: hands the repository's devops folder to ql-proxy on the preview
+  host, seeded from the branch's task folder, locates the application's MCP server on the
+  container network and waits for it, posts one summary on the pull request, and publishes what
+  happened as the job outputs the tester keys off.
+
+owns:
+  - >
+    The names of the variables the job is told the host through - QL_PROXY_HOME, QL_PROXY_CONFIG -
+    and of the two it hands the compose stack - QL_TASK_FOLDER, so the database boots from the
+    branch's own seed.sql, and QL_MCP_ENABLED
+  - >
+    That ql-proxy's own announce comment is made with github.token and never GH_TOKEN. That
+    comment carries no automation marker, so it must arrive as github-actions[bot], which the
+    resolve job declines, rather than as the person GH_TOKEN belongs to, whose comments start
+    another run
+
+invariants:
+  - >
+    The decision to deploy is made again here from the same facts govern used, never trusted from
+    the job condition. The workflow's `if:` saves a runner; this refuses to bring a stack up for a
+    repository whose folder is not there
+  - >
+    A skipped deploy says nothing on the pull request. A red, blocked, fork or unpreviewable pull
+    request gets no empty summary
+  - >
+    The wait for the MCP server is bounded. A server that never comes up is reported and the
+    address is still published, so the tester reports it as unreachable rather than skipping
+  - >
+    Every dependency that touches the machine - the processes it spawns, the clock, the probe - is
+    injected, so the whole sequence is testable without ql-proxy, Docker or a network
+
+excludes:
+  - >
+    Tearing the stack down. The workflow's teardown job calls ql-proxy directly on PR close, and
+    the host reaper is the backstop
+  - >
+    Driving the test plan. entrypoint.cli.testPreviewCommand does that, from the address this
+    publishes
+
+receptors:
+  - kind: cli
+    stimulus: process start (node dist/main.js deploy-preview)
+    signal: runDeployPreview
+
+effectors:
+  - kind: filesystem
+    target: the preview host's ql-proxy CLI and the Docker CLI, as child processes
+    effect: runs `ql-proxy up` on the devops folder, `ql-proxy list --json`, and `docker compose ps` / `docker inspect` to locate the MCP container
+    signal: deployPreview
+  - kind: http-out
+    target: the application's MCP server on the preview host's container network
+    effect: polls tools/list until it answers or the configured timeout passes
+    signal: deployPreview
+  - kind: http-out
+    target: the pull request, via the GitHub comments API
+    effect: one summary carrying the URL, the gate token, the expiry and the MCP state
+    signal: deployPreview
+  - kind: log
+    target: GitHub Actions job outputs, and a setFailed annotation when the deploy failed
+    effect: publishes deployed, url, project, mcp-url and mcp-ready for the tester job to read
+    signal: runDeployPreview
+
+signals:
+  - signal: deployPreview
+    intent: >
+      The whole sequence as an outcome - skipped, failed, or deployed with the address the tester
+      needs - so the caller turns it into outputs and a test drives it with fakes.
+    accepts: "ctx, deps"
+    returns: "Promise<DeployPreviewOutcome>"
+    afferent:
+      - from: entrypoint.cli.deployPreviewCommand#runDeployPreview
+        via: direct-call
+    efferent:
+      - to: verdict.decision.taskArtifacts#lookupTaskFolder
+        via: direct-call
+        because: the branch names the task folder whose seed.sql the database boots from
+      - to: verdict.decision.previewEnvironment#readPreviewEnvironmentSnapshot
+        via: direct-call
+        because: the same read govern made, so this refuses the same repositories govern would
+      - to: verdict.decision.previewEnvironment#assessPreviewEnvironment
+        via: direct-call
+        because: the contract verdict the deploy decision keys off
+      - to: deploy.preview.previewStack#decidePreviewDeploy
+        via: direct-call
+        because: the decision made again here rather than trusted from the job condition
+      - to: deploy.preview.previewStack#previewUpArgs
+        via: direct-call
+        because: what ql-proxy is asked, as a vector and never a shell string
+      - to: deploy.preview.previewStack#parsePreviewUpOutput
+        via: direct-call
+        because: the URL and the token, off what ql-proxy printed
+      - to: deploy.preview.previewStack#findPreviewInListing
+        via: direct-call
+        because: the project name, the time left and whether the host locked it come from the listing
+      - to: deploy.preview.previewStack#mcpEndpointFor
+        via: direct-call
+        because: the internal address, off what docker inspect printed
+      - to: deploy.preview.previewStack#formatPreviewSummary
+        via: direct-call
+        because: the one comment, rendered from everything learned
+      - to: shared.core.exec#defaultArgvExecutor
+        via: di
+        because: every process this spawns goes through the injected argv executor, which is this by default
+      - to: tester.preview.mcpClient#createMcpClient
+        via: di
+        because: the readiness probe is one tools/list through the tester's own client, so both agree on what "answering" means
+
+  - signal: runDeployPreview
+    intent: >
+      The job's command: deploy with the real executor, clock and probe, then publish the outcome
+      as outputs. A skipped deploy is a quiet exit; a failed one fails the check, because a green
+      pull request that could not be previewed is something a person should hear about.
+    accepts: "()"
+    returns: "Promise<void>"
+    afferent:
+      - from: entrypoint.main.main#main
+        via: direct-call
+    efferent:
+      - to: entrypoint.cli.bootstrap#createPipelineContext
+        via: direct-call
+        because: reuses the one place that reads the pull request, the GitHub client and the config
+      - to: entrypoint.cli.deployPreviewCommand#deployPreview
+        via: direct-call
+        because: the sequence itself, with the real dependencies
+
+revision: 2026-09-22

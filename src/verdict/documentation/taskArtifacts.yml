@@ -35,9 +35,10 @@ invariants:
 
 excludes:
   - >
-    Touching the filesystem. It is given the folder listing and answers from that, so "is this
-    task folder complete" is answerable in a test without a disk - the same reason
-    verdict.decision.taskProvenance takes the task list rather than reaching for ql-sprint
+    Touching the filesystem from the checks. They are given the folder listing and answer from
+    that, so "is this task folder complete" is answerable in a test without a disk. The one
+    reader, lookupTaskFolder, is here so the three commands that ask which folder a branch means
+    share it - and it is injectable for the same reason
   - >
     The generated testing-plan.md rendering. It is derived from the workbook rather than authored,
     so a missing one is a forgotten command rather than a missing contract, and the AI review -
@@ -47,9 +48,34 @@ excludes:
     what knows that `should` never blocks
 
 receptors: []
-effectors: []
+effectors:
+  - kind: filesystem
+    target: the repo under review's docs/<kind>/ directory
+    effect: lists the task folders of the branch's kind and the files of the one it names, and nothing else
+    signal: lookupTaskFolder
 
 signals:
+  - signal: lookupTaskFolder
+    intent: >
+      Resolves the task folder a branch names on a checkout - or says it names none, or that none
+      matches - through an injectable reader. Kept here because govern, deploy-preview and
+      test-preview all ask, and three readers of one convention is how they come to disagree.
+    accepts: "headRef, root, reader?"
+    returns: TaskFolderLookup
+    afferent:
+      - from: entrypoint.cli.governCommand#taskArtifactFindings
+        via: direct-call
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+      - from: entrypoint.cli.testPreviewCommand#runTestPreview
+        via: direct-call
+      - from: entrypoint.cli.deployPreviewCommand#deployPreview
+        via: direct-call
+    efferent:
+      - to: verdict.decision.taskArtifacts#taskFolderRefOf
+        via: direct-call
+        because: the pure derivation of kind and number, before anything is read
+
   - signal: taskFolderRefOf
     intent: >
       Reads the task folder a branch names, as a kind and a three-digit number, or null when it
@@ -62,9 +88,7 @@ signals:
     returns: TaskFolderRef | null
     pure: true
     afferent:
-      - from: entrypoint.cli.governCommand#taskArtifactFindings
-        via: direct-call
-      - from: entrypoint.cli.testPreviewCommand#runTestPreview
+      - from: verdict.decision.taskArtifacts#lookupTaskFolder
         via: direct-call
     efferent: []
 
@@ -121,4 +145,4 @@ signals:
         via: direct-call
         because: the pure comparison that decides which artifacts are absent, kept separate so it is testable without building a finding
 
-revision: 2026-09-21
+revision: 2026-09-22

@@ -7,6 +7,7 @@ export const USAGE = [
     'run inside CI by the reusable workflow:',
     '  ql-pipeline gate --stage <test|build> [--report <path>]',
     '  ql-pipeline govern [--reports <dir>]',
+    '  ql-pipeline deploy-preview                     bring the preview up through ql-proxy',
     '  ql-pipeline test-preview                       drive the preview over MCP',
 ].join('\n');
 function readFlag(argv, flag) {
@@ -45,6 +46,11 @@ export function parseCommand(argv) {
     // the run, and a flag would be a second place for either to be wrong.
     if (subcommand === 'test-preview') {
         return { ok: true, command: { kind: 'test-preview' } };
+    }
+    // No flags either, for the same reason: the branch, the repository, the devops folder and the
+    // task folder to seed from are all facts about the run, read from the context and the checkout.
+    if (subcommand === 'deploy-preview') {
+        return { ok: true, command: { kind: 'deploy-preview' } };
     }
     const root = readFlag(argv, '--root') ?? '.';
     if (subcommand === 'init') {

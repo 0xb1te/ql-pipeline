@@ -9,6 +9,8 @@ export type Command = {
 } | {
     readonly kind: 'test-preview';
 } | {
+    readonly kind: 'deploy-preview';
+} | {
     readonly kind: 'init';
     readonly root: string;
 } | {

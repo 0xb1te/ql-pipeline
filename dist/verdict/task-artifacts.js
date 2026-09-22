@@ -1,3 +1,6 @@
+// @neuron verdict.decision.taskArtifacts
+import { existsSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 /** The three task kinds ql-docs' flows produce, always plural, matching the branch prefix. */
 export const TASK_KINDS = ['features', 'hotfixes', 'bugfixes'];
 /**
@@ -12,6 +15,34 @@ export const TASK_KINDS = ['features', 'hotfixes', 'bugfixes'];
  * missing contract, and it is the AI review - which is the thing that reads it - that notices.
  */
 export const REQUIRED_TASK_ARTIFACTS = ['testing-plan.xlsx', 'seed.sql'];
+const DISK = {
+    exists: existsSync,
+    listDirs: (path) => readdirSync(path, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => entry.name),
+    listFiles: (path) => readdirSync(path),
+};
+/**
+ * Resolves the task folder a branch names on a checkout, or says why it could not.
+ *
+ * The one signal in this unit that touches a disk, and kept here because three commands ask the
+ * question - the artifact check, the preview deploy and the tester - and three readers of one
+ * convention is how they come to disagree about which folder a branch means. The reader is
+ * injectable so the callers stay testable without a filesystem.
+ */
+// @signal lookupTaskFolder
+export function lookupTaskFolder(headRef, root, reader = DISK) {
+    const ref = taskFolderRefOf(headRef);
+    if (ref === null)
+        return { kind: 'not-a-task-branch', headRef };
+    const parent = join(root, 'docs', ref.kind);
+    const folder = reader.exists(parent)
+        ? reader.listDirs(parent).find((name) => name.startsWith(`${ref.number}-`))
+        : undefined;
+    if (folder === undefined)
+        return { kind: 'no-folder', ref };
+    return { kind: 'folder', ref, path: `docs/${ref.kind}/${folder}`, files: reader.listFiles(join(parent, folder)) };
+}
 /**
  * The task folder a branch names, or null when it names none.
  *

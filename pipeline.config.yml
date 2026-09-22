@@ -133,6 +133,12 @@ agent:
 
 fixer:
   max_fix_attempts: 3
+  # Whether a `should` finding gets an agent, or only a comment. On by default.
+  # An advisory finding still never blocks a merge - every guard falls back to
+  # MERGE, never BLOCK - what changes is that somebody is assigned to it. A
+  # failed gate the repo left out of `required_checks` is deliberately excluded:
+  # that one is advisory by configuration, not by judgement.
+  # fix_advisory: true
   # An explicit override, not the shipped default: this file governs
   # ql-pipeline's own repo, so the pipeline's own rules/prompts/config/
   # workflows are exactly what needs protecting here. A consumer repo has

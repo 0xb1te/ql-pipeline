@@ -6,11 +6,41 @@ layer: decision
 unit: src/verdict/verdict.ts
 
 responsibility: >
-  The pure decision function: MERGE, FIX, or BLOCK, from every finding gathered so far -
-  `should`-severity findings never block, only ride along on MERGE as advisory comments.
+  The pure decision function - MERGE, FIX, or BLOCK, from every finding gathered so far. A
+  should-severity finding still never blocks a pull request, but it can now be the reason a fix
+  attempt happens, which is a different thing from being in the way.
 
 invariants:
-  - should-severity findings never factor into the decision itself
+  - >
+    A should-severity finding never BLOCKS. Every guard on the advisory path falls back to MERGE,
+    never to BLOCK - not when the attempts are spent, not when the finding cannot be auto-fixed,
+    not when a gate finding is mixed in. It was a comment before this and it goes back to being
+    one the moment there is nothing left to try
+  - >
+    A finding from a gate the repository left out of required_checks is never dispatched. It is
+    advisory because somebody configured it that way, which is an instruction and not a judgement
+
+owns:
+  - >
+    Sending an agent to an advisory finding at all. Before this, runGovern returned above
+    recordComplaint and runFix on a MERGE verdict, so a should-severity finding was reported into
+    a thread and then belonged to nobody, however many of them were raised
+  - >
+    Telling the two kinds of advisory finding apart. The review calls a finding should because it
+    judged it minor; required_checks makes a gate finding should because an operator said "report
+    this, do not act on it". Only the first is an invitation to send an agent, and dispatching on
+    the second would quietly overrule the one explicit instruction the repository gave
+  - >
+    Declining the whole set when a gate finding is mixed in with review nits, rather than
+    dispatching the reviewable half. FIX empties advisoryFindings, and the merge path is the only
+    thing that posts it - so a split would report the gate nowhere at all
+  - >
+    Emptying advisoryFindings on the advisory FIX. They are the complaint on that path, not
+    something riding along beside it, and leaving them in both lists is how they get posted twice
+
+excludes:
+  - Deciding whether an agent can be reached; entrypoint.cli.governCommand refuses a misconfigured provider
+  - Counting the attempts - fix.fixer.attemptCounter reads them off the commit history
 
 receptors: []
 effectors: []
@@ -18,12 +48,12 @@ effectors: []
 signals:
   - signal: decidePipelineOutcome
     intent: >
-      Decides MERGE (no blocking findings), FIX (every blocking finding is auto-fixable and
-      attempts remain), or BLOCK (a finding needs a human, or attempts are exhausted). Every kind
-      now carries advisoryFindings beside the blocking set. The decision itself is unchanged - a
-      should-severity finding still weighs nothing - but FIX and BLOCK used to discard them
-      outright, so a finding could be computed, counted in the audit comment and posted on no path
-      but MERGE. findings stays the blocking set alone because it is what the fixer is handed.
+      Decides MERGE, FIX or BLOCK. Blocking findings decide first and exactly as before - FIX when
+      every one is auto-fixable and attempts remain, BLOCK when one needs a human or the attempts
+      are spent. When nothing blocks, an auto-fixable advisory finding that did not come from a
+      gate now produces FIX over those findings, bounded by the same attempt cap and gated by
+      fixer.fix_advisory; everything else merges, carrying the advisory findings as comments the
+      way it always did.
     accepts: VerdictInput
     returns: PipelineDecision
     pure: true
@@ -34,4 +64,7 @@ signals:
         via: direct-call
     efferent: []
 
-revision: 2026-08-30
+provenance:
+  - docs/features/047-advisory-findings-dispatch/summary.md
+
+revision: 2026-09-22

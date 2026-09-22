@@ -30,6 +30,7 @@ const CONFIG: PipelineConfig = {
   },
   fixer: {
     maxFixAttempts: 3,
+      fixAdvisory: true,
     protectedPaths: ['.github/workflows/', '.github/pipeline.config.yml', '.github/pipeline-rules/'],
   },
   agent: { provider: 'cursor', model: null, baseUrl: null, review: { model: null }, fix: { model: null } },
@@ -130,6 +131,7 @@ describe('chaos safety: unfixable PRs', () => {
       findings: [finding({ autoFixable: false })],
       attemptsSoFar: 0,
       maxFixAttempts: 3,
+      fixAdvisory: true,
     });
 
     expect(decision.kind).toBe('BLOCK');
@@ -140,6 +142,7 @@ describe('chaos safety: unfixable PRs', () => {
       findings: [finding({ autoFixable: true })],
       attemptsSoFar: 3,
       maxFixAttempts: 3,
+      fixAdvisory: true,
     });
 
     expect(decision.kind).toBe('BLOCK');
@@ -150,6 +153,7 @@ describe('chaos safety: unfixable PRs', () => {
       findings: [finding({ autoFixable: true }), finding({ autoFixable: false, rule: 'other.rules#x' })],
       attemptsSoFar: 0,
       maxFixAttempts: 3,
+      fixAdvisory: true,
     });
 
     expect(decision.kind).toBe('BLOCK');

@@ -10,7 +10,7 @@ function testConfig(overrides: Partial<PipelineConfig['gates']> = {}): PipelineC
       ...overrides,
     },
     merge: { targetBranch: 'main', targetBranchByArea: {}, method: 'merge', deleteBranch: true, requiredChecks: ['build', 'test'], requireHumanApproval: false },
-    fixer: { maxFixAttempts: 3, protectedPaths: ['rules/'] },
+    fixer: { maxFixAttempts: 3, protectedPaths: ['rules/'], fixAdvisory: true },
     agent: { provider: 'cursor', model: null, baseUrl: null, review: { model: null }, fix: { model: null } },
     areas: { paths: {} },
     standards: { enabled: false, root: '.standards', docs: {}, maxCharsPerArea: 90_000 },

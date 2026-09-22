@@ -257,11 +257,18 @@ function validateRequiredChecks(value, sourceLabel) {
     }
     return checks;
 }
+/**
+ * On, because the alternative is what this changed. An advisory finding was reported into a
+ * thread and then belonged to nobody - the verdict returned above the fix path, so no agent of
+ * any provider ever saw one, however many were raised.
+ */
+const DEFAULT_FIX_ADVISORY = true;
 function validateFixer(value, sourceLabel) {
     if (value === undefined) {
         return {
             maxFixAttempts: DEFAULT_MAX_FIX_ATTEMPTS,
             protectedPaths: DEFAULT_PROTECTED_PATHS,
+            fixAdvisory: DEFAULT_FIX_ADVISORY,
         };
     }
     const fixer = assertRecord(value, 'fixer', sourceLabel);
@@ -273,7 +280,12 @@ function validateFixer(value, sourceLabel) {
     const protectedPaths = rawProtectedPaths === undefined
         ? DEFAULT_PROTECTED_PATHS
         : assertArrayOfStrings(rawProtectedPaths, 'fixer.protected_paths', sourceLabel);
-    return { maxFixAttempts, protectedPaths };
+    const rawFixAdvisory = fixer['fix_advisory'];
+    if (rawFixAdvisory !== undefined && typeof rawFixAdvisory !== 'boolean') {
+        throw new ConfigError(`fixer.fix_advisory must be a boolean in ${sourceLabel}`);
+    }
+    const fixAdvisory = rawFixAdvisory ?? DEFAULT_FIX_ADVISORY;
+    return { maxFixAttempts, protectedPaths, fixAdvisory };
 }
 const DEFAULT_AGENT = {
     provider: 'cursor',

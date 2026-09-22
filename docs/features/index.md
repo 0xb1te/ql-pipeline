@@ -24,3 +24,14 @@ than an honest gap.
   pushes from its own host, so protected paths can no longer be reverted before the commit and
   R4 on the triggered run is the only backstop. Do not make `ql_agents` the default without
   replacing that guard. Shipped in `0.4.0`.
+
+- `features/047-advisory-findings-dispatch` — A `should` finding was computed, posted as an inline
+  comment and then belonged to nobody: `runGovern` returns above `recordComplaint` and `runFix` on
+  a MERGE, so no agent of any provider ever saw one. `decidePipelineOutcome` now returns FIX over
+  auto-fixable advisory findings when nothing blocks, bounded by the same attempt cap and gated by
+  the new `fixer.fix_advisory` (default on). Every guard falls back to MERGE, never BLOCK — an
+  advisory finding must never start blocking a PR. Findings from a gate the repo left out of
+  `required_checks` are excluded by their `gate#` prefix: those are advisory *by configuration*,
+  and dispatching on them overrules the one explicit instruction the repo gave. A mixed set
+  declines entirely, because FIX empties `advisoryFindings` and only the merge path posts it.
+  Shipped in `0.5.0`.

@@ -28,7 +28,7 @@ const CONFIG: PipelineConfig = {
     frontend: { build: 'npm run build', test: 'npm test' },
   },
   merge: { targetBranch: 'main', targetBranchByArea: {}, method: 'merge', deleteBranch: true, requiredChecks: ['build', 'test', 'ai-review'], requireHumanApproval: false },
-  fixer: { maxFixAttempts: 3, protectedPaths: ['rules/', 'prompts/', 'pipeline.config.yml', '.github/workflows/'] },
+  fixer: { maxFixAttempts: 3, protectedPaths: ['rules/', 'prompts/', 'pipeline.config.yml', '.github/workflows/'], fixAdvisory: true },
   agent: { provider: 'cursor', model: null, baseUrl: null, review: { model: null }, fix: { model: null } },
   areas: { paths: {} },
   standards: { enabled: false, root: '.standards', docs: {}, maxCharsPerArea: 90_000 },
@@ -125,6 +125,7 @@ describe('UC1: a clean frontend PR routes, gates, reviews clean, and auto-merges
       findings: reviewResult.outcome.findings,
       attemptsSoFar: 0,
       maxFixAttempts: CONFIG.fixer.maxFixAttempts,
+      fixAdvisory: CONFIG.fixer.fixAdvisory,
     });
     expect(decision.kind).toBe('MERGE');
     if (decision.kind !== 'MERGE') return;
@@ -197,6 +198,7 @@ describe('UC2 (review portion): a flawed backend PR produces a FIX decision, not
       findings: reviewResult.outcome.findings,
       attemptsSoFar: 0,
       maxFixAttempts: CONFIG.fixer.maxFixAttempts,
+      fixAdvisory: CONFIG.fixer.fixAdvisory,
     });
 
     expect(decision.kind).toBe('FIX');
@@ -222,6 +224,7 @@ describe('UC2 (review portion): a flawed backend PR produces a FIX decision, not
       findings: stillFailing,
       attemptsSoFar: CONFIG.fixer.maxFixAttempts,
       maxFixAttempts: CONFIG.fixer.maxFixAttempts,
+      fixAdvisory: CONFIG.fixer.fixAdvisory,
     });
 
     expect(decision.kind).toBe('BLOCK');
@@ -284,6 +287,7 @@ describe('UC2 full loop: a flawed PR gets fixed by the bot and merges on re-revi
       findings: reviewResult.outcome.findings,
       attemptsSoFar,
       maxFixAttempts: CONFIG.fixer.maxFixAttempts,
+      fixAdvisory: CONFIG.fixer.fixAdvisory,
     });
     expect(decision.kind).toBe('FIX');
     if (decision.kind !== 'FIX') return;
@@ -356,6 +360,7 @@ describe('UC2 full loop: a flawed PR gets fixed by the bot and merges on re-revi
       findings: reviewResult.outcome.findings,
       attemptsSoFar,
       maxFixAttempts: CONFIG.fixer.maxFixAttempts,
+      fixAdvisory: CONFIG.fixer.fixAdvisory,
     });
     expect(decision.kind).toBe('MERGE');
     if (decision.kind !== 'MERGE') return;

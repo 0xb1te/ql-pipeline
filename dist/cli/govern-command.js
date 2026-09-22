@@ -449,7 +449,12 @@ export async function runGovern(reportsDir) {
     const commitMessages = await client.listCommitMessages(pr);
     const attemptsSoFar = countFixAttempts(commitMessages);
     const attemptNumber = attemptsSoFar + 1;
-    const decision = decidePipelineOutcome({ findings, attemptsSoFar, maxFixAttempts: config.fixer.maxFixAttempts });
+    const decision = decidePipelineOutcome({
+        findings,
+        attemptsSoFar,
+        maxFixAttempts: config.fixer.maxFixAttempts,
+        fixAdvisory: config.fixer.fixAdvisory,
+    });
     await client.postComment(pr, formatAuditSummary({
         areas: route.areas,
         gateOutcomes,

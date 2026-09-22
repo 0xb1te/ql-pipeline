@@ -82,6 +82,14 @@ export interface MergeConfig {
 export interface FixerConfig {
     readonly maxFixAttempts: number;
     readonly protectedPaths: readonly string[];
+    /**
+     * Whether a `should` finding gets an agent, or only a comment.
+     *
+     * On by default. An advisory finding never blocked a merge and still does not - what changes
+     * is that somebody is assigned to it. Turn it off for a repository that would rather read its
+     * own nits than spend an attempt on them.
+     */
+    readonly fixAdvisory: boolean;
 }
 /**
  * `ql_agents` does not name a model vendor, which is the point of it. It routes the fix to the

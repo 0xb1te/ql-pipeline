@@ -461,6 +461,7 @@ function verdictTool(
     findings,
     attemptsSoFar,
     maxFixAttempts: loaded.config.fixer.maxFixAttempts,
+    fixAdvisory: loaded.config.fixer.fixAdvisory,
   });
 
   return ok({

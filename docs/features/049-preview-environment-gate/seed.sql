@@ -1,0 +1,21 @@
+-- No fixtures required.
+--
+-- ql-pipeline is a CI tool with no database. This feature adds a structural
+-- check on a consumer repository's filesystem - the presence and shape of
+-- infrastructure/docker/environments/devops/ - and there is no persisted
+-- state for a fixture to establish.
+--
+-- What stands in for fixtures here is a temporary checkout. The govern tests
+-- build a real directory with mkdtempSync, write apps/<name>/ entries and a
+-- devops folder in the shapes the contract allows and forbids, and run the
+-- check against it the way CI does; the pure tests hand the checks a snapshot
+-- instead of a disk.
+--
+-- The MCP Cases sheet is present and empty: this feature adds no MCP tool,
+-- schema or return shape. The ql_pipeline_doctor tool spawns the same CLI and
+-- reports one more line; its schema is unchanged. See plan.md, "Contract
+-- Impact".
+--
+-- The file is present because ql-docs workflow/flows/seed-data.md requires it
+-- of every task with no "not relevant here" exemption, and because ql-pipeline
+-- reports a pull request whose task folder lacks it.

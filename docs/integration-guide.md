@@ -301,6 +301,26 @@ before the sections were named there was no way to tell them apart.
 
 **Fail-closed.** If `enabled` is true and a configured document can't be loaded — a wrong path, a route the `github_agent` client doesn't carry, or `house-api`/`ql-auth` being unreachable — the `ql-pipeline` check fails and says exactly what went wrong. It will not review against a subset and report success.
 
+## 4d. The preview environment contract
+
+If your repository contains `apps/*frontend*` or `apps/*backend*` (by the same `areas.paths` globs as §4b), it must also carry a bootable preview stack at:
+
+```
+infrastructure/docker/environments/devops/
+  docker-compose.yml
+  env.example
+```
+
+The pipeline checks that folder **structurally, before review**, on every governed pull request, and fails the PR outright when it is missing or malformed — one comment naming every violation, `checks / ql-pipeline` red, no `needs-human` label. What it reads off the compose file:
+
+- exactly one HTTP entry service, and it is named `edge`;
+- no `ports:` on any service — the router reaches the stack over the shared preview network, and published ports collide the moment two previews run at once;
+- an `env.example` beside it, which the stack boots from unedited.
+
+Whether the stack actually comes up is the preview deploy's question, not this check's. The rules themselves are written once, in ql-docs `workflow/rules/stage-8-deployment/` — the *Preview environment contract* node — and every message the pipeline posts points there rather than restating them.
+
+`ql-pipeline doctor` reports the same verdict as a `preview environment` line, so you find out before opening a pull request. A repository with no product apps — a library, a docs repo, ql-pipeline itself — is unaffected and reports *not required*.
+
 ## 5. Overriding rules per area
 
 ql-pipeline ships default rule sets for all seven areas (`rules/*.rules` in the ql-pipeline repo — read them there to see what applies out of the box). To replace an area's rules entirely, add a file at:
@@ -318,6 +338,7 @@ e.g. `.github/pipeline-rules/backend.rules`. If present, it **fully replaces** q
 - **A request-changes review** when there's something to fix or block, with one inline comment per finding plus a top-level summary (attempt N of your configured max).
 - **Bot commits** on the PR branch look like `fix(<area>): resolve pipeline complaint (attempt N) [bot]`. Each one is meant to re-trigger the pipeline — see the `GH_TOKEN` note in §1 for why that needs a non-default token.
 - **PRs that touch `.github/workflows/`, `.github/pipeline.config.yml`, or `.github/pipeline-rules/`** always route to `needs-human` regardless of anything else — the pipeline cannot approve changes to its own governance.
+- **PRs on a product repository with no valid `infrastructure/docker/environments/devops/` folder** fail before review, with one comment listing what the preview environment contract found missing — see §4d.
 - **PRs targeting any other branch** get nothing at all: no check, no comment, no label. The pipeline governs only its configured target branch.
 
 ## 7. Things worth knowing before you turn it on

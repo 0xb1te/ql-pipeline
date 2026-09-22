@@ -32,6 +32,8 @@ signals:
     afferent:
       - from: routing.router.areaPaths#areasFromPaths
         via: direct-call
+      - from: verdict.decision.previewEnvironment#requiresPreviewEnvironment
+        via: direct-call
     efferent:
       - to: routing.router.areaPaths#globToRegExp
         via: direct-call
@@ -52,4 +54,4 @@ signals:
         via: direct-call
         because: tests each changed file against every configured area's path globs
 
-revision: 2026-08-30
+revision: 2026-09-22

@@ -29,6 +29,7 @@ import { createSprintNotifier, sprintNotifierCredentialsFromEnv, } from '../noti
 import { readSprintTasks } from '../notifier/sprint-tasks.js';
 import { decideTaskProvenance, taskProvenanceFinding } from '../verdict/task-provenance.js';
 import { taskArtifactFinding, taskFolderGlobFor, taskFolderRefOf, } from '../verdict/task-artifacts.js';
+import { assessPreviewEnvironment, previewEnvironmentFinding, readPreviewEnvironmentSnapshot, PREVIEW_ENVIRONMENT_DIR, } from '../verdict/preview-environment.js';
 import { createPipelineContext, resolveRouting } from './bootstrap.js';
 // dist/cli/govern-command.js -> ql-pipeline's own checkout root is two
 // levels up. rules/ and prompts/ ship inside ql-pipeline itself; the repo
@@ -139,6 +140,54 @@ export function protectedPathsComment(artifactFindings) {
         '**Also worth seeing before you review.** These are structural checks, reported here because an ' +
             'R4 escalation stops before the review that would otherwise raise them:',
         ...artifactFindings.map((finding) => `- ${finding.problem}`),
+    ].join('\n\n');
+}
+/**
+ * Whether a product repository carries the preview environment ql-docs mandates, as one finding.
+ *
+ * Structural, before the AI is consulted, for exactly the reason R4 is: whether a folder exists
+ * and its compose file names an `edge` service is not a judgement, and a reviewer is the wrong
+ * enforcement mechanism for a rule that cannot be argued with. Unlike the task-artifact check it
+ * is a hard gate rather than an advisory finding - see previewEnvironmentRefusal for why - so the
+ * caller fails the run on it rather than folding it into the verdict.
+ */
+// @signal previewEnvironmentFindings
+export function previewEnvironmentFindings(consumerRoot, areaPaths, logger) {
+    const verdict = assessPreviewEnvironment(readPreviewEnvironmentSnapshot(consumerRoot), areaPaths);
+    if (verdict.kind === 'not-required') {
+        logger.info('preview environment: not required — no apps/*frontend* or apps/*backend* directory');
+        return [];
+    }
+    const finding = previewEnvironmentFinding(verdict);
+    if (finding === null) {
+        logger.info(`preview environment: ${PREVIEW_ENVIRONMENT_DIR}/ satisfies the contract`);
+        return [];
+    }
+    logger.info(`preview environment: ${String(verdict.kind === 'invalid' ? verdict.violations.length : 0)} violation(s)`);
+    return [finding];
+}
+/**
+ * What the pull request is told when its repository has no valid preview environment.
+ *
+ * A hard failure and not a `must` finding, deliberately. A finding rides into the verdict, which
+ * is reached only after the gates are read and the AI review has run - so a repository that
+ * cannot be previewed would still spend a review, and could be argued back from BLOCK to MERGE by
+ * an attempt cap or a config. Nothing downstream of this can work without the folder: the deploy
+ * job has nothing to bring up and the tester nothing to reach. Refusing here, before anything
+ * is spent, is the honest shape.
+ *
+ * It is not an escalation either. The `needs-human` path exists for questions a person has to
+ * adjudicate; a missing folder is fixed by its author, so the pull request simply fails and says
+ * what is missing, exactly as an unroutable one does.
+ */
+// @signal previewEnvironmentRefusal
+export function previewEnvironmentRefusal(findings) {
+    return [
+        '**This repository cannot be previewed, so this pull request fails before review.**',
+        ...findings.map((finding) => finding.problem),
+        'Nothing downstream of this check can run without that folder: the preview deploy has nothing to bring ' +
+            'up, and the automated tester nothing to reach. This is checked structurally, before any model is asked ' +
+            'anything, for the same reason RULES.md R4 is - a folder that must exist is not a matter of opinion.',
     ].join('\n\n');
 }
 /**
@@ -254,12 +303,27 @@ export async function runGovern(reportsDir) {
     // change should not have to discover separately that the folder is also incomplete. An R4
     // pull request used to return before this ran, so its task folder was never checked at all.
     const artifactFindings = taskArtifactFindings(pr, consumerRoot, config.merge.requiredChecks, logger);
+    // Whether a product repository carries the preview environment ql-docs mandates. Structural,
+    // like the two checks around it, and decided here so an R4 escalation can carry it too - a
+    // person summoned to review a governance change should see that the repository also cannot
+    // be previewed, rather than discover it on the next pull request.
+    const previewFindings = previewEnvironmentFindings(consumerRoot, config.areas.paths, logger);
     // RULES.md R4: the pipeline never auto-merges or auto-fixes changes to
     // its own governance paths. Checked structurally and before the AI is
     // consulted — making the AI's judgment the enforcement mechanism for its
     // own constitution would defeat the point.
     if (touchesProtectedPaths(changedFiles, config.fixer.protectedPaths)) {
-        await escalateToHuman(client, pr, logger, 'PR touches protected pipeline-governance paths and requires human review', protectedPathsComment(artifactFindings));
+        await escalateToHuman(client, pr, logger, 'PR touches protected pipeline-governance paths and requires human review', protectedPathsComment([...artifactFindings, ...previewFindings]));
+        return;
+    }
+    // The preview environment contract, enforced rather than advised. A hard failure and not a
+    // finding: nothing after this point can work for a repository that cannot be previewed, so
+    // nothing after this point is spent on it - see previewEnvironmentRefusal.
+    if (previewFindings.length > 0) {
+        const reason = `this repository has no valid preview environment under ${PREVIEW_ENVIRONMENT_DIR}/`;
+        logger.error(reason);
+        await client.postComment(pr, previewEnvironmentRefusal(previewFindings));
+        core.setFailed(reason);
         return;
     }
     const gateReports = readGateReports(reportsDir);

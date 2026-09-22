@@ -1,0 +1,136 @@
+cns: "1.0"
+neuron: previewEnvironment
+kind: function
+region: verdict
+layer: decision
+unit: src/verdict/preview-environment.ts
+
+responsibility: >
+  Answers whether a product repository carries the preview environment ql-docs' contract
+  mandates - the devops compose folder a pull request preview boots from - and turns a "no" into
+  one blocking finding. Enforces the contract; never restates it.
+
+owns:
+  - >
+    The fixed location, `infrastructure/docker/environments/devops/`. Fixed rather than
+    configured because ql-proxy brings it up and this pipeline checks it, and a configurable path
+    would be a second source of truth the two would disagree about exactly when somebody was in a
+    hurry
+  - >
+    Which repositories the contract applies to - any with a directory matching the configured
+    frontend or backend area globs - keyed off the router's own path detection rather than a
+    second list of directory names
+  - >
+    The structural reading of the compose file: exactly one entry service named `edge`, no
+    published host ports, an `env.example` beside it. Parsed, never run - whether it boots is the
+    deploy job's question
+
+invariants:
+  - >
+    A repository with no matching apps directory is unaffected, whatever else it lacks. ql-pipeline
+    itself, a docs repository and a library have no product to preview
+  - >
+    `must` and never auto-fixable, with no opt-in. It applies only where a product exists, and a
+    product repository with no preview stack cannot be tested by anything downstream - the deploy
+    job has nothing to bring up and the tester nothing to reach
+  - >
+    A missing compose file is reported alone. When the folder is absent everything in it is
+    absent too, and three sentences about one missing directory read as three problems
+  - >
+    Every message cites the ql-docs contract node and none restates its rules. The node is the
+    only place they are written; both enforcers point at it
+
+excludes:
+  - >
+    Booting the stack, routing it, or gating it. That is ql-proxy, against the same contract
+  - >
+    Deciding what a failed check costs. It returns a finding; entrypoint.cli.governCommand is
+    what refuses the run on it before anything is spent
+
+receptors: []
+effectors:
+  - kind: filesystem
+    target: the repo under review - its apps/ listing and the devops compose folder
+    effect: reads the app directory names, the compose file's text and whether env.example exists, and nothing else
+    signal: readPreviewEnvironmentSnapshot
+
+signals:
+  - signal: requiresPreviewEnvironment
+    intent: >
+      Whether the contract applies at all - whether any top-level apps entry matches a frontend
+      or backend area glob. Uses the router's glob matcher so a repository that has told the
+      pipeline where its apps live is measured against that, not against a convention it may not
+      follow.
+    accepts: "appDirs, areaPaths"
+    returns: boolean
+    pure: true
+    afferent:
+      - from: verdict.decision.previewEnvironment#assessPreviewEnvironment
+        via: direct-call
+    efferent:
+      - to: routing.router.areaPaths#matchesGlob
+        via: direct-call
+        because: the one glob implementation the pipeline has, so area detection and this check cannot disagree about what apps/*backend*/** means
+
+  - signal: previewEnvironmentViolations
+    intent: >
+      Every way the devops folder fails the contract, as sentences an author can act on: the
+      compose file missing or unparseable, no `services`, no service named `edge`, host ports
+      published on any service, no `env.example`. Cheap and structural - the file is parsed,
+      never run.
+    accepts: PreviewEnvironmentSnapshot
+    returns: "readonly string[]"
+    pure: true
+    afferent:
+      - from: verdict.decision.previewEnvironment#assessPreviewEnvironment
+        via: direct-call
+    efferent: []
+
+  - signal: assessPreviewEnvironment
+    intent: >
+      The whole verdict in one call - not-required, valid, or invalid with its violations - so
+      `govern` and `doctor` ask one question and get the same answer.
+    accepts: "snapshot, areaPaths"
+    returns: PreviewEnvironmentVerdict
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#previewEnvironmentFindings
+        via: direct-call
+      - from: entrypoint.cli.scaffoldCommands#runDoctor
+        via: direct-call
+    efferent:
+      - to: verdict.decision.previewEnvironment#requiresPreviewEnvironment
+        via: direct-call
+        because: a repository the contract does not apply to gets no violations, whatever the folder holds
+      - to: verdict.decision.previewEnvironment#previewEnvironmentViolations
+        via: direct-call
+        because: the structural reading, once the contract is known to apply
+
+  - signal: previewEnvironmentFinding
+    intent: >
+      Renders an invalid verdict as one `must`, non-auto-fixable finding carrying every violation
+      and a pointer to the contract node, or null when the contract does not apply or is met.
+    accepts: PreviewEnvironmentVerdict
+    returns: Finding | null
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#previewEnvironmentFindings
+        via: direct-call
+    efferent: []
+
+  - signal: readPreviewEnvironmentSnapshot
+    intent: >
+      Reads what the pure checks need off a checkout and nothing more. The one signal here that
+      touches a disk, kept in this unit because `govern` and `doctor` both ask the question and
+      two readers of one folder is how they come to disagree about it. The reader is injectable
+      so a test needs no filesystem.
+    accepts: "root, reader?"
+    returns: PreviewEnvironmentSnapshot
+    afferent:
+      - from: entrypoint.cli.governCommand#previewEnvironmentFindings
+        via: direct-call
+      - from: entrypoint.cli.scaffoldCommands#runDoctor
+        via: direct-call
+    efferent: []
+
+revision: 2026-09-22

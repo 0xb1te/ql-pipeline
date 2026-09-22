@@ -2,6 +2,7 @@ import type { PullRequestInfo, ReviewComment } from '../shared/github-client.js'
 import type { Logger } from '../shared/logger.js';
 import { type AgentProvider, type Finding, type GateOutcome, type RequiredCheck } from '../shared/types.js';
 import { readSprintTasks, type SprintTaskList } from '../notifier/sprint-tasks.js';
+import type { AreaPathsConfig } from '../shared/types.js';
 /** Auto-fix still requires cursor-agent. An OpenAI-compatible review cannot write a fix commit. */
 export declare function shouldSkipCursorFixer(provider: AgentProvider): boolean;
 /**
@@ -51,6 +52,31 @@ export declare function taskProvenanceFindings(pr: Pick<PullRequestInfo, 'number
  * client, the same way complaintReview is.
  */
 export declare function protectedPathsComment(artifactFindings: readonly Finding[]): string;
+/**
+ * Whether a product repository carries the preview environment ql-docs mandates, as one finding.
+ *
+ * Structural, before the AI is consulted, for exactly the reason R4 is: whether a folder exists
+ * and its compose file names an `edge` service is not a judgement, and a reviewer is the wrong
+ * enforcement mechanism for a rule that cannot be argued with. Unlike the task-artifact check it
+ * is a hard gate rather than an advisory finding - see previewEnvironmentRefusal for why - so the
+ * caller fails the run on it rather than folding it into the verdict.
+ */
+export declare function previewEnvironmentFindings(consumerRoot: string, areaPaths: AreaPathsConfig, logger: Pick<Logger, 'info'>): readonly Finding[];
+/**
+ * What the pull request is told when its repository has no valid preview environment.
+ *
+ * A hard failure and not a `must` finding, deliberately. A finding rides into the verdict, which
+ * is reached only after the gates are read and the AI review has run - so a repository that
+ * cannot be previewed would still spend a review, and could be argued back from BLOCK to MERGE by
+ * an attempt cap or a config. Nothing downstream of this can work without the folder: the deploy
+ * job has nothing to bring up and the tester nothing to reach. Refusing here, before anything
+ * is spent, is the honest shape.
+ *
+ * It is not an escalation either. The `needs-human` path exists for questions a person has to
+ * adjudicate; a missing folder is fixed by its author, so the pull request simply fails and says
+ * what is missing, exactly as an unroutable one does.
+ */
+export declare function previewEnvironmentRefusal(findings: readonly Finding[]): string;
 /**
  * Whether the task folder this branch names carries the two artifacts an automated tester needs,
  * as one finding.

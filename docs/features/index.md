@@ -11,3 +11,7 @@ than an honest gap.
   own MCP: route, gate reports, verdict and the needs-human / ready-to-merge queue, taking the
   server from three tools to seven. `gate`/`govern` stay off it as a named carve-out. Shipped as
   `0.2.0`.
+- `features/041-mcp-tester-checks` — Made a task folder's test plan and seed data a structural
+  check, added an MCP-reachability criterion to the AI review, and built the tester that drives a
+  preview over MCP and reports every failure in one comment. The `preview-tester` job ships
+  `if: false` until a preview deploy job exists. Shipped as `0.3.0`.

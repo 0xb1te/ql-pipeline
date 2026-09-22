@@ -63,6 +63,15 @@ jobs:
     uses: ./.github/workflows/pr-pipeline.yml
     with:
       config-path: pipeline.config.yml
+      # No `ql-pipeline-ref` here, on purpose. The reusable workflow ignores
+      # it when the caller is this repository and runs the pull request's own
+      # head instead - resolved in its `resolve` job, where the PR is known on
+      # every event. Passing `github.head_ref` from here would have covered
+      # `pull_request` only: it is empty on both comment events, and this file
+      # runs from the default branch on those anyway. Until 051 this check ran
+      # `main`'s dist/main.js against the branch's YAML, so a change to govern,
+      # gate or tester code was never exercised by the check meant to prove it
+      # (docs/bugfixes/051-dogfood-runs-main-not-the-pr/).
     # Forward everything this repo holds rather than naming each secret:
     # the set ql-pipeline needs changes over time, and dogfood should not be
     # the one caller that has to be edited when it does.

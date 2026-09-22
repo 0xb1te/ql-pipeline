@@ -27,7 +27,11 @@ on:
         type: string
         default: .github/pipeline.config.yml
       ql-pipeline-ref:
-        description: Git ref of ql-pipeline to run. Pin a tag/sha in production consumers.
+        description: >-
+          Git ref of ql-pipeline to run. Pin a tag/sha in production consumers. Ignored when the
+          calling repository is ql-pipeline itself: a pull request here is governed by its own
+          head, never by this ref, so the dogfood check exercises the code under review
+          (docs/bugfixes/051-dogfood-runs-main-not-the-pr/).
         type: string
         default: main
     secrets:
@@ -109,9 +113,18 @@ jobs:
       head-sha: ${{ steps.pr.outputs.head-sha }}
       base-ref: ${{ steps.pr.outputs.base-ref }}
       is-fork: ${{ steps.pr.outputs.is-fork }}
+      # Which ql-pipeline every job below checks out into `.ql-pipeline/`.
+      # Resolved here, once, next to the PR itself - because for one caller
+      # the answer IS the PR. See the end of the script.
+      ql-pipeline-repo: ${{ steps.pr.outputs.ql-pipeline-repo }}
+      ql-pipeline-ref: ${{ steps.pr.outputs.ql-pipeline-ref }}
     steps:
       - id: pr
         uses: actions/github-script@v7
+        env:
+          # Read from the environment rather than interpolated into the
+          # script, so a ref with a quote in it cannot break the JavaScript.
+          QL_PIPELINE_REF: ${{ inputs.ql-pipeline-ref }}
         with:
           github-token: ${{ secrets.GH_TOKEN || github.token }}
           script: |
@@ -191,6 +204,24 @@ jobs:
             core.setOutput('head-sha', pr.head.sha);
             core.setOutput('base-ref', pr.base.ref);
             core.setOutput('is-fork', isFork ? 'true' : 'false');
+
+            // Which ql-pipeline runs. A consumer runs the ref it pinned. When
+            // the calling repository is ql-pipeline itself, the pull request
+            // IS the ql-pipeline under test, so it runs its own head - the same
+            // repository and ref the jobs check out as the repo under review.
+            // Before this, dogfood ran `main`'s dist/main.js against the
+            // branch's YAML: a PR changing govern, gate or tester code was
+            // never once exercised by its own check (run 35728255439 on #43
+            // logged 0.5.1's lines against a 0.6.0 branch). Resolved here
+            // rather than in dogfood.yml because `github.head_ref` is empty on
+            // both comment events, and the caller cannot forget an input it
+            // does not have to set.
+            const governsItself = `${context.repo.owner}/${context.repo.repo}` === '0xb1te/ql-pipeline';
+            core.setOutput('ql-pipeline-repo', governsItself ? pr.head.repo.full_name : '0xb1te/ql-pipeline');
+            core.setOutput('ql-pipeline-ref', governsItself ? pr.head.ref : process.env.QL_PIPELINE_REF);
+            if (governsItself) {
+              core.notice(`ql-pipeline governs itself: running ${pr.head.repo.full_name}@${pr.head.ref}, not ql-pipeline-ref.`);
+            }
             core.notice(
               `Governing PR #${pr.number} — ${pr.head.ref} @ ${pr.head.sha.slice(0, 7)} into ${pr.base.ref}` +
                 `${isFork ? ' (from a fork: review only, no fix commits)' : ''}, triggered by ${context.eventName}.`,
@@ -225,8 +256,8 @@ jobs:
       - name: Checkout ql-pipeline
         uses: actions/checkout@v4
         with:
-          repository: 0xb1te/ql-pipeline
-          ref: ${{ inputs.ql-pipeline-ref }}
+          repository: ${{ needs.resolve.outputs.ql-pipeline-repo }}
+          ref: ${{ needs.resolve.outputs.ql-pipeline-ref }}
           path: .ql-pipeline
 
       # `actions/checkout` can only write inside the workspace, so
@@ -324,8 +355,8 @@ jobs:
       - name: Checkout ql-pipeline
         uses: actions/checkout@v4
         with:
-          repository: 0xb1te/ql-pipeline
-          ref: ${{ inputs.ql-pipeline-ref }}
+          repository: ${{ needs.resolve.outputs.ql-pipeline-repo }}
+          ref: ${{ needs.resolve.outputs.ql-pipeline-ref }}
           path: .ql-pipeline
 
       - name: Hide the ql-pipeline checkout from the repo under review
@@ -410,8 +441,8 @@ jobs:
       - name: Checkout ql-pipeline
         uses: actions/checkout@v4
         with:
-          repository: 0xb1te/ql-pipeline
-          ref: ${{ inputs.ql-pipeline-ref }}
+          repository: ${{ needs.resolve.outputs.ql-pipeline-repo }}
+          ref: ${{ needs.resolve.outputs.ql-pipeline-ref }}
           path: .ql-pipeline
 
       - name: Hide the ql-pipeline checkout from the repo under review
@@ -655,8 +686,8 @@ jobs:
       - name: Checkout ql-pipeline
         uses: actions/checkout@v4
         with:
-          repository: 0xb1te/ql-pipeline
-          ref: ${{ inputs.ql-pipeline-ref }}
+          repository: ${{ needs.resolve.outputs.ql-pipeline-repo }}
+          ref: ${{ needs.resolve.outputs.ql-pipeline-ref }}
           path: .ql-pipeline
 
       - name: Hide the ql-pipeline checkout from the repo under review

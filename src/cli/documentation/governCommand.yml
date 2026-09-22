@@ -351,4 +351,7 @@ signals:
         via: direct-call
     efferent: []
 
+provenance:
+  - docs/bugfixes/051-dogfood-runs-main-not-the-pr/summary.md
+
 revision: 2026-09-22

@@ -14,6 +14,7 @@ upstream:
 downstream:
   - shared.core
   - tester.preview
+  - deploy.preview
   - merge.merger
   - routing.router
   - verdict.decision
@@ -39,8 +40,11 @@ neurons:
   - id: entrypoint.cli.testPreviewCommand
     file: testPreviewCommand.yml
     unit: ../test-preview-command.ts
+  - id: entrypoint.cli.deployPreviewCommand
+    file: deployPreviewCommand.yml
+    unit: ../deploy-preview-command.ts
   - id: entrypoint.cli.scaffoldCommands
     file: scaffoldCommands.yml
     unit: ../scaffold-commands.ts
 
-revision: 2026-08-30
+revision: 2026-09-22

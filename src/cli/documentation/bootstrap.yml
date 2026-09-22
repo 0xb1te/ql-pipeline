@@ -52,6 +52,8 @@ signals:
         via: direct-call
       - from: entrypoint.cli.testPreviewCommand#runTestPreview
         via: direct-call
+      - from: entrypoint.cli.deployPreviewCommand#runDeployPreview
+        via: direct-call
     efferent:
       - to: shared.core.config#loadConfig
         via: direct-call

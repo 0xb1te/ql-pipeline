@@ -28,7 +28,7 @@ unit_definition: >
 regions:
   - region: entrypoint
     purpose: >
-      Parses argv into one of five commands and wires each into the config, PR, and GitHub
+      Parses argv into one of seven commands and wires each into the config, PR, and GitHub
       client every job needs before it can act.
     ganglia:
       - id: entrypoint.main
@@ -88,6 +88,15 @@ regions:
       - id: tester.preview
         file: src/tester/documentation/_ganglion.yml
 
+  - region: deploy
+    purpose: >
+      The pure half of bringing a pull request preview up - whether a green verdict earns one,
+      what ql-proxy is asked, how its answers and Docker's are read, where the application's MCP
+      server is on the preview host's container network, and what the pull request is told.
+    ganglia:
+      - id: deploy.preview
+        file: src/deploy/documentation/_ganglion.yml
+
   - region: fix
     purpose: >
       Runs one automated fix attempt against blocking findings, reverts any edit to a protected
@@ -141,4 +150,4 @@ regions:
 
 excluded: []
 
-revision: 2026-09-21
+revision: 2026-09-22

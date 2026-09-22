@@ -1,0 +1,21 @@
+cns: "1.0"
+ganglion: deploy.preview
+region: deploy
+layer: preview
+path: src/deploy
+
+role: >
+  The pure half of bringing a pull request preview up: whether a green verdict earns one, what
+  to ask ql-proxy, how to read what it answered, where the application's MCP server is once the
+  stack exists, and what the pull request is told. Nothing here runs a process or opens a socket.
+
+upstream:
+  - entrypoint.cli
+downstream: []
+
+neurons:
+  - id: deploy.preview.previewStack
+    file: previewStack.yml
+    unit: ../preview-stack.ts
+
+revision: 2026-09-22

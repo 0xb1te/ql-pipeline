@@ -68,3 +68,18 @@ merge:
 # standards:
 #   enabled: true              # false = review against rules only
 #   max_chars_per_area: 140000 # lower to cut review cost
+
+# The preview a green pull request gets. On by default; the `preview` job runs
+# only for a repository whose infrastructure/docker/environments/devops/ folder
+# satisfies the ql-docs contract, and it runs on the self-hosted preview host.
+# Turn it off on a repository with that folder but no `ql-proxy` runner
+# registered - a job waiting for a runner that never comes stays queued.
+# preview:
+#   enabled: true
+#   ttl_minutes: 120          # requested; the host clamps it to its own ceiling
+#   protect: true             # ask ql-proxy for the browser gate in front of it
+#   mcp:                      # where the application's MCP server listens in the stack
+#     service: backend        # the compose service that hosts it
+#     port: 8080              # its container port
+#     path: /mcp
+#     ready_timeout_seconds: 180

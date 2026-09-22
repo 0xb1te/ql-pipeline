@@ -7,7 +7,9 @@ name: PR Governance
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    # `closed` is what lets the pipeline tear a pull request's preview down the
+    # moment it closes; every other job declines a closed PR on its own.
+    types: [opened, synchronize, reopened, closed]
 
 # A new commit cancels the in-flight run for the previous one, including a
 # stale fix-loop attempt. This belongs to the caller, not the reusable

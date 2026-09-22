@@ -22,7 +22,7 @@ effectors: []
 
 signals:
   - signal: Types
-    intent: The type and constant vocabulary (Area/AREAS, CommitType/COMMIT_TYPES, PipelineConfig and its sub-shapes including AgentConfig with provider/model/baseUrl plus per-phase review/fix AgentPhaseConfig, AGENT_PROVIDERS and AGENT_PHASES, RouteDecision/RouteResult, GateOutcome, Finding, ReviewVerdict, AUTOMATION_MARKER, FIX_ATTEMPT_MARKER) every other region imports. AUTOMATION_MARKER lives here rather than beside the function that stamps it because both halves of the loop guard read it - shared.core.githubClient stamps and shared.core.humanDirection filters - and the filter is a pure unit that must not import the Octokit client to read one string.
+    intent: The type and constant vocabulary (Area/AREAS, CommitType/COMMIT_TYPES, PipelineConfig and its sub-shapes including PreviewConfig/PreviewMcpConfig and AgentConfig with provider/model/baseUrl plus per-phase review/fix AgentPhaseConfig, AGENT_PROVIDERS and AGENT_PHASES, RouteDecision/RouteResult, GateOutcome, Finding, ReviewVerdict, AUTOMATION_MARKER, FIX_ATTEMPT_MARKER) every other region imports. AUTOMATION_MARKER lives here rather than beside the function that stamps it because both halves of the loop guard read it - shared.core.githubClient stamps and shared.core.humanDirection filters - and the filter is a pure unit that must not import the Octokit client to read one string.
     accepts: "n/a - types and constants, not a callable"
     returns: "n/a"
     pure: true

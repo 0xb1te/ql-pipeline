@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { parseCommand } from '../../src/cli/command.js';
 
 describe('parseCommand', () => {
+  it('parses deploy-preview, which takes no flags', () => {
+    expect(parseCommand(['deploy-preview'])).toEqual({ ok: true, command: { kind: 'deploy-preview' } });
+  });
+
   it('parses the test gate command', () => {
     expect(parseCommand(['gate', '--stage', 'test'])).toEqual({
       ok: true,

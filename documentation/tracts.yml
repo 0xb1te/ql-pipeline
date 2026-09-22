@@ -2,7 +2,7 @@ cns: "1.0"
 tracts:
   - tract: parse-argv-into-a-command
     stimulus: process start (node dist/main.js)
-    response: argv is parsed into exactly one of the five commands (gate/govern/init/upgrade/doctor)
+    response: argv is parsed into exactly one of the seven commands (gate/govern/deploy-preview/test-preview/init/upgrade/doctor)
     path:
       - entrypoint.main.main#main
       - entrypoint.cli.command#parseCommand
@@ -200,5 +200,18 @@ tracts:
     effectors:
       - filesystem:the repo under review's apps/ listing and infrastructure/docker/environments/devops/
       - http-out:one pull request comment naming every contract violation
+
+  - tract: deploy-a-preview
+    stimulus: process start (node dist/main.js deploy-preview)
+    response: the pull request's devops stack is brought up through ql-proxy on the preview host, seeded from its task folder, its MCP server located and waited for, and one summary posted with the URL, the gate token and the expiry
+    path:
+      - entrypoint.main.main#main
+      - entrypoint.cli.deployPreviewCommand#runDeployPreview
+      - entrypoint.cli.deployPreviewCommand#deployPreview
+      - deploy.preview.previewStack#decidePreviewDeploy
+    effectors:
+      - filesystem:the preview host's ql-proxy CLI and the Docker CLI, as child processes
+      - http-out:the application's MCP server on the preview host's container network, polled until it answers
+      - http-out:one pull request comment carrying the URL, the gate token, the expiry and the MCP state
 
 revision: 2026-09-22

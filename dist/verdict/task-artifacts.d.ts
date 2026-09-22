@@ -33,6 +33,21 @@ export type TaskFolderLookup = {
     readonly path: string;
     readonly files: readonly string[];
 };
+/** The directory reads `lookupTaskFolder` is fed with, injectable so a test needs no disk. */
+export interface TaskFolderReader {
+    readonly exists: (path: string) => boolean;
+    readonly listDirs: (path: string) => readonly string[];
+    readonly listFiles: (path: string) => readonly string[];
+}
+/**
+ * Resolves the task folder a branch names on a checkout, or says why it could not.
+ *
+ * The one signal in this unit that touches a disk, and kept here because three commands ask the
+ * question - the artifact check, the preview deploy and the tester - and three readers of one
+ * convention is how they come to disagree about which folder a branch means. The reader is
+ * injectable so the callers stay testable without a filesystem.
+ */
+export declare function lookupTaskFolder(headRef: string, root: string, reader?: TaskFolderReader): TaskFolderLookup;
 /**
  * The task folder a branch names, or null when it names none.
  *

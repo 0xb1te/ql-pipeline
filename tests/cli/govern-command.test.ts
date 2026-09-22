@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 import {
   complaintReview,
+  previewEnvironmentFindings,
+  previewEnvironmentRefusal,
   protectedPathsComment,
   readGateReports,
   shouldSkipCursorFixer,
@@ -321,6 +323,82 @@ describe('taskArtifactFindings', () => {
   it('reports a task folder that does not exist at all', () => {
     const [finding] = taskArtifactFindings({ headRef: 'hotfixes/003-checkout' }, repo(null), OPTED_IN, quiet);
     expect(finding?.problem).toContain('docs/hotfixes/003-*/');
+  });
+});
+
+describe('previewEnvironmentFindings', () => {
+  const quiet = { info: vi.fn() };
+  const HOUSE_PATHS = { frontend: ['apps/*frontend*/**'], backend: ['apps/*backend*/**'] } as const;
+
+  const VALID_COMPOSE = 'services:\n  edge:\n    image: nginx\n  backend:\n    image: app\n';
+
+  function repo(layout: {
+    readonly apps?: readonly string[];
+    readonly compose?: string;
+    readonly envExample?: boolean;
+  }): string {
+    // A real directory, because this reads the filesystem the way CI does.
+    const root = mkdtempSync(join(tmpdir(), 'ql-preview-env-'));
+    for (const app of layout.apps ?? []) mkdirSync(join(root, 'apps', app), { recursive: true });
+    if (layout.compose !== undefined || layout.envExample) {
+      const devops = join(root, 'infrastructure', 'docker', 'environments', 'devops');
+      mkdirSync(devops, { recursive: true });
+      if (layout.compose !== undefined) writeFileSync(join(devops, 'docker-compose.yml'), layout.compose);
+      if (layout.envExample) writeFileSync(join(devops, 'env.example'), 'DATABASE_URL=postgres://preview\n');
+    }
+    return root;
+  }
+
+  it('raises nothing for a repository with no product apps, whatever else it lacks', () => {
+    // ql-pipeline itself: no apps/ directory, no devops folder, and unaffected.
+    expect(previewEnvironmentFindings(repo({}), HOUSE_PATHS, quiet)).toEqual([]);
+  });
+
+  it('raises nothing for a product repository whose devops folder follows the contract', () => {
+    const root = repo({ apps: ['shop-backend'], compose: VALID_COMPOSE, envExample: true });
+    expect(previewEnvironmentFindings(root, HOUSE_PATHS, quiet)).toEqual([]);
+  });
+
+  it('raises one blocking finding for a product repository with no devops folder, citing the contract', () => {
+    const [finding] = previewEnvironmentFindings(repo({ apps: ['shop-backend'] }), HOUSE_PATHS, quiet);
+
+    expect(finding?.severity).toBe('must');
+    expect(finding?.problem).toContain('infrastructure/docker/environments/devops/docker-compose.yml');
+    expect(finding?.problem).toContain('stage-8-deployment');
+  });
+
+  it('raises one finding carrying every violation of a malformed folder', () => {
+    const publishing = 'services:\n  app:\n    image: x\n    ports:\n      - "80:80"\n';
+    const [finding] = previewEnvironmentFindings(
+      repo({ apps: ['admin-frontend'], compose: publishing, envExample: false }),
+      HOUSE_PATHS,
+      quiet,
+    );
+
+    expect(finding?.problem).toContain('no service named `edge`');
+    expect(finding?.problem).toContain('publishes host ports');
+    expect(finding?.problem).toContain('env.example');
+  });
+});
+
+describe('previewEnvironmentRefusal', () => {
+  it('says the PR fails before review, carries the finding, and explains why nothing downstream can run', () => {
+    const finding: Finding = {
+      severity: 'must',
+      rule: 'preview#environment',
+      file: 'infrastructure/docker/environments/devops/docker-compose.yml',
+      line: 1,
+      problem: 'the compose file is missing',
+      suggestedFix: null,
+      autoFixable: false,
+    };
+
+    const body = previewEnvironmentRefusal([finding]);
+
+    expect(body).toContain('fails before review');
+    expect(body).toContain('the compose file is missing');
+    expect(body).toContain('nothing to bring up');
+    expect(body).toContain('RULES.md R4');
   });
 });
 

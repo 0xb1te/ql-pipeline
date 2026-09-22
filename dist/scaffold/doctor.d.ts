@@ -1,3 +1,4 @@
+import { type PreviewEnvironmentVerdict } from '../verdict/preview-environment.js';
 export type CheckStatus = 'pass' | 'warn' | 'fail';
 export interface CheckResult {
     readonly name: string;
@@ -22,6 +23,11 @@ export interface DoctorInput {
     readonly missingStandardsDocs: readonly string[];
     readonly standardsIgnored: boolean;
     readonly cursorRuleCount: number;
+    /**
+     * Whether the repository's preview environment satisfies ql-docs' contract, as decided by
+     * verdict.decision.previewEnvironment - `not-required` for a repository with no product apps.
+     */
+    readonly previewEnvironment: PreviewEnvironmentVerdict;
 }
 /**
  * Everything `doctor` can determine without network access or secrets.

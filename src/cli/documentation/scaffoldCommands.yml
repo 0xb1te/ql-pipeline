@@ -152,6 +152,12 @@ signals:
       - to: standards.reader.standardsResolver#resolveStandards
         via: direct-call
         because: checks a local .standards checkout - never house-api - for every review kind's pack, independent of what govern reads in CI
+      - to: verdict.decision.previewEnvironment#readPreviewEnvironmentSnapshot
+        via: direct-call
+        because: reads the apps listing and the devops folder the same way govern does, so the two never disagree about a repository
+      - to: verdict.decision.previewEnvironment#assessPreviewEnvironment
+        via: direct-call
+        because: the same verdict govern fails a pull request on, reported here so an author finds out before opening one
       - to: scaffold.core.doctor#runDoctorChecks
         via: direct-call
         because: turns everything collected about the repo into the pass/warn/fail checks reported
@@ -159,4 +165,4 @@ signals:
         via: direct-call
         because: the worst status across every check decides this command's boolean result
 
-revision: 2026-09-07
+revision: 2026-09-22

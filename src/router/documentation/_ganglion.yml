@@ -12,6 +12,7 @@ role: >
 upstream:
   - entrypoint.cli
   - mcp.server
+  - verdict.decision
 downstream:
   - routing.parser
   - shared.core
@@ -30,4 +31,4 @@ neurons:
     file: gateRunner.yml
     unit: ../gate-runner.ts
 
-revision: 2026-08-30
+revision: 2026-09-22

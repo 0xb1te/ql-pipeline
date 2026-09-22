@@ -7,8 +7,9 @@ unit: src/scaffold/doctor.ts
 
 responsibility: >
   Everything `doctor` can determine about a repo's setup without network access or secrets -
-  the caller workflow, the config, gates, standards, and Cursor rules - saying plainly what it
-  cannot verify rather than implying a clean bill of health it cannot give.
+  the caller workflow, the config, gates, standards, Cursor rules, and whether a product
+  repository carries the preview environment ql-docs mandates - saying plainly what it cannot
+  verify rather than implying a clean bill of health it cannot give.
 
 excludes:
   - Verifying CURSOR_API_KEY/QL_PIPELINE_AGENT_API_KEY/OPENAI_API_KEY/QL_HOUSE_API_URL/QL_AUTH_* are set - those live in repository secrets, which a local CLI has no business reading
@@ -23,7 +24,9 @@ signals:
       status with a suggested fix. One of them reads the caller workflow's own concurrency block -
       a group keyed only by pull request number, with the comment triggers on and cancellation
       enabled, lets the pipeline's own verdict comment cancel the run posting it, and the marker
-      guard cannot prevent that because concurrency is evaluated before any job starts.
+      guard cannot prevent that because concurrency is evaluated before any job starts. Another
+      reports the preview environment verdict verdict.decision.previewEnvironment already
+      reached, failing where govern would fail the pull request and citing the contract node.
     accepts: DoctorInput
     returns: CheckResult[]
     pure: true
@@ -42,4 +45,4 @@ signals:
         via: direct-call
     efferent: []
 
-revision: 2026-08-30
+revision: 2026-09-22

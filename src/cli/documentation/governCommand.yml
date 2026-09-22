@@ -110,6 +110,12 @@ signals:
       - to: routing.router.selfProtection#touchesProtectedPaths
         via: direct-call
         because: RULES.md R4 - a PR touching pipeline-governance paths always needs a human, checked before the AI is ever consulted
+      - to: entrypoint.cli.governCommand#previewEnvironmentFindings
+        via: direct-call
+        because: a product repository with no preview environment fails structurally, before the gates are read or a model is asked anything
+      - to: entrypoint.cli.governCommand#previewEnvironmentRefusal
+        via: direct-call
+        because: what the pull request is told when it fails on the preview environment contract
       - to: entrypoint.cli.governCommand#readGateReports
         via: direct-call
         because: needs to know whether the PR's build and test gates passed before deciding anything
@@ -269,7 +275,47 @@ signals:
       task folder missing its test plan was, until this carried it, silently unchecked on exactly
       the pull requests that get the most human attention. Kept pure and apart from escalateToHuman
       so the composition is testable without a GitHub client, the same way complaintReview is.
-    accepts: artifactFindings
+    accepts: "artifactFindings - every structural finding, task artifacts and preview environment alike"
+    returns: string
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent: []
+
+  - signal: previewEnvironmentFindings
+    intent: >
+      Asks whether a product repository carries the preview environment ql-docs mandates, and
+      turns a "no" into one finding. Structural and before the AI is consulted, for the reason R4
+      is - whether a folder exists and names an edge service is not a judgement. Computed ahead of
+      the R4 escalation so a person summoned to review a governance change also sees that the
+      repository cannot be previewed, rather than discovering it on the next pull request.
+    accepts: "consumerRoot, areaPaths, logger"
+    returns: "readonly Finding[]"
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+    efferent:
+      - to: verdict.decision.previewEnvironment#readPreviewEnvironmentSnapshot
+        via: direct-call
+        because: the one reader of the apps listing and the devops folder, shared with doctor
+      - to: verdict.decision.previewEnvironment#assessPreviewEnvironment
+        via: direct-call
+        because: the pure verdict, given what was read, so the check is testable without a disk
+      - to: verdict.decision.previewEnvironment#previewEnvironmentFinding
+        via: direct-call
+        because: renders an invalid verdict as the one finding the refusal carries
+
+  - signal: previewEnvironmentRefusal
+    intent: >
+      What the pull request is told when its repository has no valid preview environment. A hard
+      failure and not a `must` finding, deliberately - a finding rides into the verdict, which is
+      reached only after the gates are read and the review has run, so a repository that cannot
+      be previewed would still spend a review and could be argued back to MERGE by an attempt cap.
+      Nothing downstream can work without the folder, so nothing downstream is spent on it. Not
+      an escalation either - a missing folder is fixed by its author, not adjudicated by a person
+      - so the pull request fails and says what is missing, exactly as an unroutable one does.
+    accepts: "readonly Finding[]"
     returns: string
     pure: true
     afferent:
@@ -289,4 +335,4 @@ signals:
         via: direct-call
     efferent: []
 
-revision: 2026-09-20
+revision: 2026-09-22

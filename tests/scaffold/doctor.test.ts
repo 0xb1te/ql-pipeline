@@ -44,6 +44,7 @@ function input(overrides: Partial<DoctorInput> = {}): DoctorInput {
     missingStandardsDocs: [],
     standardsIgnored: true,
     cursorRuleCount: 7,
+    previewEnvironment: { kind: 'valid' },
     ...overrides,
   };
 }
@@ -126,6 +127,26 @@ describe('runDoctorChecks', () => {
 
   it('warns when no cursor rules are installed', () => {
     expect(statusOf(runDoctorChecks(input({ cursorRuleCount: 0 })), 'cursor rules')).toBe('warn');
+  });
+
+  it('passes the preview environment check on a repository with no product apps', () => {
+    const results = runDoctorChecks(input({ previewEnvironment: { kind: 'not-required' } }));
+
+    expect(statusOf(results, 'preview environment')).toBe('pass');
+    expect(results.find((r) => r.name === 'preview environment')?.detail).toContain('not required');
+  });
+
+  it('fails the preview environment check with every violation and a pointer to the contract', () => {
+    const results = runDoctorChecks(
+      input({ previewEnvironment: { kind: 'invalid', violations: ['no edge service', 'env.example is missing'] } }),
+    );
+    const check = results.find((r) => r.name === 'preview environment');
+
+    expect(check?.status).toBe('fail');
+    expect(check?.detail).toContain('no edge service');
+    expect(check?.detail).toContain('env.example is missing');
+    expect(check?.fix).toContain('stage-8-deployment');
+    expect(worstStatus(results)).toBe('fail');
   });
 
   it('offers a fix for every non-passing check that has one', () => {

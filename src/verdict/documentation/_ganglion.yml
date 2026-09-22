@@ -8,13 +8,15 @@ role: >
   Turns gate outcomes and review findings into one MERGE/FIX/BLOCK decision - `should`-severity
   findings never block, and a `must`/`security` finding blocks unless every one is auto-fixable
   and attempts remain. Also holds the pure checks that manufacture findings rather than weigh them
-  - a failed gate, a pull request that answers to no ql-sprint task, and a task folder missing the
-  artifacts an automated tester needs.
+  - a failed gate, a pull request that answers to no ql-sprint task, a task folder missing the
+  artifacts an automated tester needs, and a product repository with no preview environment to
+  boot for a pull request.
 
 upstream:
   - entrypoint.cli
   - mcp.server
-downstream: []
+downstream:
+  - routing.router
 
 neurons:
   - id: verdict.decision.verdict
@@ -29,5 +31,8 @@ neurons:
   - id: verdict.decision.taskArtifacts
     file: taskArtifacts.yml
     unit: ../task-artifacts.ts
+  - id: verdict.decision.previewEnvironment
+    file: previewEnvironment.yml
+    unit: ../preview-environment.ts
 
-revision: 2026-09-21
+revision: 2026-09-22

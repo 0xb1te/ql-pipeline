@@ -7,6 +7,7 @@ import { AREAS } from '../shared/types.js';
 import { REVIEW_KINDS } from '../standards/review-kind.js';
 import { allReviewDocumentPaths, resolveStandards } from '../standards/standards-resolver.js';
 import { runDoctorChecks, worstStatus } from '../scaffold/doctor.js';
+import { assessPreviewEnvironment, readPreviewEnvironmentSnapshot, } from '../verdict/preview-environment.js';
 import { MANIFEST_PATH, parseManifest, serializeManifest } from '../scaffold/manifest.js';
 import { isWrite, nextManifest, planInit, planUpgrade, } from '../scaffold/plan.js';
 // dist/cli/scaffold-commands.js -> the installed package root is two up.
@@ -14,6 +15,8 @@ const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TEMPLATES_ROOT = join(PACKAGE_ROOT, 'templates');
 const CONFIG_PATH = '.github/pipeline.config.yml';
 const CALLER_WORKFLOW_PATH = '.github/workflows/pr-governance.yml';
+/** The house convention `parseConfig` also defaults to when `areas.paths` is unset. */
+const DEFAULT_PREVIEW_AREA_PATHS = { frontend: ['apps/*frontend*/**'], backend: ['apps/*backend*/**'] };
 const CURSOR_RULES_DIR = '.cursor/rules';
 const STANDARDS_IGNORE_ENTRY = '.standards/';
 function packageVersion() {
@@ -206,10 +209,15 @@ async function collectDoctorInput(root) {
     let standardsEnabled = false;
     let standardsRoot = '.standards';
     let missingStandardsDocs = [];
+    // Assessed against the configured area paths when the config reads, and against the house
+    // convention otherwise: a broken config must not hide a missing preview stack, and the default
+    // globs are what an unreadable config would have fallen back to anyway.
+    let previewEnvironment = assessPreviewEnvironment(readPreviewEnvironmentSnapshot(root), DEFAULT_PREVIEW_AREA_PATHS);
     if (configPresent) {
         try {
             const config = parseConfig(readFileSync(configAbsolute, 'utf-8'), CONFIG_PATH);
             targetBranch = config.merge.targetBranch;
+            previewEnvironment = assessPreviewEnvironment(readPreviewEnvironmentSnapshot(root), config.areas.paths);
             gatedAreas = Object.entries(config.gates)
                 .filter(([, commands]) => commands?.build !== undefined || commands?.test !== undefined)
                 .map(([area]) => area);
@@ -244,6 +252,7 @@ async function collectDoctorInput(root) {
         missingStandardsDocs,
         standardsIgnored: gitignore.split(/\r?\n/).some((line) => line.trim() === STANDARDS_IGNORE_ENTRY),
         cursorRuleCount: existsSync(rulesDir) ? readdirSync(rulesDir).filter((n) => n.endsWith('.mdc')).length : 0,
+        previewEnvironment,
     };
 }
 const SYMBOL = { pass: '  ok  ', warn: ' warn ', fail: ' FAIL ' };

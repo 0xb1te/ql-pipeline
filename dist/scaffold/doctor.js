@@ -1,3 +1,5 @@
+// @neuron scaffold.core.doctor
+import { PREVIEW_CONTRACT_NODE, PREVIEW_ENVIRONMENT_DIR, } from '../verdict/preview-environment.js';
 /**
  * Everything `doctor` can determine without network access or secrets.
  *
@@ -18,7 +20,32 @@ export function runDoctorChecks(input) {
     results.push(gatesCheck(input));
     results.push(...standardsChecks(input));
     results.push(cursorRulesCheck(input));
+    results.push(previewEnvironmentCheck(input));
     return results;
+}
+/**
+ * The same verdict `govern` fails a pull request on, reported here so an author finds out before
+ * opening one. The rules themselves live in the ql-docs contract node and are cited, not restated.
+ */
+function previewEnvironmentCheck(input) {
+    const name = 'preview environment';
+    const verdict = input.previewEnvironment;
+    if (verdict.kind === 'not-required') {
+        return {
+            name,
+            status: 'pass',
+            detail: 'not required — no apps/*frontend* or apps/*backend* directory, so there is no product to preview',
+        };
+    }
+    if (verdict.kind === 'valid') {
+        return { name, status: 'pass', detail: `${PREVIEW_ENVIRONMENT_DIR}/ satisfies the preview environment contract` };
+    }
+    return {
+        name,
+        status: 'fail',
+        detail: `${String(verdict.violations.length)} contract violation(s): ${verdict.violations.join(' ')}`,
+        fix: `see ${PREVIEW_CONTRACT_NODE} — govern fails every pull request until this is fixed`,
+    };
 }
 function callerWorkflowCheck(input) {
     if (!input.callerWorkflowPresent) {

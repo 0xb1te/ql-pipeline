@@ -188,4 +188,17 @@ tracts:
       - http-out:the application's MCP server, on the preview's internal compose network
       - http-out:one pull request comment, posted once when the whole plan has finished
 
-revision: 2026-09-21
+  - tract: refuse-a-pull-request-with-no-preview-environment
+    stimulus: process start (node dist/main.js govern)
+    response: a product repository with no valid devops preview environment fails its pull request before the gates are read or a model is asked anything, citing the ql-docs contract node
+    path:
+      - entrypoint.main.main#main
+      - entrypoint.cli.governCommand#runGovern
+      - entrypoint.cli.governCommand#previewEnvironmentFindings
+      - verdict.decision.previewEnvironment#assessPreviewEnvironment
+      - verdict.decision.previewEnvironment#previewEnvironmentViolations
+    effectors:
+      - filesystem:the repo under review's apps/ listing and infrastructure/docker/environments/devops/
+      - http-out:one pull request comment naming every contract violation
+
+revision: 2026-09-22

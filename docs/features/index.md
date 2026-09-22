@@ -35,3 +35,12 @@ than an honest gap.
   and dispatching on them overrules the one explicit instruction the repo gave. A mixed set
   declines entirely, because FIX empties `advisoryFindings` and only the merge path posts it.
   Shipped in `0.5.0`.
+
+- `features/049-preview-environment-gate` — The preview environment contract, enforced. A repository
+  with `apps/*frontend*` or `apps/*backend*` must carry `infrastructure/docker/environments/devops/`
+  with one `edge` entry service, no published host ports and an `env.example`; a product repository
+  that fails any of that fails its pull request **before review**, structurally, after R4 and before
+  the gates are read — a hard refusal, not a `must` finding, because a finding is weighed only after
+  a review has been spent. `doctor` reports the same verdict. A repository with no product apps is
+  unaffected, and the rules are cited from the ql-docs contract node, never restated. Shipped in
+  `0.6.0`.

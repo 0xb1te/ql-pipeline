@@ -57,5 +57,5 @@ That was the obvious fix, and it covers one of the three events. `github.head_re
 | Gate 3 — verified in production | `pending` | `—` |
 
 - **Branch:** `bugfixes/051-dogfood-runs-main-not-the-pr`, cut from `main` at `4a76fc2`
-- **Task:** delivered from a written brief; no Notion card at the time of writing
+- **Task:** [Dogfood governs a ql-pipeline PR with main's engine, not its own](https://app.notion.com/p/Dogfood-governs-a-ql-pipeline-PR-with-main-s-engine-not-its-own-3e3d2993e9a981d58e8ae45349cf8d95) on `QL Desktop-sprint-2`, filed after the pull request opened
 - **Gate note:** delivered from a written brief that pre-scoped the work and named the fix. Gate 1 is recorded as closed on that brief; Gate 2 is the pull request. Gate 3 has two halves. First, this pull request's own dogfood run — a `pull_request` event takes the workflow YAML from the branch, so the `resolve` job should already announce `ql-pipeline governs itself: running 0xb1te/ql-pipeline@bugfixes/051-dogfood-runs-main-not-the-pr`, and every **Checkout ql-pipeline** step should check that ref out. Second, the first governed pull request after the merge whose govern differs from `main` should log its own branch's lines. `.github/workflows/` is an R4 protected path in `pipeline.config.yml`, so the pull request goes to a person.

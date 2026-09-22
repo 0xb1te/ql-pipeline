@@ -132,34 +132,70 @@ function finding(overrides: Partial<Finding> = {}): Finding {
 
 describe('dedupeFindings', () => {
   it('reports a defect once when two passes both see it', () => {
-    const merged = dedupeFindings([finding(), finding()]);
-
-    expect(merged).toHaveLength(1);
+    expect(dedupeFindings([[finding()], [finding()]])).toHaveLength(1);
   });
 
-  it('keeps two different rules broken on the same line', () => {
-    // A key of file:line alone would silently swallow the second.
-    const merged = dedupeFindings([finding(), finding({ rule: 'frontend.standards#15-auth' })]);
+  it('collapses one defect that every pass attributed to a different rule', () => {
+    // The defect this function exists for, and the one it missed. The review is sliced into
+    // passes because the standards do not fit one prompt, so each pass sees a different slice
+    // and cites whichever rule it was given for the same thing it is looking at. Keying on the
+    // rule meant none of them ever matched: ql-desktop #103 reported one stray line of template
+    // text as six findings under six rule ids, and 'Findings: 7' was one real problem.
+    const rules = [
+      'docs.rules#state-what-is-not-covered',
+      'docs.rules#state-gaps-honestly',
+      'docs.rules#accurate-completeness',
+      'docs.rules#no-implied-completeness',
+      'docs.rules#coverage-honesty',
+      'docs.standards#SHOULD',
+    ];
+    const passes = rules.map((rule) => [finding({ rule })]);
+
+    const merged = dedupeFindings(passes);
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.rule).toBe(rules[0]);
+  });
+
+  it('keeps two different rules broken on the same line by one pass', () => {
+    // A pass reporting two rules on one line is reporting two things it actually saw, so the
+    // rule still separates them *within* a pass. Only the cross-pass repeat is a duplicate.
+    const merged = dedupeFindings([[finding(), finding({ rule: 'frontend.standards#15-auth' })]]);
 
     expect(merged).toHaveLength(2);
   });
 
+  it('drops a second pass reporting a line the first pass already anchored', () => {
+    // The counterpart of the test above, and why the anchor set is filled only between passes:
+    // the same two rules, split across two passes, is one spot seen twice.
+    const merged = dedupeFindings([[finding()], [finding({ rule: 'frontend.standards#15-auth' })]]);
+
+    expect(merged).toHaveLength(1);
+  });
+
   it('keeps the same rule broken on different lines', () => {
-    expect(dedupeFindings([finding(), finding({ line: 99 })])).toHaveLength(2);
+    expect(dedupeFindings([[finding(), finding({ line: 99 })]])).toHaveLength(2);
+    expect(dedupeFindings([[finding()], [finding({ line: 99 })]])).toHaveLength(2);
   });
 
   it('keeps the same rule broken in different files', () => {
-    expect(dedupeFindings([finding(), finding({ file: 'src/other.tsx' })])).toHaveLength(2);
+    expect(dedupeFindings([[finding(), finding({ file: 'src/other.tsx' })]])).toHaveLength(2);
+    expect(dedupeFindings([[finding()], [finding({ file: 'src/other.tsx' })]])).toHaveLength(2);
+  });
+
+  it('drops a pass that repeated itself', () => {
+    expect(dedupeFindings([[finding(), finding()]])).toHaveLength(1);
   });
 
   it('preserves the first occurrence and its order', () => {
     const first = finding({ problem: 'first' });
     const second = finding({ file: 'src/b.tsx', problem: 'second' });
 
-    expect(dedupeFindings([first, second, finding({ problem: 'duplicate' })])).toEqual([first, second]);
+    expect(dedupeFindings([[first, second, finding({ problem: 'duplicate' })]])).toEqual([first, second]);
   });
 
   it('passes an empty list through', () => {
     expect(dedupeFindings([])).toEqual([]);
+    expect(dedupeFindings([[]])).toEqual([]);
   });
 });

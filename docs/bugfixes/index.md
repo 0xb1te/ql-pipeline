@@ -37,3 +37,11 @@ Newest entries at the bottom.
   that read into `audit-summary.ts`, whose neuron declares it `pure` with no receptors or
   effectors. Do not add a *second* comment for status either — PR comments reach the fix agent as
   human direction, which `043` had just closed off. Shipped in `0.3.2`.
+
+- `bugfixes/045-one-defect-six-times` — `dedupeFindings` keyed on `file:line:rule`, but the review
+  slices its standards across passes and each pass cites whichever rule its slice gave it, so one
+  defect survived once per pass: ql-desktop #103 reported one stray template line as six findings
+  under six rule ids. It now takes one list per pass — `file:line` across passes, `file:line:rule`
+  within one — and `govern-command.ts` stops flattening them. Do not put the rule back in the
+  cross-pass key, and do not fill the anchor set during a pass rather than between passes: each
+  undoes one of the two halves the neuron's `owns` bullet argues for. Shipped in `0.3.3`.

@@ -96,16 +96,36 @@ export function planReviewPasses(standards: readonly ResolvedStandard[], budgetB
  * `file:line` alone would silently swallow the second.
  */
 // @signal dedupeFindings
-export function dedupeFindings(findings: readonly Finding[]): Finding[] {
-  const seen = new Set<string>();
+export function dedupeFindings(passes: readonly (readonly Finding[])[]): Finding[] {
+  // Spots an earlier pass already reported. Filled only at the end of each pass, never during
+  // one, so that two genuinely different defects a single pass found on one line both survive.
+  const anchoredByAnEarlierPass = new Set<string>();
   const merged: Finding[] = [];
-  for (const finding of findings) {
-    const key = `${finding.file}:${finding.line}:${finding.rule}`;
-    if (seen.has(key)) {
-      continue;
+
+  for (const pass of passes) {
+    const anchorsThisPass = new Set<string>();
+    const keysThisPass = new Set<string>();
+
+    for (const finding of pass) {
+      const anchor = `${finding.file}:${finding.line}`;
+      if (anchoredByAnEarlierPass.has(anchor)) {
+        continue;
+      }
+      // Within one pass the rule still separates two findings, because one pass reporting two
+      // rules on one line is reporting two things it actually saw.
+      const key = `${anchor}:${finding.rule}`;
+      if (keysThisPass.has(key)) {
+        continue;
+      }
+      keysThisPass.add(key);
+      anchorsThisPass.add(anchor);
+      merged.push(finding);
     }
-    seen.add(key);
-    merged.push(finding);
+
+    for (const anchor of anchorsThisPass) {
+      anchoredByAnEarlierPass.add(anchor);
+    }
   }
+
   return merged;
 }

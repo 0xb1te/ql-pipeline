@@ -557,7 +557,10 @@ export async function runGovern(reportsDir: string): Promise<void> {
       logger.info(`review: ${passes.length} passes, so no standards section has to be dropped`);
     }
 
-    const reviewed: Finding[] = [];
+    // One entry per review pass, not one flat list. The pass boundary is what tells a defect
+    // two passes both saw from two defects one pass found on the same line, and flattening here
+    // is what left dedupeFindings unable to collapse the first - see docs/bugfixes/045.
+    const reviewedByPass: Finding[][] = [];
     let reviewFailure: string | null = null;
 
     for (const [index, pass] of passes.entries()) {
@@ -596,7 +599,7 @@ export async function runGovern(reportsDir: string): Promise<void> {
       for (const { finding, reason } of reviewResult.outcome.discarded) {
         logger.warn('discarded ungrounded finding', { rule: finding.rule, file: finding.file, reason });
       }
-      reviewed.push(...reviewResult.outcome.findings);
+      reviewedByPass.push([...reviewResult.outcome.findings]);
     }
 
     if (reviewFailure !== null) {
@@ -610,7 +613,7 @@ export async function runGovern(reportsDir: string): Promise<void> {
       return;
     }
     reviewRan = true;
-    findings = [...findingsFromGates, ...dedupeFindings(reviewed)];
+    findings = [...findingsFromGates, ...dedupeFindings(reviewedByPass)];
   }
 
   // Whether anybody planned this work, asked after the review rather than before it: it is

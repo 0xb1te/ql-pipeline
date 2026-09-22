@@ -396,7 +396,10 @@ export async function runGovern(reportsDir) {
         if (passes.length > 1) {
             logger.info(`review: ${passes.length} passes, so no standards section has to be dropped`);
         }
-        const reviewed = [];
+        // One entry per review pass, not one flat list. The pass boundary is what tells a defect
+        // two passes both saw from two defects one pass found on the same line, and flattening here
+        // is what left dedupeFindings unable to collapse the first - see docs/bugfixes/045.
+        const reviewedByPass = [];
         let reviewFailure = null;
         for (const [index, pass] of passes.entries()) {
             const label = passes.length > 1 ? ` [pass ${index + 1}/${passes.length}: ${pass.standards.map((standard) => standard.docPath).join(', ')}]` : '';
@@ -425,14 +428,14 @@ export async function runGovern(reportsDir) {
             for (const { finding, reason } of reviewResult.outcome.discarded) {
                 logger.warn('discarded ungrounded finding', { rule: finding.rule, file: finding.file, reason });
             }
-            reviewed.push(...reviewResult.outcome.findings);
+            reviewedByPass.push([...reviewResult.outcome.findings]);
         }
         if (reviewFailure !== null) {
             await escalateToHuman(client, pr, logger, `review could not be completed: ${reviewFailure}`, `**The AI review could not be completed**, so this PR is blocked rather than merged:\n\n> ${reviewFailure}`);
             return;
         }
         reviewRan = true;
-        findings = [...findingsFromGates, ...dedupeFindings(reviewed)];
+        findings = [...findingsFromGates, ...dedupeFindings(reviewedByPass)];
     }
     // Whether anybody planned this work, asked after the review rather than before it: it is
     // advisory, so it must not stand between a pull request and the review that judges its code.

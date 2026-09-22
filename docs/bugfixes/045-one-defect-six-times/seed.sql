@@ -1,0 +1,20 @@
+-- No fixtures required.
+--
+-- ql-pipeline is a CI tool with no database. This change alters the shape of
+-- one pure function's argument and the key it dedupes on; there is no
+-- persisted state for a fixture to establish.
+--
+-- What stands in for fixtures here is a list of lists of Finding. The whole
+-- defect is about a boundary that was being flattened away, so the fixtures of
+-- this task are pass groupings: the same finding in six separate passes
+-- (collapses to one), two rules inside one pass (stay two), and the same two
+-- rules split across two passes (collapse to one). Those three shapes are the
+-- task, and none of them is a row.
+--
+-- The MCP Cases sheet in testing-plan.xlsx is present and empty: this change
+-- alters no MCP tool, schema or return shape. See plan.md, "Explicitly out of
+-- scope".
+--
+-- The file is present because ql-docs workflow/flows/seed-data.md requires it
+-- of every task with no "not relevant here" exemption, and because ql-pipeline
+-- fails a pull request structurally when it is missing.

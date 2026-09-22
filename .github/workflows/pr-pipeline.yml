@@ -587,8 +587,8 @@ jobs:
       - name: Checkout ql-pipeline
         uses: actions/checkout@v4
         with:
-          repository: 0xb1te/ql-pipeline
-          ref: ${{ inputs.ql-pipeline-ref }}
+          repository: ${{ needs.resolve.outputs.ql-pipeline-repo }}
+          ref: ${{ needs.resolve.outputs.ql-pipeline-ref }}
           path: .ql-pipeline
 
       - name: Hide the ql-pipeline checkout from the repo under review

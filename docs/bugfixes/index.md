@@ -55,3 +55,13 @@ Newest entries at the bottom.
   **larger** of the two sources — never the sum, which would report two attempts for one on the
   cursor provider and halve the budget. Do not drop the commit check either: a PR older than the
   marker has commits and no markers. Shipped in `0.5.1`.
+
+- `bugfixes/051-dogfood-runs-main-not-the-pr` — `dogfood.yml` never set `ql-pipeline-ref`, so every
+  job's "Checkout ql-pipeline" step took `main` and ran `main`'s `dist/main.js` against the branch:
+  only the YAML came from the pull request (`uses: ./...` is local), and no change to govern, gate
+  or tester code was ever exercised by the check meant to prove it — run 35728255439 on #43
+  logged 0.5.1's lines against a 0.6.0 branch. The `resolve` job now decides which ql-pipeline
+  runs (`ql-pipeline-repo` / `ql-pipeline-ref` outputs): the pull request's own head when the
+  caller is this repository, the pinned input otherwise, and all four checkouts read that. Do not
+  move the decision into `dogfood.yml` — `github.head_ref` is empty on both comment events, which
+  run the default branch's copy of that file anyway. Shipped in `0.6.1`.

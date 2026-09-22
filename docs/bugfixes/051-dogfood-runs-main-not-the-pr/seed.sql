@@ -1,0 +1,19 @@
+-- No fixtures required.
+--
+-- ql-pipeline is a CI tool with no database. This change re-points a checkout
+-- step in a GitHub Actions workflow; there is no persisted state for a fixture
+-- to establish and no source module changes at all.
+--
+-- What stands in for fixtures here is the two workflow files themselves, read
+-- as data by tests/integration/self-governance.test.ts: pr-pipeline.yml (the
+-- resolve job's outputs and the four "Checkout ql-pipeline" steps) and
+-- dogfood.yml (the local `uses:` and its `with:` block). The pre-fix fixture is
+-- main's copy of both, against which the test is proven red (plan.md, "Test
+-- Plan").
+--
+-- The MCP Cases sheet is present and empty: no tool, schema or return shape
+-- changes. See plan.md, "Explicitly out of scope".
+--
+-- The file is present because ql-docs workflow/flows/seed-data.md requires it of
+-- every task with no "not relevant here" exemption, and because ql-pipeline fails
+-- a pull request structurally when it is missing.

@@ -37,6 +37,17 @@ The integration and chaos tests pass `fixAdvisory` from their own `CONFIG` rathe
 
 Gate 3 is open: it needs a governed PR whose review raises only advisory findings. ql-desktop #103 is exactly that, and reopening it once this merges is the intended check.
 
+### Gate 3, revisited 2026-09-22 — still open, and the plan above was wrong
+
+ql-desktop #103 merged rather than being reopened, and its findings could not have closed the gate anyway.
+
+Four governed pull requests since this merged — ql-desktop [#105](https://github.com/0xb1te/ql-desktop/pull/105), [#106](https://github.com/0xb1te/ql-desktop/pull/106), [#107](https://github.com/0xb1te/ql-desktop/pull/107) and [#109](https://github.com/0xb1te/ql-desktop/pull/109) — each posted *"### Advisory findings … None of them blocked the merge"* and merged. Every finding was `task#provenance`, which is built `autoFixable: false` (`src/verdict/task-provenance.ts:160`), so the new guard **declined** and fell back to MERGE.
+
+That is the right answer, and it is worth having: the decline branch is now confirmed **live**, four times, on real pull requests. It is not this gate. The dispatch branch needs an advisory finding the *review* judged minor — not a task-provenance notice, and not a gate finding, both of which this deliberately excludes.
+
+**So Gate 3 cannot be scheduled, only waited for**, since it needs a review to volunteer an auto-fixable `should`. And as of 2026-09-22 GitHub Actions is refusing to start jobs on this account for billing, so no governance run of any kind is observable until that clears.
+
+
 ## Known Hazard, Filed Separately
 
 `countFixAttempts` counts commits whose header ends `[bot]` — which `runFix` writes and **ql-agents does not**, because under that provider ql-agents commits with its own message. So the counter reads 0 forever and `max_fix_attempts` never trips.

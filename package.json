@@ -1,6 +1,6 @@
 {
   "name": "ql-pipeline",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "AI-governed PR pipeline: conventional-commit routing, per-area rule sets, AI review, and an auto-fix loop, shipped as a reusable GitHub Actions workflow.",
   "type": "module",
   "license": "MIT",

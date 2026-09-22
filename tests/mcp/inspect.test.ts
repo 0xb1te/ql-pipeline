@@ -15,7 +15,7 @@ function config(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
       requiredChecks: ['build', 'test', 'ai-review'],
       requireHumanApproval: true,
     },
-    fixer: { maxFixAttempts: 3, protectedPaths: [] },
+    fixer: { maxFixAttempts: 3, protectedPaths: [], fixAdvisory: true },
     agent: { provider: 'cursor', model: null, baseUrl: null, review: { model: null }, fix: { model: null } },
     areas: { paths: {} },
     standards: { enabled: false, root: '.standards', docs: {}, maxCharsPerArea: 1000 },

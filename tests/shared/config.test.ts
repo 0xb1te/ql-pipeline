@@ -37,6 +37,7 @@ describe('parseConfig', () => {
       },
       fixer: {
         maxFixAttempts: 5,
+      fixAdvisory: true,
         protectedPaths: ['rules/', 'prompts/'],
       },
       agent: { provider: 'cursor', model: null, baseUrl: null, review: { model: null }, fix: { model: null } },
@@ -64,6 +65,7 @@ describe('parseConfig', () => {
     });
     expect(config.fixer).toEqual({
       maxFixAttempts: 3,
+      fixAdvisory: true,
       protectedPaths: ['.github/workflows/', '.github/pipeline.config.yml', '.github/pipeline-rules/'],
     });
     expect(config.agent).toEqual({
@@ -271,6 +273,7 @@ describe('parseConfig', () => {
 
     expect(config.fixer).toEqual({
       maxFixAttempts: 5,
+      fixAdvisory: true,
       protectedPaths: ['.github/workflows/', '.github/pipeline.config.yml', '.github/pipeline-rules/'],
     });
   });
@@ -316,5 +319,24 @@ describe('loadConfig', () => {
 
   it('throws a ConfigError when the file does not exist', () => {
     expect(() => loadConfig(join(tmpdir(), 'definitely-not-a-real-file-12345.yml'))).toThrow(ConfigError);
+  });
+});
+
+describe('fixer.fix_advisory', () => {
+  const yaml = (extra: readonly string[] = []): string =>
+    ['merge:', '  target_branch: main', ...extra].join('\n') + '\n';
+
+  it('defaults to on, because an advisory finding used to belong to nobody', () => {
+    expect(parseConfig(yaml()).fixer.fixAdvisory).toBe(true);
+  });
+
+  it('can be turned off by a repository that would rather read its own nits', () => {
+    expect(parseConfig(yaml(['fixer:', '  fix_advisory: false'])).fixer.fixAdvisory).toBe(false);
+  });
+
+  it('refuses a non-boolean rather than coercing one', () => {
+    expect(() => parseConfig(yaml(['fixer:', '  fix_advisory: maybe']))).toThrow(
+      /fix_advisory must be a boolean/,
+    );
   });
 });

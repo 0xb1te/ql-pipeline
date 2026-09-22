@@ -629,7 +629,12 @@ export async function runGovern(reportsDir: string): Promise<void> {
   const commitMessages = await client.listCommitMessages(pr);
   const attemptsSoFar = countFixAttempts(commitMessages);
   const attemptNumber = attemptsSoFar + 1;
-  const decision = decidePipelineOutcome({ findings, attemptsSoFar, maxFixAttempts: config.fixer.maxFixAttempts });
+  const decision = decidePipelineOutcome({
+    findings,
+    attemptsSoFar,
+    maxFixAttempts: config.fixer.maxFixAttempts,
+    fixAdvisory: config.fixer.fixAdvisory,
+  });
 
   await client.postComment(
     pr,

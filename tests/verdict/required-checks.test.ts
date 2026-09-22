@@ -78,7 +78,7 @@ describe('required checks end to end through the verdict engine', () => {
     const decision = decidePipelineOutcome({
       findings: gateFindings([failedBuild], ['build', 'test', 'ai-review']),
       attemptsSoFar: 0,
-      maxFixAttempts: 3,
+      maxFixAttempts: 3, fixAdvisory: true,
     });
 
     expect(decision.kind).toBe('FIX');
@@ -88,7 +88,7 @@ describe('required checks end to end through the verdict engine', () => {
     const decision = decidePipelineOutcome({
       findings: gateFindings([failedBuild], ['ai-review']),
       attemptsSoFar: 0,
-      maxFixAttempts: 3,
+      maxFixAttempts: 3, fixAdvisory: true,
     });
 
     expect(decision.kind).toBe('MERGE');

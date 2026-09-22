@@ -362,6 +362,7 @@ function verdictTool(params, root, env, fileExists, loadPipelineConfig, readRepo
         findings,
         attemptsSoFar,
         maxFixAttempts: loaded.config.fixer.maxFixAttempts,
+        fixAdvisory: loaded.config.fixer.fixAdvisory,
     });
     return ok({
         configPath: loaded.path,

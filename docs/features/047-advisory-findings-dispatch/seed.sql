@@ -1,0 +1,18 @@
+-- No fixtures required.
+--
+-- ql-pipeline is a CI tool with no database. This feature changes a branch in a
+-- pure decision function and adds one boolean config key; there is no persisted
+-- state for a fixture to establish.
+--
+-- What stands in for fixtures here is a set of Finding shapes, because the whole
+-- task is about telling two kinds of `should` apart. The fixtures are: a review
+-- nit (autoFixable, an ordinary rule id), a failed non-required gate (autoFixable,
+-- rule `gate#<area>-<gate>`), a non-auto-fixable advisory, and the mixed set of
+-- the first two. Each of those four decides a different branch.
+--
+-- The MCP Cases sheet is present and empty: no MCP tool, schema or return shape
+-- changes. See plan.md, "Explicitly out of scope".
+--
+-- The file is present because ql-docs workflow/flows/seed-data.md requires it of
+-- every task with no "not relevant here" exemption, and because ql-pipeline fails
+-- a pull request structurally when it is missing.

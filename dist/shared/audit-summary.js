@@ -1,3 +1,4 @@
+import { FIX_ATTEMPT_MARKER } from './types.js';
 /**
  * Renders one audit-trail PR comment per pipeline run. Per plan.md §6
  * ("every verdict, complaint, and fix attempt is persisted as PR
@@ -54,7 +55,11 @@ export function formatAuditSummary(input) {
             lines.push('', `Watch it: ${input.runUrl}`);
         }
         lines.push('', 'Pushing to this branch cancels the attempt while it runs, and the run itself is the only ' +
-            'place that is visible.');
+            'place that is visible.', 
+        // Renders as nothing, and is how the next run knows this attempt happened. The commit
+        // history cannot answer that under a provider that commits for itself - see
+        // fix.fixer.attemptCounter.
+        '', FIX_ATTEMPT_MARKER);
     }
     if (input.decision.kind === 'BLOCK') {
         lines.push(`> ${input.decision.reason}`);

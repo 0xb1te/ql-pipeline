@@ -53,4 +53,18 @@ export const AGENT_PHASES = ['review', 'fix'];
  * function pulling in `@actions/github` and the whole Octokit surface to read one string.
  */
 export const AUTOMATION_MARKER = '<!-- ql-pipeline:automated -->';
+/**
+ * Stamped into the one comment a run posts when it decides to attempt a fix.
+ *
+ * The attempt count used to be read entirely off the commit history - `[bot]`-suffixed commits,
+ * which `fix.fixer.fixer` writes itself. That held only while this pipeline was the thing doing
+ * the committing. Under the `ql_agents` provider it is not: ql-agents commits on its own host
+ * with its own message, so the counter saw nothing, every run was attempt 1, `max_fix_attempts`
+ * never tripped, and each push started another attempt - an unbounded fix loop.
+ *
+ * This is evidence the pipeline writes about itself, so it is true for every provider. It goes
+ * on the audit summary because that comment is already posted exactly once per run and only
+ * says a fix is starting on a FIX decision - one marker per attempt, by construction.
+ */
+export const FIX_ATTEMPT_MARKER = '<!-- ql-pipeline:fix-attempt -->';
 //# sourceMappingURL=types.js.map

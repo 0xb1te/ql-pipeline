@@ -54,7 +54,10 @@ describe('formatAuditSummary', () => {
     const fixed = formatAuditSummary(input({ decision: { kind: 'FIX', findings: [], advisoryFindings: [] } }));
 
     expect(blocked).toContain('> not auto-fixable');
-    expect(fixed).not.toContain('>');
+    // Anchored to the start of a line: the claim is that a non-BLOCK summary carries no
+    // blockquote, and `not.toContain('>')` only stood in for that while the body held no HTML
+    // comment at all. A FIX summary now carries the attempt marker, whose `-->` is not a quote.
+    expect(fixed).not.toMatch(/^>/m);
   });
 });
 

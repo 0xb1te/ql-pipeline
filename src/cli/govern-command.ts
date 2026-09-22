@@ -627,7 +627,15 @@ export async function runGovern(reportsDir: string): Promise<void> {
   findings = [...findings, ...artifactFindings, ...(await taskProvenanceFindings(pr, logger))];
 
   const commitMessages = await client.listCommitMessages(pr);
-  const attemptsSoFar = countFixAttempts(commitMessages);
+  // Best-effort, like the direction block that reads the same endpoint: a pull request whose
+  // comments cannot be read falls back to commit evidence rather than failing the run. That is
+  // right for the cursor provider, which leaves a [bot] commit per attempt, and under ql_agents
+  // it starts a fresh count rather than refusing a fix nobody has attempted yet.
+  const priorComments = await client.listComments(pr).catch(() => []);
+  const attemptsSoFar = countFixAttempts(
+    commitMessages,
+    priorComments.map((comment) => comment.body),
+  );
   const attemptNumber = attemptsSoFar + 1;
   const decision = decidePipelineOutcome({
     findings,

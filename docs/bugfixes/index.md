@@ -45,3 +45,13 @@ Newest entries at the bottom.
   within one — and `govern-command.ts` stops flattening them. Do not put the rule back in the
   cross-pass key, and do not fill the anchor set during a pass rather than between passes: each
   undoes one of the two halves the neuron's `owns` bullet argues for. Shipped in `0.3.3`.
+
+- `bugfixes/048-attempt-counter-blind-to-agents` — `countFixAttempts` read the attempt count off
+  `[bot]`-suffixed commits, which is only pipeline evidence while the pipeline is what commits.
+  Under `ql_agents` it is not — ql-agents commits on its own host with its own message — so the
+  counter read 0 on every run, `max_fix_attempts` never tripped, and each push started another
+  attempt: an unbounded fix loop, introduced by `046` and widened by `047`. It now also counts
+  `FIX_ATTEMPT_MARKER`, stamped on the summary a FIX decision already posts, and takes the
+  **larger** of the two sources — never the sum, which would report two attempts for one on the
+  cursor provider and halve the budget. Do not drop the commit check either: a PR older than the
+  marker has commits and no markers. Shipped in `0.5.1`.

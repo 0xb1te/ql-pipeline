@@ -6,16 +6,48 @@ layer: fixer
 unit: src/fixer/attempt-counter.ts
 
 responsibility: >
-  Counts prior fix attempts by counting `[bot]`-suffixed commits already on the PR (RULES.md
-  R2.3), rather than tracking a separate counter.
+  Says how many fix attempts a pull request has already had, from two kinds of evidence the
+  pipeline can vouch for - the `[bot]`-suffixed commits it writes itself, and the attempt marker
+  it stamps on the summary when it decides to try.
+
+invariants:
+  - >
+    The count is read from evidence this pipeline produced, never from what an agent did. The
+    original counter read commit headers alone, which is only pipeline evidence while the
+    pipeline is what commits - true of fix.fixer.fixer, false of fix.fixer.agentsFixer
+
+owns:
+  - >
+    Taking the maximum of the two sources rather than their sum. One attempt on the cursor
+    provider leaves both a marked comment and a [bot] commit, so adding them would report two
+    attempts for one and exhaust max_fix_attempts at half its configured budget
+  - >
+    Counting a marked comment at all, which is what bounds the loop under a provider that
+    commits for itself. ql-agents commits on its own host with its own message, so the commit
+    history said nothing - every run read attempt 1, the cap never tripped, and each push started
+    another attempt
+  - >
+    Defaulting the comment list to empty, so a caller that cannot read a pull request's comments
+    falls back to commit evidence instead of failing the run. That is correct for cursor, and
+    under ql_agents it starts a fresh count rather than refusing a fix nobody has attempted
+
+excludes:
+  - >
+    Fetching anything - entrypoint.cli.governCommand reads the comments, best-effort, from the
+    same endpoint its direction block already uses
+  - Deciding what the count means; verdict.decision.verdict weighs it against max_fix_attempts
 
 receptors: []
 effectors: []
 
 signals:
   - signal: countFixAttempts
-    intent: Counts how many of a PR's commit messages carry the [bot] suffix this pipeline's own fix commits use.
-    accepts: "readonly string[]"
+    intent: >
+      How many fix attempts a pull request has had - the larger of the [bot]-suffixed commits on
+      it and the comments carrying FIX_ATTEMPT_MARKER. Neither source is redundant: a pull
+      request older than the marker has commits and no markers, and one fixed through ql-agents
+      has markers and no commits.
+    accepts: "readonly string[], readonly string[]"
     returns: number
     pure: true
     afferent:
@@ -25,4 +57,7 @@ signals:
         via: direct-call
     efferent: []
 
-revision: 2026-08-30
+provenance:
+  - docs/bugfixes/048-attempt-counter-blind-to-agents/summary.md
+
+revision: 2026-09-22

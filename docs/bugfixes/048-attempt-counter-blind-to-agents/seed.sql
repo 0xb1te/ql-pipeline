@@ -1,0 +1,21 @@
+-- No fixtures required.
+--
+-- ql-pipeline is a CI tool with no database. This change adds a term to a pure
+-- counting function and one line to a generated comment; there is no persisted
+-- state for a fixture to establish.
+--
+-- What stands in for fixtures here is two lists of strings, because the defect
+-- is entirely about which evidence the counter can see. The fixtures are: a
+-- [bot]-suffixed commit header (what fix.fixer.fixer writes), a summary body
+-- carrying FIX_ATTEMPT_MARKER (what the pipeline stamps on a FIX decision), an
+-- ordinary human commit, and an ordinary unmarked comment. The four combinations
+-- of those -- commits only, markers only, both, neither -- are the four rows of
+-- the table in plan.md, and each decides a different branch.
+--
+-- The MCP Cases sheet is present and empty: runInspectTool gains an optional
+-- input, and no tool, schema or return shape is removed or changed. See plan.md,
+-- "Explicitly out of scope".
+--
+-- The file is present because ql-docs workflow/flows/seed-data.md requires it of
+-- every task with no "not relevant here" exemption, and because ql-pipeline fails
+-- a pull request structurally when it is missing.

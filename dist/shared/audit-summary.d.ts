@@ -1,5 +1,5 @@
 import type { PipelineDecision } from '../verdict/verdict.js';
-import type { Area, GateOutcome } from './types.js';
+import { type Area, type GateOutcome } from './types.js';
 /** What survived of one standards document, for the coverage line. */
 export interface StandardsCoverage {
     readonly id: string;

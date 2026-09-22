@@ -17,6 +17,7 @@ import {
   type MergeConfig,
   type MergeMethod,
   type PipelineConfig,
+  type PreviewConfig,
   type RequiredCheck,
   type StandardsConfig,
 } from './types.js';
@@ -159,6 +160,61 @@ function validateConfig(data: unknown, sourceLabel: string): PipelineConfig {
     agent: validateAgent(root['agent'], sourceLabel),
     areas: validateAreas(root['areas'], sourceLabel),
     standards: validateStandards(root['standards'], sourceLabel),
+    preview: validatePreview(root['preview'], sourceLabel),
+  };
+}
+
+/**
+ * On, with the house convention for where the MCP server lives. A repository whose backend
+ * service or port differs says so here; one with no preview host registered turns it off. Two
+ * hours is long enough to review a pull request and short enough that a forgotten preview is
+ * not a machine held for a day - and the host's own ceiling still applies on top.
+ */
+const DEFAULT_PREVIEW: PreviewConfig = {
+  enabled: true,
+  ttlMinutes: 120,
+  protect: true,
+  mcp: { service: 'backend', port: 8080, path: '/mcp', readyTimeoutSeconds: 180 },
+};
+
+function validatePreview(value: unknown, sourceLabel: string): PreviewConfig {
+  if (value === undefined) {
+    return DEFAULT_PREVIEW;
+  }
+  const preview = assertRecord(value, 'preview', sourceLabel);
+
+  const rawEnabled = preview['enabled'];
+  const rawTtl = preview['ttl_minutes'];
+  const rawProtect = preview['protect'];
+  const rawMcp = preview['mcp'];
+
+  let mcp = DEFAULT_PREVIEW.mcp;
+  if (rawMcp !== undefined) {
+    const record = assertRecord(rawMcp, 'preview.mcp', sourceLabel);
+    const rawService = record['service'];
+    const rawPort = record['port'];
+    const rawPath = record['path'];
+    const rawReady = record['ready_timeout_seconds'];
+    const path = rawPath === undefined ? mcp.path : assertNonEmptyString(rawPath, 'preview.mcp.path', sourceLabel);
+    if (!path.startsWith('/')) {
+      fail(sourceLabel, '"preview.mcp.path" must start with "/"');
+    }
+    mcp = {
+      service: rawService === undefined ? mcp.service : assertNonEmptyString(rawService, 'preview.mcp.service', sourceLabel),
+      port: rawPort === undefined ? mcp.port : assertPositiveInteger(rawPort, 'preview.mcp.port', sourceLabel),
+      path,
+      readyTimeoutSeconds:
+        rawReady === undefined
+          ? mcp.readyTimeoutSeconds
+          : assertPositiveInteger(rawReady, 'preview.mcp.ready_timeout_seconds', sourceLabel),
+    };
+  }
+
+  return {
+    enabled: rawEnabled === undefined ? DEFAULT_PREVIEW.enabled : assertBoolean(rawEnabled, 'preview.enabled', sourceLabel),
+    ttlMinutes: rawTtl === undefined ? DEFAULT_PREVIEW.ttlMinutes : assertPositiveInteger(rawTtl, 'preview.ttl_minutes', sourceLabel),
+    protect: rawProtect === undefined ? DEFAULT_PREVIEW.protect : assertBoolean(rawProtect, 'preview.protect', sourceLabel),
+    mcp,
   };
 }
 

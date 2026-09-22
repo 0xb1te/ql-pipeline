@@ -61,9 +61,9 @@ signals:
       - to: entrypoint.cli.bootstrap#createPipelineContext
         via: direct-call
         because: reuses the one place that reads the pull request, the GitHub client and the config
-      - to: verdict.decision.taskArtifacts#taskFolderRefOf
+      - to: verdict.decision.taskArtifacts#lookupTaskFolder
         via: direct-call
-        because: the branch is what says which task folder holds the plan, derived rather than configured
+        because: the branch is what says which task folder holds the plan, resolved by the one reader every command shares
       - to: verdict.decision.taskArtifacts#taskFolderGlobFor
         via: direct-call
         because: a failure names the same glob the command searched, so nobody is sent somewhere it did not look
@@ -83,4 +83,4 @@ signals:
         via: direct-call
         because: decides whether any failure was a blocker, which is what fails the check
 
-revision: 2026-09-21
+revision: 2026-09-22

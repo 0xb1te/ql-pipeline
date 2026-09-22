@@ -153,3 +153,9 @@ fixer:
     - prompts/
     - pipeline.config.yml
     - .github/workflows/
+
+# ql-pipeline has no apps/ directory and therefore no preview environment: the
+# `preview` job never runs for this repository, whatever this block says. Kept
+# explicit so the dogfood run states it rather than relying on the default.
+preview:
+  enabled: false

@@ -32,6 +32,7 @@ const CONFIG: PipelineConfig = {
   agent: { provider: 'cursor', model: null, baseUrl: null, review: { model: null }, fix: { model: null } },
   areas: { paths: {} },
   standards: { enabled: false, root: '.standards', docs: {}, maxCharsPerArea: 90_000 },
+  preview: { enabled: true, ttlMinutes: 120, protect: true, mcp: { service: 'backend', port: 8080, path: '/mcp', readyTimeoutSeconds: 180 } },
 };
 
 const PR = {

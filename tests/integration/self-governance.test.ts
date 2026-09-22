@@ -45,7 +45,7 @@ describe('ql-pipeline governs its own pull requests with their own code', () => 
   it('has a ql-pipeline checkout in every job that runs the engine', () => {
     // If the workflow ever loses the step by that name the assertions below
     // would pass vacuously; pin the count so a rename is a red test.
-    expect(checkoutsOfQlPipeline.map((c) => c.job).sort()).toEqual(['build', 'preview-tester', 'ql-pipeline', 'test'].sort());
+    expect(checkoutsOfQlPipeline.map((c) => c.job).sort()).toEqual(['build', 'preview', 'preview-tester', 'ql-pipeline', 'test'].sort());
   });
 
   it('resolve decides which ql-pipeline every job runs', () => {

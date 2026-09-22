@@ -44,3 +44,13 @@ than an honest gap.
   a review has been spent. `doctor` reports the same verdict. A repository with no product apps is
   unaffected, and the rules are cited from the ql-docs contract node, never restated. Shipped in
   `0.6.0`.
+
+- `features/050-preview-deploy-job` — A green pull request in a product repository now gets a
+  preview. `govern` sets a `deploy-preview` output on an `awaiting-human` verdict — the verdict,
+  never the advisory comment count, gates it — and a `preview` job on the self-hosted `ql-proxy`
+  runner runs `ql-pipeline deploy-preview`: ql-proxy `up` on the devops folder with
+  `QL_TASK_FOLDER` set so the database boots from the branch's `seed.sql`, the MCP container's IP
+  resolved with `docker inspect` and polled until it answers, one summary with the URL, the access
+  state and the expiry. `preview-tester` is live off that job's outputs; `preview-teardown` runs
+  on close. ql-proxy's own announce gets `github.token` and never `GH_TOKEN`, or its unmarked
+  comment would start another run. The MCP address never appears on the PR. Shipped in `0.7.0`.

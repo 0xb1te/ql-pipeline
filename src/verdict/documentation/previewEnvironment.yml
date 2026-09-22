@@ -96,7 +96,11 @@ signals:
     afferent:
       - from: entrypoint.cli.governCommand#previewEnvironmentFindings
         via: direct-call
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
       - from: entrypoint.cli.scaffoldCommands#runDoctor
+        via: direct-call
+      - from: entrypoint.cli.deployPreviewCommand#deployPreview
         via: direct-call
     efferent:
       - to: verdict.decision.previewEnvironment#requiresPreviewEnvironment
@@ -129,7 +133,11 @@ signals:
     afferent:
       - from: entrypoint.cli.governCommand#previewEnvironmentFindings
         via: direct-call
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
       - from: entrypoint.cli.scaffoldCommands#runDoctor
+        via: direct-call
+      - from: entrypoint.cli.deployPreviewCommand#deployPreview
         via: direct-call
     efferent: []
 

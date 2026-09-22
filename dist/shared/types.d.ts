@@ -152,6 +152,41 @@ export interface StandardsConfig {
     /** Budget guard: standards are large, and they share the prompt with the diff. */
     readonly maxCharsPerArea: number;
 }
+/**
+ * Where the application's MCP server listens inside the preview stack.
+ *
+ * Per repository, because the compose stack is the repository's own: which service hosts the
+ * MCP surface and on which port is a fact about that product, not about the pipeline. The
+ * address is resolved on the preview host's container network and is never the public URL - see
+ * ql-docs `workflow/flows/app-mcp-surface.md`.
+ */
+export interface PreviewMcpConfig {
+    /** The compose service that hosts the application MCP server. */
+    readonly service: string;
+    /** The container port it listens on. */
+    readonly port: number;
+    /** The path the JSON-RPC endpoint answers on. */
+    readonly path: string;
+    /** How long the deploy waits for `tools/list` to answer before handing the tester an address it could not reach. */
+    readonly readyTimeoutSeconds: number;
+}
+/**
+ * The pull request preview a green verdict brings up.
+ *
+ * `enabled` is an opt-out, not an opt-in: a repository that carries the devops folder the
+ * contract mandates has said it can be previewed, and the job that previews it runs on the
+ * self-hosted preview host. A repository with the folder but no such runner registered sets
+ * this to false, because a job waiting for a runner that never comes stays queued rather than
+ * failing.
+ */
+export interface PreviewConfig {
+    readonly enabled: boolean;
+    /** Requested lifetime. The host clamps it to its own ceiling and says so. */
+    readonly ttlMinutes: number;
+    /** Ask ql-proxy to put the browser gate in front of the preview. */
+    readonly protect: boolean;
+    readonly mcp: PreviewMcpConfig;
+}
 export interface PipelineConfig {
     readonly gates: GatesConfig;
     readonly merge: MergeConfig;
@@ -159,6 +194,7 @@ export interface PipelineConfig {
     readonly agent: AgentConfig;
     readonly areas: AreasConfig;
     readonly standards: StandardsConfig;
+    readonly preview: PreviewConfig;
 }
 export interface AreaGate {
     readonly area: Area;

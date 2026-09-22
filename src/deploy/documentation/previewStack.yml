@@ -1,0 +1,132 @@
+cns: "1.0"
+neuron: previewStack
+kind: function
+region: deploy
+layer: preview
+unit: src/deploy/preview-stack.ts
+
+responsibility: >
+  Decides whether a green pull request gets a preview, builds what ql-proxy is asked, reads back
+  what it and Docker answered, locates the application's MCP server on the preview host's
+  container network, and renders the one summary the pull request is told. Pure throughout; the
+  command runs the processes and hands the text in.
+
+owns:
+  - >
+    The rule for when a preview is deployed: on the verdict alone, never on whether the review had
+    advisory findings - those never block a merge, so they must not block the preview that lets
+    the person making the merge call weigh them. What does gate it is whether a stack can exist -
+    opted in, contract satisfied, a task folder with a seed, not a fork
+  - >
+    The stdout contract read off `ql-proxy up`: the last URL-shaped line is the address, and an
+    optional `token: <value>` line is the gate token. Stated here because ql-proxy does not print
+    the token yet, and the summary tells the three access states apart rather than blurring them
+  - >
+    That the MCP address is a container IP on the preview host and never the public URL. The
+    surface behind it can manage everything the application can; the preview URL's only lock is
+    a token meant for showing somebody a demo
+
+invariants:
+  - >
+    A fork is never deployed, whatever else is true. A fork's workflow content is
+    attacker-controlled and the preview host is a real machine; the job has its own guard, and a
+    flag that said "deploy" for a fork is a flag somebody would trust one day
+  - >
+    The summary never prints the MCP address. It says whether the server answered, which is
+    what a reader needs, without publishing where to reach it
+  - >
+    The gate token is printed in the clear, deliberately: it opens a demo of an unmerged branch on
+    a throwaway stack and nothing else, and a reviewer who has to fetch a secret from somewhere
+    else does not open the preview
+
+excludes:
+  - >
+    Running anything. entrypoint.cli.deployPreviewCommand spawns ql-proxy and Docker and probes
+    the server; this unit is given their output
+  - >
+    Bringing the stack up, routing it, gating it or reaping it. That is ql-proxy, against the
+    ql-docs preview environment contract
+
+receptors: []
+effectors: []
+
+signals:
+  - signal: decidePreviewDeploy
+    intent: >
+      Whether a green verdict is followed by a preview, with the reason either way - the reason is
+      what the govern log carries so a reader knows why a green pull request got no stack.
+    accepts: PreviewDeployInput
+    returns: PreviewDeployDecision
+    pure: true
+    afferent:
+      - from: entrypoint.cli.governCommand#runGovern
+        via: direct-call
+      - from: entrypoint.cli.deployPreviewCommand#deployPreview
+        via: direct-call
+    efferent: []
+
+  - signal: previewUpArgs
+    intent: >
+      The argument vector for `ql-proxy up`, a vector and never a string because the branch name
+      is pull-request content. `--protect` rides along whenever the repository asked for the gate;
+      a ql-proxy that predates the browser gate ignores it and the listing says which happened.
+    accepts: PreviewUpRequest
+    returns: "readonly string[]"
+    pure: true
+    afferent:
+      - from: entrypoint.cli.deployPreviewCommand#deployPreview
+        via: direct-call
+    efferent: []
+
+  - signal: parsePreviewUpOutput
+    intent: >
+      The URL and, when printed, the gate token off `up`'s stdout. Null on both when nothing
+      URL-shaped was printed, which the command turns into a failure quoting the output.
+    accepts: stdout
+    returns: PreviewUpOutput
+    pure: true
+    afferent:
+      - from: entrypoint.cli.deployPreviewCommand#deployPreview
+        via: direct-call
+    efferent: []
+
+  - signal: findPreviewInListing
+    intent: >
+      The `ql-proxy list --json` row whose URL is the one `up` printed. The project name, the
+      minutes left and whether the host actually locked the address all come from here - `up`
+      says the URL and nothing else.
+    accepts: "listJson, url"
+    returns: PreviewListing | null
+    pure: true
+    afferent:
+      - from: entrypoint.cli.deployPreviewCommand#deployPreview
+        via: direct-call
+    efferent: []
+
+  - signal: mcpEndpointFor
+    intent: >
+      The internal MCP address from what `docker inspect` printed for the service's container -
+      the first IPv4 on any of its networks, with the configured port and path.
+    accepts: "inspectOutput, port, path"
+    returns: string | null
+    pure: true
+    afferent:
+      - from: entrypoint.cli.deployPreviewCommand#deployPreview
+        via: direct-call
+    efferent: []
+
+  - signal: formatPreviewSummary
+    intent: >
+      The one comment the deploy posts: URL, how to get in, when it goes away, and whether the
+      MCP server answered. Three access states told apart - a token to paste, locked by the host
+      with no token handed over, and not locked at all - because they call for different actions
+      and the last one must never read as gated.
+    accepts: PreviewSummaryInput
+    returns: string
+    pure: true
+    afferent:
+      - from: entrypoint.cli.deployPreviewCommand#deployPreview
+        via: direct-call
+    efferent: []
+
+revision: 2026-09-22

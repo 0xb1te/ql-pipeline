@@ -5,10 +5,16 @@ name: PR Pipeline
 # workflow (a consumer repo's, or this repo's own dogfood.yml) triggers it
 # with `uses:`.
 #
-# It reports THREE checks on a PR, in order:
-#   1. test        — the configured test gate for the PR's areas
-#   2. build       — the configured build gate for the PR's areas
-#   3. ql-pipeline — AI review, verdict, and merge / fix / block
+# It reports FIVE checks on a PR, in order:
+#   1. test           — the configured test gate for the PR's areas
+#   2. build          — the configured build gate for the PR's areas
+#   3. ql-pipeline    — AI review, verdict, and merge / fix / block
+#   4. preview        — on a green verdict, the PR's devops stack brought up
+#                       through ql-proxy on the preview host (self-hosted)
+#   5. preview-tester — the task's MCP cases driven against that stack
+#
+# Plus preview-teardown, which is not a check on the PR: it runs when the PR
+# closes and collects the stack at once instead of on the host reaper's timer.
 #
 # The gate jobs hand their results to the pipeline job as artifacts rather
 # than simply halting the chain, because a broken build is a finding the
@@ -82,7 +88,7 @@ on:
         required: false
 
 jobs:
-  # ---------------------------------------------------------------- 0/4 --
+  # ---------------------------------------------------------------- 0/6 --
   # Which pull request is this run about, and should it run at all?
   #
   # A `pull_request` event answers both in its payload. An `issue_comment` —
@@ -221,7 +227,7 @@ jobs:
                 `${isFork ? ' (from a fork: review only, no fix commits)' : ''}, triggered by ${context.eventName}.`,
             );
 
-  # ---------------------------------------------------------------- 1/4 --
+  # ---------------------------------------------------------------- 1/6 --
   test:
     name: test
     needs: resolve
@@ -322,7 +328,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
-  # ---------------------------------------------------------------- 2/4 --
+  # ---------------------------------------------------------------- 2/6 --
   build:
     name: build
     needs: [resolve, test]
@@ -397,10 +403,14 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
-  # ---------------------------------------------------------------- 3/4 --
+  # ---------------------------------------------------------------- 3/6 --
   ql-pipeline:
     name: ql-pipeline
     needs: [resolve, test, build]
+    # `govern` sets this on an awaiting-human verdict for a repository that can be
+    # previewed; the `preview` job below keys off it. Empty on every other path.
+    outputs:
+      deploy-preview: ${{ steps.govern.outputs.deploy-preview }}
     # Runs even when a gate failed (but not when the run was cancelled):
     # the gate results become findings the fix agent can act on. Halting
     # here on a red gate would mean a broken build is never auto-fixed.
@@ -491,6 +501,7 @@ jobs:
           git config user.email 'ql-pipeline[bot]@users.noreply.github.com'
 
       - name: Review, decide, and act
+        id: govern
         run: node .ql-pipeline/dist/main.js govern --reports gate-reports
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
@@ -518,35 +529,140 @@ jobs:
           QL_SPRINT_URL: ${{ secrets.QL_SPRINT_URL }}
           QL_SPRINT_PROXY_TOKEN: ${{ secrets.QL_SPRINT_PROXY_TOKEN }}
 
-  # ---------------------------------------------------------------- 4/4 --
-  # DORMANT UNTIL THERE IS A PREVIEW TO TEST.
+  # ---------------------------------------------------------------- 4/6 --
+  # A green pull request gets a preview. `govern` sets `deploy-preview` only on an
+  # awaiting-human verdict for a repository whose devops folder satisfies the
+  # contract and whose branch names a task folder with a seed - so this job never
+  # runs for a red, blocked, merged, fork or unpreviewable pull request, and says
+  # nothing on the PR in any of those cases rather than posting an empty summary.
   #
-  # This is the last job in the chain: a green pull request with a live preview,
-  # seeded from its own task's seed.sql, driven over MCP so an agent can say what
-  # broke. Everything it needs on this side is built and tested; what is missing
-  # is the job before it. The preview deploy job does not exist yet - its task
-  # ("Deploy a green PR to a temporary URL and print its access token") is still
-  # in Backlog - so this job has nothing to depend on and no stack to reach.
+  # `runs-on: [self-hosted, ql-proxy]`, unlike every job above it. ql-proxy builds
+  # from a directory already on the preview host, so the checkout has to happen
+  # there. That also means this job executes on somebody's actual machine, which
+  # is why the fork guard is spelled out here as well as in the flag: a fork's
+  # workflow content is attacker-controlled.
   #
-  # Rather than ship a job that fails on every run, it is gated off explicitly.
-  # TO ENABLE, when the preview deploy job lands:
-  #   1. add `preview` to `needs` below, and drop `deploy-preview` from `resolve`
-  #      if that is where the flag ends up living;
-  #   2. replace the `if:` with the real condition - it must run only when the
-  #      preview job actually brought a stack up, never merely when it completed;
-  #   3. set QL_PREVIEW_MCP_URL from that job's output;
-  #   4. delete this comment block down to the `if:`.
+  # ql-proxy's own `gh pr comment` announces the address. It is handed
+  # `github.token` and never GH_TOKEN, on purpose: that comment carries no
+  # automation marker, so it has to arrive as github-actions[bot] - which `resolve`
+  # declines - rather than as the person GH_TOKEN belongs to, whose comments start
+  # another run. The pipeline's own summary (URL, token, expiry, MCP state) is
+  # posted by the command below and carries the marker.
+  preview:
+    name: preview
+    needs: [resolve, ql-pipeline]
+    if: >-
+      ${{ !cancelled()
+      && needs.resolve.outputs.run == 'true'
+      && needs.resolve.outputs.is-fork == 'false'
+      && needs.ql-pipeline.result == 'success'
+      && needs.ql-pipeline.outputs.deploy-preview == 'true' }}
+    runs-on: [self-hosted, ql-proxy]
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    outputs:
+      deployed: ${{ steps.deploy.outputs.deployed }}
+      url: ${{ steps.deploy.outputs.url }}
+      project: ${{ steps.deploy.outputs.project }}
+      mcp-url: ${{ steps.deploy.outputs.mcp-url }}
+      mcp-ready: ${{ steps.deploy.outputs.mcp-ready }}
+    env:
+      QL_PIPELINE_PR_NUMBER: ${{ needs.resolve.outputs.number }}
+      QL_PIPELINE_PR_TITLE: ${{ needs.resolve.outputs.title }}
+      QL_PIPELINE_PR_HEAD_REF: ${{ needs.resolve.outputs.head-ref }}
+      QL_PIPELINE_PR_HEAD_SHA: ${{ needs.resolve.outputs.head-sha }}
+      QL_PIPELINE_PR_BASE_REF: ${{ needs.resolve.outputs.base-ref }}
+      QL_PIPELINE_PR_IS_FORK: ${{ needs.resolve.outputs.is-fork }}
+    steps:
+      - name: Checkout PR head branch
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ needs.resolve.outputs.head-repo }}
+          ref: ${{ needs.resolve.outputs.head-ref }}
+          token: ${{ secrets.GH_TOKEN || github.token }}
+
+      - name: Checkout ql-pipeline
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ needs.resolve.outputs.ql-pipeline-repo }}
+          ref: ${{ needs.resolve.outputs.ql-pipeline-ref }}
+          path: .ql-pipeline
+
+      - name: Hide the ql-pipeline checkout from the repo under review
+        run: echo '/.ql-pipeline/' >> .git/info/exclude
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: .ql-pipeline/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: .ql-pipeline/pnpm-lock.yaml
+
+      - name: Authenticate ql-pipeline's private git dependencies
+        env:
+          GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+        run: |
+          if [ -z "$GH_PACKAGES_TOKEN" ]; then
+            echo "::warning::GH_PACKAGES_TOKEN is not set - installing ql-pipeline will fail to fetch its private git dependencies."
+            exit 0
+          fi
+          for repo in 0xb1te/ql-docs 0xb1te/ql-auth; do
+            git config --global "url.https://x-access-token:$GH_PACKAGES_TOKEN@github.com/$repo.insteadOf" "https://github.com/$repo"
+          done
+
+      - name: Install and build ql-pipeline
+        working-directory: .ql-pipeline
+        run: pnpm install --frozen-lockfile --ignore-workspace && pnpm run build
+
+      # Hands infrastructure/docker/environments/devops/ to ql-proxy as the build
+      # root, with QL_TASK_FOLDER set so the database boots from the branch's own
+      # seed.sql; then finds the application's MCP server on the preview host's
+      # container network, waits for it to answer, and posts one summary with the
+      # URL, the gate token, the expiry and the MCP state.
+      - name: Bring the preview up
+        id: deploy
+        run: node .ql-pipeline/dist/main.js deploy-preview
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+          PIPELINE_CONFIG_PATH: ${{ inputs.config-path }}
+          # Where the CLI lives on the preview host, and which config it reads.
+          # Repository variables on the consumer, because only that repository's
+          # operator knows the host.
+          QL_PROXY_HOME: ${{ vars.QL_PROXY_HOME }}
+          QL_PROXY_CONFIG: ${{ vars.QL_PROXY_CONFIG }}
+          # github.token, never GH_TOKEN - see the job comment.
+          QL_PREVIEW_ANNOUNCE_TOKEN: ${{ github.token }}
+
+  # ---------------------------------------------------------------- 5/6 --
+  # The last job in the chain: a green pull request with a live preview, seeded
+  # from its own task's seed.sql, driven over MCP so an agent can say what broke.
+  #
+  # Runs whenever the preview job brought a stack up - not merely when it
+  # completed - and even when that job could not locate the MCP server: the
+  # command then fails loudly on the empty address, which is the right report. A
+  # surface an agent cannot reach is a surface nobody can test, and a tester that
+  # skipped quietly would report success it did not earn.
   #
   # `runs-on: [self-hosted, ql-proxy]` is not an optimisation, it is the security
-  # boundary. The job reaches the application's MCP server over the internal
-  # compose network, on the same host as the preview. That surface is never
-  # publicly routed: the preview URL's only lock is a gate token meant for showing
-  # somebody a demo, and a token that opens a demo must not also open a tool that
-  # can read every user. See ql-docs `workflow/flows/app-mcp-surface.md`.
+  # boundary. The job reaches the application's MCP server over the preview
+  # host's container network, on the same host as the preview. That surface is
+  # never publicly routed: the preview URL's only lock is a gate token meant for
+  # showing somebody a demo, and a token that opens a demo must not also open a
+  # tool that can read every user. See ql-docs `workflow/flows/app-mcp-surface.md`.
   preview-tester:
     name: preview-tester
-    needs: [resolve, ql-pipeline]
-    if: false
+    needs: [resolve, preview]
+    if: >-
+      ${{ !cancelled()
+      && needs.resolve.outputs.run == 'true'
+      && needs.preview.result == 'success'
+      && needs.preview.outputs.deployed == 'true' }}
     runs-on: [self-hosted, ql-proxy]
     permissions:
       contents: read
@@ -613,7 +729,40 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
           PIPELINE_CONFIG_PATH: ${{ inputs.config-path }}
-          # Set from the preview deploy job's output once that job exists. It is an
-          # internal compose address - http://<stack>-backend:<port>/mcp - never the
-          # public preview URL.
-          QL_PREVIEW_MCP_URL: ''
+          # The preview job's output: an address on the preview host's container
+          # network - http://<container-ip>:<port>/mcp - never the public preview
+          # URL. Empty when the server could not be located, which the command
+          # reports as a failure rather than a skip.
+          QL_PREVIEW_MCP_URL: ${{ needs.preview.outputs.mcp-url }}
+
+  # ---------------------------------------------------------------- 6/6 --
+  # Closing the pull request tears its preview down now, rather than when the
+  # host's reaper next finds it expired. A courtesy on top of the guarantee: the
+  # reaper still collects anything this misses - a cancelled run, a dead runner.
+  #
+  # Independent of `resolve` on purpose. That job declines a closed pull request
+  # (there is nothing to govern), and every job above keys off its `run` output;
+  # this one keys off the event itself. The caller has to deliver `closed` in
+  # its `pull_request.types` for it to fire at all - the scaffolded caller does.
+  preview-teardown:
+    name: preview-teardown
+    if: >-
+      ${{ github.event_name == 'pull_request'
+      && github.event.action == 'closed'
+      && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: [self-hosted, ql-proxy]
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      # Addressed by pull request rather than by project name: the project name
+      # carries the minute the preview was created, which this job never saw.
+      # ql-proxy resolves it from its registry and collects every preview the
+      # pull request produced, and reports "nothing matched" when there was none.
+      - name: Tear the preview down
+        run: >-
+          node "${{ vars.QL_PROXY_HOME }}/dist/cli/entry/main.js" down
+          --repo "${{ github.repository }}"
+          --pr "${{ github.event.pull_request.number }}"
+        env:
+          QL_PROXY_CONFIG: ${{ vars.QL_PROXY_CONFIG }}

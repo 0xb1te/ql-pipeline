@@ -12,6 +12,10 @@ responsibility: >
 
 owns:
   - The escalate-to-human path (needs-human label plus an explanatory PR comment) every failure mode short of a clean MERGE funnels through
+  - >
+    The `deploy-preview` job output, set only on an awaiting-human verdict - the one moment a green
+    pull request is about to be judged by a person - and decided on the verdict alone, never on
+    whether the review had advisory findings
 excludes:
   - Any gate's own build/test execution - this runs even when a gate job failed, to turn a broken build into a fixable finding
 
@@ -116,6 +120,18 @@ signals:
       - to: entrypoint.cli.governCommand#previewEnvironmentRefusal
         via: direct-call
         because: what the pull request is told when it fails on the preview environment contract
+      - to: deploy.preview.previewStack#decidePreviewDeploy
+        via: direct-call
+        because: whether the awaiting-human verdict is followed by a preview, published as the deploy-preview job output
+      - to: verdict.decision.taskArtifacts#lookupTaskFolder
+        via: direct-call
+        because: the deploy decision needs to know the branch's task folder carries a seed to boot the database from
+      - to: verdict.decision.previewEnvironment#readPreviewEnvironmentSnapshot
+        via: direct-call
+        because: the deploy decision re-reads the folder rather than carrying a verdict across half the function
+      - to: verdict.decision.previewEnvironment#assessPreviewEnvironment
+        via: direct-call
+        because: the contract verdict the deploy decision keys off
       - to: entrypoint.cli.governCommand#readGateReports
         via: direct-call
         because: needs to know whether the PR's build and test gates passed before deciding anything
@@ -257,9 +273,9 @@ signals:
       - from: entrypoint.cli.governCommand#runGovern
         via: direct-call
     efferent:
-      - to: verdict.decision.taskArtifacts#taskFolderRefOf
+      - to: verdict.decision.taskArtifacts#lookupTaskFolder
         via: direct-call
-        because: the branch is the only thing that says which task folder to look in, and it is derived rather than configured
+        because: the one reader of the branch-to-folder convention, shared with the tester and the deploy so the three never disagree
       - to: verdict.decision.taskArtifacts#taskFolderGlobFor
         via: direct-call
         because: logs the same glob the finding names, so the run log and the pull request comment agree

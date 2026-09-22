@@ -50,6 +50,9 @@ signals:
       - to: entrypoint.cli.testPreviewCommand#runTestPreview
         via: direct-call
         because: the `test-preview` command's own implementation
+      - to: entrypoint.cli.deployPreviewCommand#runDeployPreview
+        via: direct-call
+        because: the `deploy-preview` command's own implementation
       - to: entrypoint.cli.scaffoldCommands#runInit
         via: direct-call
         because: the `init` command's own implementation
@@ -60,4 +63,4 @@ signals:
         via: direct-call
         because: the `doctor` command's own implementation, whose boolean result becomes the process exit code
 
-revision: 2026-08-30
+revision: 2026-09-22

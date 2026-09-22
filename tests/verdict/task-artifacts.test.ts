@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  lookupTaskFolder,
   missingTaskArtifacts,
+  type TaskFolderReader,
   taskArtifactFinding,
   taskFolderGlobFor,
   taskFolderRefOf,
@@ -138,5 +140,46 @@ describe('taskArtifactFinding', () => {
     const finding = taskArtifactFinding(folder([]), OPTED_IN);
     expect(finding?.file).toBe('(task)');
     expect(finding?.rule).toBe('task#artifacts');
+  });
+});
+
+describe('lookupTaskFolder', () => {
+  const reader = (dirs: Record<string, string[]>, files: string[]): TaskFolderReader => ({
+    exists: (path: string): boolean => Object.keys(dirs).some((dir) => path.replace(/\\/g, '/').endsWith(dir)),
+    listDirs: (path: string): string[] =>
+      dirs[Object.keys(dirs).find((dir) => path.replace(/\\/g, '/').endsWith(dir)) ?? ''] ?? [],
+    listFiles: (): string[] => files,
+  });
+
+  it('resolves the folder a branch names, by number, and lists what it holds', () => {
+    const result = lookupTaskFolder(
+      'features/007-statistics-dashboard-a1b2c3',
+      '/repo',
+      reader({ 'docs/features': ['006-other', '007-statistics-dashboard'] }, ['index.md', 'seed.sql']),
+    );
+    expect(result).toEqual({
+      kind: 'folder',
+      ref: { kind: 'features', number: '007' },
+      path: 'docs/features/007-statistics-dashboard',
+      files: ['index.md', 'seed.sql'],
+    });
+  });
+
+  it('says no-folder when the kind directory exists but no folder carries the number', () => {
+    expect(lookupTaskFolder('hotfixes/003-x', '/repo', reader({ 'docs/hotfixes': ['001-y'] }, []))).toEqual({
+      kind: 'no-folder',
+      ref: { kind: 'hotfixes', number: '003' },
+    });
+  });
+
+  it('says not-a-task-branch without touching the disk', () => {
+    const touched: TaskFolderReader = {
+      exists: (): boolean => {
+        throw new Error('should not be read');
+      },
+      listDirs: (): string[] => [],
+      listFiles: (): string[] => [],
+    };
+    expect(lookupTaskFolder('main', '/repo', touched)).toEqual({ kind: 'not-a-task-branch', headRef: 'main' });
   });
 });

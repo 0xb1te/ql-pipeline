@@ -1,5 +1,5 @@
 // @neuron entrypoint.cli.governCommand
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as core from '@actions/core';
@@ -28,7 +28,8 @@ import { threadsToResolve } from '../reviewer/settled-threads.js';
 import { createSprintNotifier, sprintNotifierCredentialsFromEnv, } from '../notifier/sprint-notifier.js';
 import { readSprintTasks } from '../notifier/sprint-tasks.js';
 import { decideTaskProvenance, taskProvenanceFinding } from '../verdict/task-provenance.js';
-import { taskArtifactFinding, taskFolderGlobFor, taskFolderRefOf, } from '../verdict/task-artifacts.js';
+import { lookupTaskFolder, taskArtifactFinding, taskFolderGlobFor } from '../verdict/task-artifacts.js';
+import { decidePreviewDeploy } from '../deploy/preview-stack.js';
 import { assessPreviewEnvironment, previewEnvironmentFinding, readPreviewEnvironmentSnapshot, PREVIEW_ENVIRONMENT_DIR, } from '../verdict/preview-environment.js';
 import { createPipelineContext, resolveRouting } from './bootstrap.js';
 // dist/cli/govern-command.js -> ql-pipeline's own checkout root is two
@@ -204,31 +205,21 @@ export function previewEnvironmentRefusal(findings) {
  */
 // @signal taskArtifactFindings
 export function taskArtifactFindings(pr, consumerRoot, requiredChecks, logger) {
-    const ref = taskFolderRefOf(pr.headRef);
-    if (ref === null) {
+    const lookup = lookupTaskFolder(pr.headRef, consumerRoot);
+    if (lookup.kind === 'not-a-task-branch') {
         logger.info(`task artifacts: not checked — branch ${pr.headRef} names no task folder`);
         return [];
     }
-    const parent = join(consumerRoot, 'docs', ref.kind);
-    const folder = existsSync(parent)
-        ? readdirSync(parent, { withFileTypes: true }).find((entry) => entry.isDirectory() && entry.name.startsWith(`${ref.number}-`))
-        : undefined;
-    const lookup = folder === undefined
-        ? { kind: 'no-folder', ref }
-        : {
-            kind: 'folder',
-            ref,
-            path: `docs/${ref.kind}/${folder.name}`,
-            files: readdirSync(join(parent, folder.name)),
-        };
     const finding = taskArtifactFinding(lookup, requiredChecks);
     if (finding === null) {
-        logger.info(`task artifacts: complete in ${lookup.kind === 'folder' ? lookup.path : taskFolderGlobFor(ref)}`);
+        logger.info(`task artifacts: complete in ${lookup.kind === 'folder' ? lookup.path : taskFolderGlobFor(lookup.ref)}`);
         return [];
     }
-    logger.info(`task artifacts: ${finding.severity} — ${taskFolderGlobFor(ref)}`);
+    logger.info(`task artifacts: ${finding.severity} — ${taskFolderGlobFor(lookup.ref)}`);
     return [finding];
 }
+/** The job output the workflow reads to decide whether the `preview` job runs at all. */
+export const DEPLOY_PREVIEW_OUTPUT = 'deploy-preview';
 /**
  * The whole request-changes review: the body, and the comments GitHub will actually accept.
  *
@@ -598,6 +589,19 @@ export async function runGovern(reportsDir) {
                 targetBranch,
                 advisoryFindingCount: decision.advisoryFindings.length,
             });
+            // The hook point for the preview: a green verdict a person is about to judge. Decided on
+            // the verdict and not on whether the review had advisory findings - those never block a
+            // merge, so they must not block the preview that lets the person weigh them. Only this
+            // branch sets the flag: a merged pull request is closed and has nothing to preview, and
+            // every other outcome is something to fix first.
+            const previewDecision = decidePreviewDeploy({
+                enabled: config.preview.enabled,
+                environment: assessPreviewEnvironment(readPreviewEnvironmentSnapshot(consumerRoot), config.areas.paths).kind,
+                taskFolder: lookupTaskFolder(pr.headRef, consumerRoot),
+                isFork: pr.isFork,
+            });
+            logger.info(`preview: ${previewDecision.deploy ? 'deploying' : 'not deploying'} — ${previewDecision.reason}`);
+            core.setOutput(DEPLOY_PREVIEW_OUTPUT, previewDecision.deploy ? 'true' : 'false');
             // The verdict that most needs to reach a person: nothing else moves until somebody looks.
             await closeSettledThreads(decision.advisoryFindings.length);
             await notifySprint('awaiting-human', 'Reviewed and approved. Labelled ready-to-merge — the pipeline will not merge it itself.');

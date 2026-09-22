@@ -43,13 +43,15 @@ individually only if you have a reason to withhold some: the set ql-pipeline
 needs changes over time, and an explicit list means editing every governed
 repo each time it does.
 
-This adds **three checks** to every PR, which run in order:
+This adds **three checks** to every PR, which run in order, and **two more** on a repository that can be previewed (see §8):
 
 | # | Check | What it does | Red means |
 |---|---|---|---|
 | 1 | `checks / test` | Runs the configured **test** command for the PR's areas | Tests failed |
 | 2 | `checks / build` | Runs the configured **build** command for the PR's areas | The change doesn't build |
 | 3 | `checks / ql-pipeline` | AI review, verdict, and merge / fix / block | The PR was blocked, or a fix was pushed |
+| 4 | `checks / preview` | On a green verdict, brings the PR's devops stack up on the preview host | The stack could not be brought up |
+| 5 | `checks / preview-tester` | Drives the task's `MCP Cases` against that stack | A blocker case failed, or the MCP server was unreachable |
 
 The `checks /` prefix is your calling job's id — rename the job and the prefix changes with it. Those exact strings are what you enter in branch protection.
 
@@ -346,3 +348,43 @@ e.g. `.github/pipeline-rules/backend.rules`. If present, it **fully replaces** q
 - **Ignore your build output.** The pipeline runs your gate commands and then reviews the result, so make sure `node_modules/`, `dist/`, and similar build artifacts are in your `.gitignore`. They're excluded from fix commits either way — the fixer stages only the files the agent actually touched — but a clean ignore file keeps the review context clean too.
 - **The first run is the honest test.** Point it at a low-stakes branch first and watch one real PR through the whole loop before making its check required on a branch you care about.
 - **Auto-merge respects branch protection.** The pipeline merges through the normal API; if protection rejects the merge, the pipeline reports the failure rather than working around it.
+
+## 8. Previews
+
+On a repository that carries the preview environment contract folder (§4d), a **green** pull request — a MERGE verdict a person is about to judge — gets a live stack:
+
+1. `checks / ql-pipeline` sets a `deploy-preview` flag on an `awaiting-human` verdict. Only then: a red, blocked, merged, fork or unpreviewable PR gets no job and no comment. Advisory findings do not hold it back — they never block a merge, so they do not block the preview that lets you weigh them.
+2. `checks / preview` runs **on the self-hosted `ql-proxy` runner** and calls `ql-pipeline deploy-preview`: ql-proxy brings `infrastructure/docker/environments/devops/` up with `QL_TASK_FOLDER` set to the branch's task folder, so the database boots from that task's `seed.sql`; the application's MCP server is located on the host's container network and polled until it answers; one comment is posted with the URL, the access state, the minutes left and whether MCP answered.
+3. `checks / preview-tester` drives the task's `MCP Cases` sheet against that server and reports every failure in one comment.
+4. Closing the pull request runs `preview-teardown`, which tears the stack down at once. The host's reaper is the backstop.
+
+### What the repository needs
+
+- The devops folder, valid under §4d.
+- A **self-hosted runner** registered on the repository with the label `ql-proxy`, on the preview host — see ql-proxy's README, *Register the self-hosted runner*. Without one the `preview` job queues and never runs; set `preview.enabled: false` until it exists.
+- Two **repository variables** (Settings → Secrets and variables → Actions → Variables): `QL_PROXY_HOME`, the built ql-proxy checkout on that host, and optionally `QL_PROXY_CONFIG`, which `ql-proxy.yml` it reads.
+- `closed` in the caller's `pull_request.types`, so teardown fires. The scaffolded caller has it; add it by hand on an older one.
+
+### Configuration
+
+```yaml
+preview:
+  enabled: true              # default; off for a repo with the folder but no runner yet
+  ttl_minutes: 120           # requested lifetime; the host clamps it to its own ceiling
+  protect: true              # ask ql-proxy for the browser gate in front of the address
+  mcp:
+    service: backend         # the compose service that hosts the application's MCP server
+    port: 8080               # its container port
+    path: /mcp
+    ready_timeout_seconds: 180
+```
+
+The MCP server is reached over the host's container network and **is never publicly routed** — the address is not printed anywhere on the PR. ql-docs `workflow/flows/app-mcp-surface.md` is the standard the application side follows.
+
+### Two comments per preview
+
+ql-proxy's own `up` announces the address — *Preview: … Cloudflare Access will ask who you are* — as `github-actions[bot]`, and the pipeline posts its own summary. That is deliberate: ql-proxy's comment carries no automation marker, so it must arrive as the bot (which the pipeline's comment trigger declines) and not as the person `GH_TOKEN` belongs to, whose comments start another run.
+
+### The access token
+
+Until ql-proxy's browser gate lands, previews are not gated by a token and the summary says so: Cloudflare Access is the only lock. Once ql-proxy honours `--protect` on `up` and prints the token, the summary prints it beside the URL — in the clear, on purpose: it opens a demo of an unmerged branch on a throwaway stack and nothing else.

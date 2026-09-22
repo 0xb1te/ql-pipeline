@@ -49,6 +49,8 @@ signals:
     accepts: "{ endpoint, timeoutMs?, fetchImpl? }"
     returns: McpClient
     afferent:
+      - from: entrypoint.cli.deployPreviewCommand#deployPreview
+        via: di
       - from: entrypoint.cli.testPreviewCommand#runTestPreview
         via: direct-call
     efferent: []

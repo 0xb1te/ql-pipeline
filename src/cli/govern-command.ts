@@ -319,7 +319,7 @@ async function escalateToHuman(
  */
 // @signal runGovern
 export async function runGovern(reportsDir: string): Promise<void> {
-  const { config, pr, client, logger, consumerRoot } = createPipelineContext();
+  const { config, pr, client, logger, consumerRoot, runUrl } = createPipelineContext();
   const routing = await resolveRouting(client, pr, config);
 
   if (routing.kind === 'not-governed') {
@@ -639,6 +639,7 @@ export async function runGovern(reportsDir: string): Promise<void> {
       targetBranch,
       reviewRan,
       standardsCoverage,
+      runUrl,
       ...(promptCoverage !== undefined ? { promptCoverage } : {}),
     }),
   );

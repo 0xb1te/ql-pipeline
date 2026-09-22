@@ -215,7 +215,7 @@ async function escalateToHuman(client, pr, logger, reason, comment) {
  */
 // @signal runGovern
 export async function runGovern(reportsDir) {
-    const { config, pr, client, logger, consumerRoot } = createPipelineContext();
+    const { config, pr, client, logger, consumerRoot, runUrl } = createPipelineContext();
     const routing = await resolveRouting(client, pr, config);
     if (routing.kind === 'not-governed') {
         logger.info(`leaving this PR untouched: ${routing.reason}`);
@@ -456,6 +456,7 @@ export async function runGovern(reportsDir) {
         targetBranch,
         reviewRan,
         standardsCoverage,
+        runUrl,
         ...(promptCoverage !== undefined ? { promptCoverage } : {}),
     }));
     /**

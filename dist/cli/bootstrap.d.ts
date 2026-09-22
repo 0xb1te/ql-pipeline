@@ -1,6 +1,19 @@
 import { type GithubClient, type PullRequestInfo } from '../shared/github-client.js';
 import { type Logger } from '../shared/logger.js';
 import type { PipelineConfig, RouteDecision } from '../shared/types.js';
+/**
+ * The Actions run this process belongs to, as a URL, or null when it is not running in Actions.
+ *
+ * Pure in its argument so it can be tested without mutating the real environment, and read here
+ * because bootstrap is where this surface reads `process.env` at all.
+ *
+ * It is the only identity a governance run has that a reader can act on. `cursor-agent` is
+ * spawned with `--print --output-format json` and the runner keeps stdout, stderr and an exit
+ * code, so there is no session id to quote at anybody. The run page is also the only place a
+ * *cancelled* attempt is visible, and consumers set `concurrency.cancel-in-progress`, so a push
+ * silently ends a fix attempt that the summary comment has already announced.
+ */
+export declare function actionsRunUrl(env: Readonly<Record<string, string | undefined>>): string | null;
 export interface PipelineContext {
     readonly config: PipelineConfig;
     readonly pr: PullRequestInfo;
@@ -8,6 +21,8 @@ export interface PipelineContext {
     readonly logger: Logger;
     /** The repo under review — the process working directory in every job. */
     readonly consumerRoot: string;
+    /** The Actions run this job is part of, or null when it is not running in Actions. */
+    readonly runUrl: string | null;
 }
 /**
  * Everything every job needs before it can do anything: credentials,

@@ -1,0 +1,20 @@
+-- No fixtures required.
+--
+-- ql-pipeline is a CI tool with no database. This change reads three
+-- environment variables into a string and appends a paragraph to a generated
+-- Markdown comment; there is no persisted state for a fixture to establish.
+--
+-- What stands in for fixtures here is an environment record passed as an
+-- argument. `actionsRunUrl` takes `Readonly<Record<string, string | undefined>>`
+-- precisely so its cases -- a full Actions environment, a GitHub Enterprise
+-- server, an empty env, a partial env, an empty-string variable -- are ordinary
+-- test inputs rather than mutations of the real `process.env`. The fixtures of
+-- this task are environment shapes, not rows.
+--
+-- The MCP Cases sheet in testing-plan.xlsx is present and empty for the same
+-- reason as 043: this change alters no MCP tool, schema or return shape. See
+-- plan.md, "Explicitly out of scope".
+--
+-- The file is present because ql-docs workflow/flows/seed-data.md requires it
+-- of every task with no "not relevant here" exemption, and because ql-pipeline
+-- fails a pull request structurally when it is missing.

@@ -12,6 +12,7 @@ responsibility: >
 
 excludes:
   - Deciding what to do with the PR info or GithubClient once built - purely a builder for both
+  - Declaring the automation marker, which now lives in shared.core.types so that both halves of the loop guard can read it - this unit stamps it on every write path, and shared.core.humanDirection filters on it without having to import an Octokit-bearing module
 
 receptors: []
 
@@ -80,4 +81,4 @@ signals:
         via: direct-call
         because: every comment this pipeline writes has to be recognisable to the run that reads it next
 
-revision: 2026-09-21
+revision: 2026-09-22

@@ -17,3 +17,13 @@ Newest entries at the bottom.
   or workflows. It now runs before that guard, and `protectedPathsComment` carries its findings
   inside R4's own comment — because an escalation returns before the review and the verdict, so
   anything not in that one comment is reported nowhere at all.
+
+- `bugfixes/043-pipeline-reads-own-comments` — `humanComments` decided what counts as human
+  direction from `isBot` alone, so on any repository running as `secrets.GH_TOKEN` the pipeline's
+  own summary, complaint and thread replies came back as `type: 'User'` and were handed to the fix
+  agent as instructions from a person. The guard now also drops any body carrying
+  `AUTOMATION_MARKER`, which moved to `shared/types.ts` so both halves of the loop guard read one
+  constant — `github-client.ts` stamps it, `human-direction.ts` filters on it. Do not make the
+  second test key on the author instead: the operator comments from that same account, and
+  declining their direction is the failure `026` and `030` were both trying to avoid. Shipped in
+  `0.3.1`.

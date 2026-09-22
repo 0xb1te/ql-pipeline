@@ -1,5 +1,6 @@
 // @neuron shared.core.githubClient
 import { getOctokit } from '@actions/github';
+import { AUTOMATION_MARKER } from './types.js';
 /**
  * Where the workflow puts a PR it had to look up, because the event that
  * started the run did not carry one.
@@ -88,23 +89,6 @@ export function readPullRequestContext(context, env = process.env) {
         isFork,
     };
 }
-/**
- * Stamped into every comment this pipeline writes, so a later run can recognise its own voice.
- *
- * Identity cannot do this job. The workflow acts as `secrets.GH_TOKEN` when one is set, and that
- * token belongs to a person — the same person who comments on the pull request. Once `GH_TOKEN`
- * is configured, the pipeline's comments and the operator's are written by the *same GitHub
- * account*, so "was this written by a bot?" has no answer, and "was this written by me?" would
- * decline the operator's own direction along with the pipeline's chatter.
- *
- * What the two do not share is what they say. An HTML comment renders as nothing, survives
- * GitHub's Markdown untouched, and is carried in the webhook payload the trigger reads — so the
- * guard can ask the one question that still separates them.
- *
- * Without this, a `GH_TOKEN` that finally closes the fix loop also makes every verdict comment
- * start another run that writes another verdict comment, forever.
- */
-export const AUTOMATION_MARKER = '<!-- ql-pipeline:automated -->';
 /**
  * Appends the marker, unless it is already there.
  *

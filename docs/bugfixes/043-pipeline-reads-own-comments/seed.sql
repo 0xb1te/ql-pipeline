@@ -1,0 +1,20 @@
+-- No fixtures required.
+--
+-- ql-pipeline is a CI tool with no database. This change adds one term to a
+-- filter in a pure function and moves a string constant between two modules;
+-- there is no persisted state for a fixture to establish.
+--
+-- What stands in for fixtures here is the `pipelineSaid()` helper in
+-- tests/shared/human-direction.test.ts. It builds the input that matters --
+-- a comment authored by the operator's own account, `isBot: false`, carrying
+-- AUTOMATION_MARKER -- which is exactly the shape the old filter could not
+-- recognise and the shape no existing test had ever constructed. The fixtures
+-- of this task are comment shapes, not rows.
+--
+-- The MCP Cases sheet in testing-plan.xlsx is present and empty for the same
+-- reason: this change alters no MCP tool, schema or return shape. See plan.md,
+-- "Explicitly out of scope".
+--
+-- The file is present because ql-docs workflow/flows/seed-data.md requires it
+-- of every task with no "not relevant here" exemption, and because ql-pipeline
+-- fails a pull request structurally when it is missing.

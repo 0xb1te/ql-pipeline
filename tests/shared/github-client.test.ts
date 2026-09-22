@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  AUTOMATION_MARKER,
   readPullRequestContext,
   stampAutomated,
   type ActionsEventContext,
 } from '../../src/shared/github-client.js';
+import { AUTOMATION_MARKER } from '../../src/shared/types.js';
 
 function context(overrides: Partial<ActionsEventContext['payload']['pull_request']> = {}): ActionsEventContext {
   return {

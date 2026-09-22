@@ -10,7 +10,9 @@ responsibility: >
   everything the pipeline itself wrote removed.
 
 owns:
-  - Dropping bot comments, which is the loop guard and not tidiness - the pipeline comments on every run, and feeding those back would have it answering itself and, on a comment-triggered workflow, re-triggering on its own writing forever
+  - Dropping what the pipeline itself wrote, which is the loop guard and not tidiness - the pipeline comments on every run, and feeding those back would have it answering itself and, on a comment-triggered workflow, re-triggering on its own writing forever
+  - Asking two questions to do it, because the pipeline has two voices and neither test catches both - isBot catches github-actions[bot] where a repository runs on the default GITHUB_TOKEN, and the automation marker catches the rest, since with secrets.GH_TOKEN set the pipeline posts as the operator and GitHub reports its own comments as an ordinary user
+  - Keying that second test on what a comment says rather than on who wrote it, so the operator's real direction survives alongside the chatter written from the very same account
   - Returning the empty string when nobody has spoken, so a caller never renders a heading with nothing under it for an agent to explain
   - Oldest first, because a conversation reads forwards and a later instruction is meant to override an earlier one
   - Dropping the oldest when there is more than fits, since the most recent word is the one a person expects to be followed
@@ -19,7 +21,8 @@ owns:
 excludes:
   - Fetching anything - see shared.core.githubClient#listComments, which knows GitHub's two comment endpoints
   - Deciding what weight direction carries against a rule; the prompts say that, because it is a judgement the agent makes
-  - Detecting bots; the client asks GitHub for the author's type rather than guessing from a name
+  - Detecting bots; the client asks GitHub for the author's type rather than guessing from a name, and that answer is taken as given here - what this unit adds is the second test, because the author's type alone cannot separate the pipeline from the person whose token it runs as
+  - Stamping the marker; shared.core.githubClient#stampAutomated applies it on every write path, and this unit only reads it
 
 receptors: []
 effectors: []
@@ -27,8 +30,10 @@ effectors: []
 signals:
   - signal: humanComments
     intent: >
-      The comments a person actually wrote: bot authors and empty bodies removed. Separate from
-      formatting so the filter can be tested as the loop guard it is.
+      The comments a person actually wrote, with bot authors, anything carrying the automation
+      marker, and empty bodies removed. Separate from formatting so the filter can be tested as
+      the loop guard it is - and it needs to be, because for three releases it asked only about
+      the author and handed the fix agent the pipeline's own verdict as a person's instruction.
     accepts: readonly PrComment[]
     returns: readonly PrComment[]
     pure: true
@@ -54,5 +59,6 @@ signals:
 
 provenance:
   - docs/features/026-comments-as-direction/plan.md
+  - docs/bugfixes/043-pipeline-reads-own-comments/summary.md
 
-revision: 2026-09-19
+revision: 2026-09-22

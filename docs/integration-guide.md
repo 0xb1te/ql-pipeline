@@ -381,9 +381,9 @@ preview:
 
 The MCP server is reached over the host's container network and **is never publicly routed** — the address is not printed anywhere on the PR. ql-docs `workflow/flows/app-mcp-surface.md` is the standard the application side follows.
 
-### Two comments per preview
+### One comment per preview
 
-ql-proxy's own `up` announces the address — *Preview: … Cloudflare Access will ask who you are* — as `github-actions[bot]`, and the pipeline posts its own summary. That is deliberate: ql-proxy's comment carries no automation marker, so it must arrive as the bot (which the pipeline's comment trigger declines) and not as the person `GH_TOKEN` belongs to, whose comments start another run.
+The pipeline's summary is the only comment a preview gets. ql-proxy is told `--no-announce` (ql-proxy 0.2.0 or later on the preview host; 0.1.0 refuses the flag and the deploy fails loudly on the first run), and the ql-proxy child is handed no GitHub token.
 
 ### The access token
 

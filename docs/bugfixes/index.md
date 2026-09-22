@@ -65,3 +65,10 @@ Newest entries at the bottom.
   caller is this repository, the pinned input otherwise, and all four checkouts read that. Do not
   move the decision into `dogfood.yml` — `github.head_ref` is empty on both comment events, which
   run the default branch's copy of that file anyway. Shipped in `0.6.1`.
+
+- `bugfixes/052-two-comments-per-preview` — Every preview got two comments: ql-proxy's own
+  announce (posted as `github-actions[bot]` only because the deploy handed it `github.token`)
+  and the pipeline's summary. ql-proxy 0.2.0 added `up --no-announce`; the deploy now passes it,
+  `QL_PREVIEW_ANNOUNCE_TOKEN` and the `GH_TOKEN` mapping are gone, and the ql-proxy child holds no
+  GitHub token at all. `--pr` stays — teardown resolves the stack by it. Needs 0.2.0 on the host;
+  0.1.0 refuses the flag loudly on the first run. Shipped in `0.7.1`.

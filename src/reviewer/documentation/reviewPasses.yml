@@ -20,10 +20,18 @@ invariants:
 
 owns:
   - >
-    The dedupe key, which includes the rule id. The same defect can legitimately surface in two
-    passes because a layering mistake is visible from the architecture slice and from the quality
-    slice; but two different rules broken on one line are two findings, and a key of file:line
-    alone would silently swallow the second
+    The dedupe key, and the pass boundary that makes it work. Both halves of the old reasoning
+    were true and could not both be served by one flat key - the same defect legitimately
+    surfaces in two passes, because a layering mistake is visible from the architecture slice
+    and from the quality slice; yet two different rules broken on one line really are two
+    findings. Including the rule protected the second and sacrificed the first, and the passes
+    are what resolve it. A spot an EARLIER pass already anchored is a repeat and is dropped
+    whatever rule it cites; within ONE pass the rule still separates two findings, because a
+    pass naming two rules on one line is naming two things it actually saw
+  - >
+    Filling the anchor set only between passes, never during one. Filling it as each finding is
+    kept would make the two halves above collide again, silently swallowing a pass's own second
+    finding on a line - the exact failure the rule was originally in the key to prevent
 
 excludes:
   - Running a pass, or talking to any agent - callers own that
@@ -67,8 +75,12 @@ signals:
         because: packing by budget needs the rendered size of each document
 
   - signal: dedupeFindings
-    intent: Collapses findings gathered across passes, keyed on file, line and rule together.
-    accepts: findings
+    intent: >
+      Collapses the findings the passes came back with. Takes one list per pass rather than one
+      flat list, because the pass boundary is the only thing that separates a defect two passes
+      both saw from two defects one pass found on the same line. Keyed on file and line across
+      passes, and on file, line and rule within one.
+    accepts: passes
     returns: Finding[]
     pure: true
     afferent:
@@ -78,5 +90,6 @@ signals:
 
 provenance:
   - docs/017-sliced-review-passes/plan.md
+  - docs/bugfixes/045-one-defect-six-times/summary.md
 
-revision: 2026-09-19
+revision: 2026-09-22

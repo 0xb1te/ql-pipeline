@@ -31,4 +31,4 @@ export declare function planReviewPasses(standards: readonly ResolvedStandard[],
  * different rules broken on one line are two findings, and a key of
  * `file:line` alone would silently swallow the second.
  */
-export declare function dedupeFindings(findings: readonly Finding[]): Finding[];
+export declare function dedupeFindings(passes: readonly (readonly Finding[])[]): Finding[];
